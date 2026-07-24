@@ -1,14 +1,21 @@
 import Link from "next/link";
 import { cikisYap } from "@/app/auth-actions";
 import SifreDegistirForm from "@/components/SifreDegistirForm";
+import HizliAraForm from "@/components/HizliAraForm";
+import { prisma } from "@/lib/prisma";
 
 function bugunAy(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export default function AyarlarSayfasi() {
+export const dynamic = "force-dynamic";
+
+export default async function AyarlarSayfasi() {
   const ay = bugunAy();
+  const hizliAra = await prisma.ayar.findUnique({
+    where: { anahtar: "hizli_ara_telefon" },
+  });
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
@@ -20,6 +27,14 @@ export default function AyarlarSayfasi() {
       </div>
 
       <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d1">
+        <h2 className="font-display text-lg font-bold text-paper">Hızlı ara</h2>
+        <p className="text-sm text-fog">
+          Ana ekrandaki Ara butonu bu numarayı açar (eş, ortak, ofis…).
+        </p>
+        <HizliAraForm baslangic={hizliAra?.deger || ""} />
+      </section>
+
+      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d2">
         <h2 className="font-display text-lg font-bold text-paper">Excel döküm</h2>
         <p className="text-sm text-fog">
           Seçili ayın yük, gider ve özetini Excel olarak indir.
@@ -32,7 +47,7 @@ export default function AyarlarSayfasi() {
         </Link>
       </section>
 
-      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d2">
+      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d3">
         <h2 className="font-display text-lg font-bold text-paper">Yedekle</h2>
         <p className="text-sm text-fog">
           Tüm veritabanı + fiş fotoğrafları tek ZIP. Güvenli bir yere kaydet
@@ -43,12 +58,12 @@ export default function AyarlarSayfasi() {
         </a>
       </section>
 
-      <section className="kart-paper space-y-3 p-4 sm:p-5 reveal reveal-d3">
+      <section className="kart-paper space-y-3 p-4 sm:p-5 reveal reveal-d4">
         <h2 className="font-display text-lg font-bold text-ink">Şifre değiştir</h2>
         <SifreDegistirForm />
       </section>
 
-      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d4">
+      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d5">
         <h2 className="font-display text-lg font-bold text-paper">Oturum</h2>
         <form action={cikisYap}>
           <button type="submit" className="btn btn-ghost">

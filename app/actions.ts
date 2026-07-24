@@ -281,6 +281,37 @@ export async function muhasebeciNumaraKaydet(
   return null;
 }
 
+export async function hizliAraNumaraKaydet(
+  _oncekiDurum: FormSonuc,
+  formData: FormData
+): Promise<FormSonuc> {
+  let telefon = metinOku(formData.get("telefon")).replace(/[\s\-()]/g, "");
+  if (telefon.startsWith("00")) telefon = "+" + telefon.slice(2);
+  if (telefon.startsWith("0")) telefon = "+90" + telefon.slice(1);
+  if (!telefon.startsWith("+") && /^90\d{10}$/.test(telefon)) {
+    telefon = "+" + telefon;
+  }
+  if (!telefon.startsWith("+") && /^5\d{9}$/.test(telefon)) {
+    telefon = "+90" + telefon;
+  }
+
+  if (!/^\+\d{10,15}$/.test(telefon)) {
+    return {
+      hata: "Geçerli bir telefon girin. Örnek: 05XX XXX XX XX",
+    };
+  }
+
+  await prisma.ayar.upsert({
+    where: { anahtar: "hizli_ara_telefon" },
+    create: { anahtar: "hizli_ara_telefon", deger: telefon },
+    update: { deger: telefon },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/ayarlar");
+  return null;
+}
+
 export async function fisleriGonderildiIsaretle(idler: number[]): Promise<void> {
   if (idler.length === 0) return;
   await prisma.gider.updateMany({

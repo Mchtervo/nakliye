@@ -7,6 +7,8 @@ import SilButonu from "@/components/SilButonu";
 import OdendiButonu from "@/components/OdendiButonu";
 import OdemeGirForm from "@/components/OdemeGirForm";
 import ParaOzeti from "@/components/ParaOzeti";
+import AraButonu from "@/components/AraButonu";
+import { telefonGoster } from "@/lib/telefon";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +51,12 @@ export default async function FirmaDetaySayfasi({
         <h1 className="font-display mt-1 text-3xl font-extrabold text-paper sm:text-4xl">
           {firma.ad}
         </h1>
-        {firma.telefon && <p className="text-sm text-fog">{firma.telefon}</p>}
+        {firma.telefon && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="text-sm text-fog">{telefonGoster(firma.telefon)}</p>
+            <AraButonu telefon={firma.telefon} etiket="Ara" />
+          </div>
+        )}
       </div>
 
       <div className="kart space-y-3 p-4 reveal reveal-d1">
