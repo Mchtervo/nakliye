@@ -5,7 +5,7 @@ import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler
 import { giderSil } from "@/app/actions";
 import SilButonu from "@/components/SilButonu";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 export default async function GiderlerSayfasi() {
   const giderler = await prisma.gider.findMany({
@@ -205,12 +205,20 @@ export default async function GiderlerSayfasi() {
                         ? `Net ${tlYaz(gider.netTutar)} + KDV ${tlYaz(gider.kdvTutar)}`
                         : "KDV'siz"}
                     </div>
-                    <SilButonu
-                      onay={`${kategoriAdi(gider.kategori)} giderini (${tlYaz(
-                        gider.toplamTutar
-                      )}) silmek istediğine emin misin?`}
-                      sil={giderSil.bind(null, gider.id)}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/giderler/${gider.id}/duzenle`}
+                        className="rounded-lg border border-white/20 px-2.5 py-1.5 text-sm font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber"
+                      >
+                        Düzenle
+                      </Link>
+                      <SilButonu
+                        onay={`${kategoriAdi(gider.kategori)} giderini (${tlYaz(
+                          gider.toplamTutar
+                        )}) silmek istediğine emin misin?`}
+                        sil={giderSil.bind(null, gider.id)}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

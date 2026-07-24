@@ -6,13 +6,21 @@ import { kdvHesapla, tlKurusaCevir, tlGirisBicimle, tlYaz } from "@/lib/para";
 export default function TutarKdvGirisi({
   etiket = "Tutar",
   varsayilanKdvli = true,
+  baslangicTutar = "",
+  baslangicKdvli,
+  baslangicKdvDahilMi = true,
 }: {
   etiket?: string;
   varsayilanKdvli?: boolean;
+  baslangicTutar?: string;
+  baslangicKdvli?: boolean;
+  baslangicKdvDahilMi?: boolean;
 }) {
-  const [tutar, setTutar] = useState("");
-  const [kdvli, setKdvli] = useState(varsayilanKdvli);
-  const [kdvDahilMi, setKdvDahilMi] = useState(true);
+  const [tutar, setTutar] = useState(baslangicTutar);
+  const [kdvli, setKdvli] = useState(
+    baslangicKdvli !== undefined ? baslangicKdvli : varsayilanKdvli
+  );
+  const [kdvDahilMi, setKdvDahilMi] = useState(baslangicKdvDahilMi);
 
   const kurus = tlKurusaCevir(tutar);
   const hesap =

@@ -1,25 +1,49 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { giderEkle, type FormSonuc } from "@/app/actions";
+import { giderEkle, giderGuncelle, type FormSonuc } from "@/app/actions";
 import TutarKdvGirisi from "@/components/TutarKdvGirisi";
 import FisYukle from "@/components/FisYukle";
 import { GIDER_KATEGORILERI } from "@/lib/sabitler";
 
-export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
+export type GiderFormBaslangic = {
+  id: number;
+  tarih: string;
+  kategori: string;
+  aciklama: string;
+  tutarYazi: string;
+  kdvli: boolean;
+  kdvDahilMi: boolean;
+  litre: string;
+  km: string;
+  fisResmi: string | null;
+};
+
+export default function GiderForm({
+  bugunTarih,
+  baslangic,
+}: {
+  bugunTarih: string;
+  baslangic?: GiderFormBaslangic;
+}) {
+  const duzenle = Boolean(baslangic);
   const [durum, aksiyon, bekliyor] = useActionState<FormSonuc, FormData>(
-    giderEkle,
+    duzenle ? giderGuncelle : giderEkle,
     null
   );
-  const [kategori, setKategori] = useState("YAKIT");
+  const [kategori, setKategori] = useState(baslangic?.kategori || "YAKIT");
+  const [fisSil, setFisSil] = useState(false);
 
   const demirbas = kategori === "DEMIRBAS";
   const kredi = kategori === "KREDI_ODEME";
-  // Demirbaş: KDV'li (indirilecek KDV görünsün). Kredi: genelde KDV'siz.
-  const varsayilanKdvli = !kredi;
+  const varsayilanKdvli =
+    baslangic?.kdvli !== undefined ? baslangic.kdvli : !kredi;
 
   return (
     <form action={aksiyon} className="space-y-4" encType="multipart/form-data">
+      {baslangic && <input type="hidden" name="giderId" value={baslangic.id} />}
+      {fisSil && <input type="hidden" name="fisSil" value="1" />}
+
       <div>
         <label htmlFor="tarih" className="etiket">
           Tarih
@@ -29,7 +53,7 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
           name="tarih"
           type="date"
           required
-          defaultValue={bugunTarih}
+          defaultValue={baslangic?.tarih || bugunTarih}
           className="alan"
         />
       </div>
@@ -68,9 +92,12 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
       )}
 
       <TutarKdvGirisi
-        key={kategori}
+        key={`${kategori}-${baslangic?.id || "yeni"}`}
         etiket={demirbas ? "Alım tutarı" : kredi ? "Ödeme tutarı" : "Gider tutarı"}
         varsayilanKdvli={varsayilanKdvli}
+        baslangicTutar={baslangic?.tutarYazi || ""}
+        baslangicKdvli={baslangic?.kdvli}
+        baslangicKdvDahilMi={baslangic?.kdvDahilMi ?? true}
       />
 
       {kategori === "YAKIT" && (
@@ -85,6 +112,7 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
               type="text"
               inputMode="decimal"
               placeholder="Örnek: 350"
+              defaultValue={baslangic?.litre || ""}
               className="alan"
             />
           </div>
@@ -98,6 +126,7 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
               type="text"
               inputMode="numeric"
               placeholder="Örnek: 452000"
+              defaultValue={baslangic?.km || ""}
               className="alan"
             />
           </div>
@@ -119,18 +148,44 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
                 ? "Örnek: Garanti — tır kredisi 3. taksit"
                 : "Örnek: Opet - E5 üzeri"
           }
+          defaultValue={baslangic?.aciklama || ""}
           className="alan"
         />
       </div>
 
+      {baslangic?.fisResmi && !fisSil && (
+        <div className="space-y-2 rounded-xl border border-white/12 bg-white/4 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            Mevcut fatura / fiş
+          </div>
+          <a href={baslangic.fisResmi} target="_blank" rel="noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={baslangic.fisResmi}
+              alt="Mevcut fiş"
+              className="max-h-40 w-full rounded-lg object-contain bg-black/30"
+            />
+          </a>
+          <button
+            type="button"
+            onClick={() => setFisSil(true)}
+            className="text-sm font-semibold text-ember hover:underline"
+          >
+            Bu fişi kaldır
+          </button>
+        </div>
+      )}
+
       <FisYukle
         vurgulu={demirbas || kredi}
         baslik={
-          demirbas
-            ? "Fatura fotoğrafı (önerilir)"
-            : kredi
-              ? "Dekont / makbuz fotoğrafı"
-              : "Fatura / fiş fotoğrafı"
+          baslangic?.fisResmi && !fisSil
+            ? "Yeni fatura / fiş (değiştirmek için)"
+            : demirbas
+              ? "Fatura fotoğrafı (önerilir)"
+              : kredi
+                ? "Dekont / makbuz fotoğrafı"
+                : "Fatura / fiş fotoğrafı"
         }
         aciklama={
           demirbas
@@ -146,7 +201,11 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
       )}
 
       <button type="submit" disabled={bekliyor} className="btn btn-amber btn-block">
-        {bekliyor ? "Kaydediliyor..." : "Gideri Kaydet"}
+        {bekliyor
+          ? "Kaydediliyor..."
+          : duzenle
+            ? "Değişiklikleri Kaydet"
+            : "Gideri Kaydet"}
       </button>
     </form>
   );

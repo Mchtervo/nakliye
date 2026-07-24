@@ -93,6 +93,73 @@ export async function yukEkle(
   redirect("/yukler");
 }
 
+export async function yukGuncelle(
+  _oncekiDurum: FormSonuc,
+  formData: FormData
+): Promise<FormSonuc> {
+  const id = Number(metinOku(formData.get("yukId")));
+  if (!Number.isInteger(id) || id <= 0) return { hata: "Geçersiz yük." };
+
+  const mevcut = await prisma.yuk.findUnique({
+    where: { id },
+    include: { odemeler: true },
+  });
+  if (!mevcut) return { hata: "Yük bulunamadı." };
+
+  const tarih = tarihOku(formData.get("tarih"));
+  if (!tarih) return { hata: "Geçerli bir tarih seçin." };
+
+  const nereden = metinOku(formData.get("nereden"));
+  const nereye = metinOku(formData.get("nereye"));
+  if (!nereden || !nereye) return { hata: "Nereden ve nereye alanları boş olamaz." };
+
+  const tutarKurus = tlKurusaCevir(metinOku(formData.get("tutar")));
+  if (tutarKurus === null || tutarKurus <= 0) {
+    return { hata: "Geçerli bir tutar girin (örnek: 12.000 veya 12.000,50)." };
+  }
+
+  const kdvli = formData.get("kdvli") === "1";
+  const kdvDahilMi = formData.get("kdvDahilMi") === "1";
+
+  const firmaSonuc = await firmaBulVeyaOlustur(
+    metinOku(formData.get("firmaId")),
+    metinOku(formData.get("yeniFirmaAdi"))
+  );
+  if ("hata" in firmaSonuc) return firmaSonuc;
+
+  const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
+  const odenen = mevcut.odemeler.reduce((t, o) => t + o.tutar, 0);
+  let odemeDurumu: string;
+  if (odenen <= 0) odemeDurumu = "BEKLIYOR";
+  else if (odenen >= toplamTutar) odemeDurumu = "ODENDI";
+  else odemeDurumu = "KISMI";
+
+  await prisma.yuk.update({
+    where: { id },
+    data: {
+      tarih,
+      firmaId: firmaSonuc.id,
+      nereden,
+      nereye,
+      aciklama: metinOku(formData.get("aciklama")) || null,
+      kdvli,
+      kdvDahilMi,
+      netTutar,
+      kdvTutar,
+      toplamTutar,
+      odemeDurumu,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/yukler");
+  revalidatePath("/firmalar");
+  revalidatePath(`/firmalar/${firmaSonuc.id}`);
+  revalidatePath(`/firmalar/${mevcut.firmaId}`);
+  revalidatePath("/raporlar");
+  redirect("/yukler");
+}
+
 export async function yukSil(id: number): Promise<void> {
   const yuk = await prisma.yuk.findUnique({ where: { id } });
   if (!yuk) return;
@@ -229,6 +296,88 @@ export async function giderEkle(
       litre,
       km,
       fisResmi: fisSonuc?.yol ?? null,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/giderler");
+  revalidatePath("/muhasebeci");
+  revalidatePath("/raporlar");
+  redirect("/giderler");
+}
+
+export async function giderGuncelle(
+  _oncekiDurum: FormSonuc,
+  formData: FormData
+): Promise<FormSonuc> {
+  const id = Number(metinOku(formData.get("giderId")));
+  if (!Number.isInteger(id) || id <= 0) return { hata: "Geçersiz gider." };
+
+  const mevcut = await prisma.gider.findUnique({ where: { id } });
+  if (!mevcut) return { hata: "Gider bulunamadı." };
+
+  const tarih = tarihOku(formData.get("tarih"));
+  if (!tarih) return { hata: "Geçerli bir tarih seçin." };
+
+  const kategori = metinOku(formData.get("kategori"));
+  if (!GIDER_KATEGORILERI.some((k) => k.kod === kategori)) {
+    return { hata: "Geçerli bir kategori seçin." };
+  }
+
+  const tutarKurus = tlKurusaCevir(metinOku(formData.get("tutar")));
+  if (tutarKurus === null || tutarKurus <= 0) {
+    return { hata: "Geçerli bir tutar girin (örnek: 4.500 veya 4.500,75)." };
+  }
+
+  const kdvli = formData.get("kdvli") === "1";
+  const kdvDahilMi = formData.get("kdvDahilMi") === "1";
+  const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
+
+  const litreHam = metinOku(formData.get("litre"));
+  const litre = litreHam ? Number(litreHam.replace(",", ".")) : null;
+  if (litre !== null && (!Number.isFinite(litre) || litre <= 0)) {
+    return { hata: "Litre değeri geçersiz." };
+  }
+
+  const kmHam = metinOku(formData.get("km"));
+  const km = kmHam ? Number(kmHam) : null;
+  if (km !== null && (!Number.isInteger(km) || km <= 0)) {
+    return { hata: "Km değeri geçersiz (tam sayı olmalı)." };
+  }
+
+  const fisSilinsin = formData.get("fisSil") === "1";
+  const fisHam = formData.get("fisResmi");
+  const fisDosya = fisHam instanceof File ? fisHam : null;
+  let fisResmi = mevcut.fisResmi;
+
+  if (fisSilinsin && !fisDosya) {
+    await fisSil(mevcut.fisResmi);
+    fisResmi = null;
+  }
+
+  if (fisDosya && fisDosya.size > 0) {
+    const fisSonuc = await fisKaydet(fisDosya);
+    if (fisSonuc && "hata" in fisSonuc) return fisSonuc;
+    if (fisSonuc?.yol) {
+      await fisSil(mevcut.fisResmi);
+      fisResmi = fisSonuc.yol;
+    }
+  }
+
+  await prisma.gider.update({
+    where: { id },
+    data: {
+      tarih,
+      kategori,
+      aciklama: metinOku(formData.get("aciklama")) || null,
+      kdvli,
+      kdvDahilMi,
+      netTutar,
+      kdvTutar,
+      toplamTutar,
+      litre,
+      km,
+      fisResmi,
     },
   });
 

@@ -4,7 +4,7 @@ import { tlYaz } from "@/lib/para";
 import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
 import { ayAraligi } from "@/lib/tarih";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 function ayEtiket(yil: number, ay: number): string {
   return new Intl.DateTimeFormat("tr-TR", {

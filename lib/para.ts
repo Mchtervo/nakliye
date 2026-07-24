@@ -115,6 +115,15 @@ export function tlGirisBicimle(girdi: string): string {
   return `${bicimliTam},${ondalik}`;
 }
 
+/** Kuruşu input alanına yazılacak Türkçe biçime çevirir. */
+export function kurustanGiris(kurus: number): string {
+  const tam = Math.trunc(kurus / 100);
+  const kurusKisim = Math.abs(kurus % 100);
+  const tamYazi = tlGirisBicimle(String(Math.abs(tam)));
+  if (kurusKisim === 0) return tamYazi;
+  return `${tamYazi},${String(kurusKisim).padStart(2, "0")}`;
+}
+
 /** Kuruşu ondalıksız kısa biçimde yazar: "12.000 ₺" (tam TL ise) */
 export function tlYazKisa(kurus: number): string {
   if (kurus % 100 === 0) {

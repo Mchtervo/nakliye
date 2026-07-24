@@ -7,7 +7,7 @@ import OdendiButonu from "@/components/OdendiButonu";
 import OdemeGirForm from "@/components/OdemeGirForm";
 import ParaOzeti from "@/components/ParaOzeti";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 function DurumRozeti({ odenen, kalan }: { odenen: number; kalan: number }) {
   if (kalan <= 0) {
@@ -96,6 +96,12 @@ export default async function YuklerSayfasi() {
                 </div>
 
                 <div className="flex flex-wrap items-start justify-end gap-2 border-t border-white/10 pt-3">
+                  <Link
+                    href={`/yukler/${yuk.id}/duzenle`}
+                    className="rounded-lg border border-white/20 px-2.5 py-1.5 text-sm font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber"
+                  >
+                    Düzenle
+                  </Link>
                   {kalan > 0 && (
                     <>
                       <OdemeGirForm

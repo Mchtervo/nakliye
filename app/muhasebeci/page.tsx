@@ -5,7 +5,7 @@ import { ayAraligi } from "@/lib/tarih";
 import MuhasebeciPaneli from "@/components/MuhasebeciPaneli";
 import Link from "next/link";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 function ayEtiketYaz(yil: number, ay: number): string {
   return new Intl.DateTimeFormat("tr-TR", {
