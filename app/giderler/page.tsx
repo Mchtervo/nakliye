@@ -14,6 +14,9 @@ export default async function GiderlerSayfasi() {
 
   const genelToplam = giderler.reduce((t, g) => t + g.toplamTutar, 0);
   const genelKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
+  const demirbaslar = giderler.filter((g) => g.kategori === "DEMIRBAS");
+  const demirbasToplam = demirbaslar.reduce((t, g) => t + g.toplamTutar, 0);
+  const demirbasKdv = demirbaslar.reduce((t, g) => t + g.kdvTutar, 0);
 
   const kategoriToplamlari = GIDER_KATEGORILERI.map((k) => {
     const satirlar = giderler.filter((g) => g.kategori === k.kod);
@@ -99,6 +102,32 @@ export default async function GiderlerSayfasi() {
         </section>
       )}
 
+      {demirbaslar.length > 0 && (
+        <section className="kart space-y-2 border-amber/20 p-4 sm:p-5 reveal reveal-d2">
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber">
+            Demirbaş özeti
+          </div>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="font-display text-2xl font-extrabold text-paper">
+                {tlYaz(demirbasToplam)}
+              </div>
+              <div className="text-xs text-fog">
+                {demirbaslar.length} alım · gider olarak işlendi
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-fog">
+                İndirilecek KDV
+              </div>
+              <div className="font-display text-xl font-extrabold text-amber">
+                {tlYaz(demirbasKdv)}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {giderler.length === 0 ? (
         <div className="bos-durum">
           Henüz gider kaydı yok. &quot;Yeni Gider&quot; ile ilk giderini ekle.
@@ -155,6 +184,12 @@ export default async function GiderlerSayfasi() {
                       {tlYaz(gider.toplamTutar)}
                     </div>
                   </div>
+
+                  {gider.kategori === "DEMIRBAS" && gider.kdvTutar > 0 && (
+                    <div className="mt-2 rounded-lg border border-amber/20 bg-amber/10 px-2.5 py-1.5 text-sm font-semibold text-amber">
+                      KDV {tlYaz(gider.kdvTutar)} · Net {tlYaz(gider.netTutar)}
+                    </div>
+                  )}
 
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3">
                     <div className="text-sm text-fog">

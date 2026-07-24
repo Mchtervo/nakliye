@@ -3,9 +3,15 @@
 import { useState } from "react";
 import { kdvHesapla, tlKurusaCevir, tlYaz } from "@/lib/para";
 
-export default function TutarKdvGirisi({ etiket = "Tutar" }: { etiket?: string }) {
+export default function TutarKdvGirisi({
+  etiket = "Tutar",
+  varsayilanKdvli = true,
+}: {
+  etiket?: string;
+  varsayilanKdvli?: boolean;
+}) {
   const [tutar, setTutar] = useState("");
-  const [kdvli, setKdvli] = useState(true);
+  const [kdvli, setKdvli] = useState(varsayilanKdvli);
   const [kdvDahilMi, setKdvDahilMi] = useState(true);
 
   const kurus = tlKurusaCevir(tutar);

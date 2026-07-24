@@ -6,6 +6,8 @@ export const GIDER_KATEGORILERI = [
   { kod: "SIGORTA", ad: "Sigorta / Kasko" },
   { kod: "VERGI", ad: "Vergi / Harç" },
   { kod: "YEMEK", ad: "Yemek / Konaklama" },
+  { kod: "DEMIRBAS", ad: "Demirbaş (tır, dorse, ekipman)" },
+  { kod: "KREDI_ODEME", ad: "Kredi ödemesi" },
   { kod: "DIGER", ad: "Diğer" },
 ] as const;
 

@@ -13,6 +13,11 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
   );
   const [kategori, setKategori] = useState("YAKIT");
 
+  const demirbas = kategori === "DEMIRBAS";
+  const kredi = kategori === "KREDI_ODEME";
+  // Demirbaş: KDV'li (indirilecek KDV görünsün). Kredi: genelde KDV'siz.
+  const varsayilanKdvli = !kredi;
+
   return (
     <form action={aksiyon} className="space-y-4" encType="multipart/form-data">
       <div>
@@ -49,7 +54,24 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
         </select>
       </div>
 
-      <TutarKdvGirisi etiket="Gider tutarı" />
+      {demirbas && (
+        <div className="rounded-xl border border-amber/25 bg-amber/10 px-3 py-2.5 text-sm text-paper">
+          Tır, dorse, ekipman gibi alımlar buraya. Gider olarak kaydolur;
+          fatura KDV&apos;si ayrıca görünür (muhasebe için).
+        </div>
+      )}
+      {kredi && (
+        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-fog">
+          Banka / finansman taksit ödemesi. Genelde KDV&apos;sizdir; gerekirse
+          aşağıdan KDV&apos;li seçebilirsin.
+        </div>
+      )}
+
+      <TutarKdvGirisi
+        key={kategori}
+        etiket={demirbas ? "Alım tutarı" : kredi ? "Ödeme tutarı" : "Gider tutarı"}
+        varsayilanKdvli={varsayilanKdvli}
+      />
 
       {kategori === "YAKIT" && (
         <div className="grid grid-cols-2 gap-3 reveal">
@@ -84,13 +106,19 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
 
       <div>
         <label htmlFor="aciklama" className="etiket">
-          Açıklama (isteğe bağlı)
+          Açıklama {demirbas ? "(ör. plaka / model)" : "(isteğe bağlı)"}
         </label>
         <input
           id="aciklama"
           name="aciklama"
           type="text"
-          placeholder="Örnek: Opet - E5 üzeri"
+          placeholder={
+            demirbas
+              ? "Örnek: 2020 Mercedes Actros · 34 ABC 123"
+              : kredi
+                ? "Örnek: Garanti — tır kredisi 3. taksit"
+                : "Örnek: Opet - E5 üzeri"
+          }
           className="alan"
         />
       </div>
