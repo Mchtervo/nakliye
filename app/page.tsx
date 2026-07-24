@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz } from "@/lib/para";
 import { isletmeGideriMi } from "@/lib/sabitler";
+import { telefonGoster } from "@/lib/telefon";
+import AraButonu from "@/components/AraButonu";
 
 export const dynamic = "force-dynamic";
 
@@ -47,18 +49,24 @@ export default async function PanelSayfasi() {
   const ayBasi = new Date(simdi.getFullYear(), simdi.getMonth(), 1);
   const sonrakiAyBasi = new Date(simdi.getFullYear(), simdi.getMonth() + 1, 1);
 
-  const [yukler, giderler, bekleyenYukler] = await Promise.all([
-    prisma.yuk.findMany({
-      where: { tarih: { gte: ayBasi, lt: sonrakiAyBasi } },
-    }),
-    prisma.gider.findMany({
-      where: { tarih: { gte: ayBasi, lt: sonrakiAyBasi } },
-    }),
-    prisma.yuk.findMany({
-      where: { odemeDurumu: { not: "ODENDI" } },
-      include: { odemeler: true, firma: true },
-    }),
-  ]);
+  const [yukler, giderler, bekleyenYukler, hizliAraAyar, muhasebeciAyar] =
+    await Promise.all([
+      prisma.yuk.findMany({
+        where: { tarih: { gte: ayBasi, lt: sonrakiAyBasi } },
+      }),
+      prisma.gider.findMany({
+        where: { tarih: { gte: ayBasi, lt: sonrakiAyBasi } },
+      }),
+      prisma.yuk.findMany({
+        where: { odemeDurumu: { not: "ODENDI" } },
+        include: { odemeler: true, firma: true },
+      }),
+      prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
+      prisma.ayar.findUnique({ where: { anahtar: "muhasebeci_telefon" } }),
+    ]);
+
+  const hizliAraTel = hizliAraAyar?.deger || "";
+  const muhasebeciTel = muhasebeciAyar?.deger || "";
 
   const gelirToplam = yukler.reduce((t, y) => t + y.toplamTutar, 0);
   const gelirNet = yukler.reduce((t, y) => t + y.netTutar, 0);
@@ -75,7 +83,10 @@ export default async function PanelSayfasi() {
     return t + Math.max(0, y.toplamTutar - odenen);
   }, 0);
 
-  const firmaAlacakMap = new Map<number, { id: number; ad: string; kalan: number }>();
+  const firmaAlacakMap = new Map<
+    number,
+    { id: number; ad: string; kalan: number; telefon: string | null }
+  >();
   for (const y of bekleyenYukler) {
     const odenen = y.odemeler.reduce((o, p) => o + p.tutar, 0);
     const kalan = Math.max(0, y.toplamTutar - odenen);
@@ -88,6 +99,7 @@ export default async function PanelSayfasi() {
         id: y.firmaId,
         ad: y.firma.ad,
         kalan,
+        telefon: y.firma.telefon,
       });
     }
   }
@@ -147,6 +159,43 @@ export default async function PanelSayfasi() {
               </Link>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="kart space-y-3 border-teal/25 p-4 sm:p-5 reveal reveal-d1">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal">
+              Hızlı ara
+            </div>
+            <h2 className="font-display text-xl font-bold text-paper">Tek tıkla ara</h2>
+            <p className="mt-1 text-sm text-fog">
+              Mobilde telefon açılır, bilgisayarda arama menüsü gelir.
+            </p>
+          </div>
+          <Link href="/ayarlar" className="text-sm font-semibold text-fog hover:text-amber">
+            Numara ayarla →
+          </Link>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {hizliAraTel ? (
+            <AraButonu
+              telefon={hizliAraTel}
+              etiket={`Ara · ${telefonGoster(hizliAraTel)}`}
+              buyuk
+            />
+          ) : (
+            <Link href="/ayarlar" className="btn btn-ghost">
+              Önce hızlı ara numarası kaydet
+            </Link>
+          )}
+          {muhasebeciTel && (
+            <AraButonu
+              telefon={muhasebeciTel}
+              etiket={`Muhasebeci · ${telefonGoster(muhasebeciTel)}`}
+              buyuk
+            />
+          )}
         </div>
       </section>
 
@@ -217,16 +266,22 @@ export default async function PanelSayfasi() {
           </div>
           <ul className="divide-y divide-white/8">
             {firmaAlacaklari.map((f) => (
-              <li key={f.id}>
+              <li
+                key={f.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-3"
+              >
                 <Link
                   href={`/firmalar/${f.id}`}
-                  className="flex items-center justify-between gap-3 py-3 transition-colors hover:text-amber"
+                  className="min-w-0 flex-1 font-medium text-paper transition-colors hover:text-amber"
                 >
-                  <span className="font-medium text-paper">{f.ad}</span>
+                  {f.ad}
+                </Link>
+                <div className="flex items-center gap-2">
+                  {f.telefon && <AraButonu telefon={f.telefon} etiket="Ara" />}
                   <span className="font-display font-extrabold text-amber">
                     {tlYaz(f.kalan)} kaldı
                   </span>
-                </Link>
+                </div>
               </li>
             ))}
           </ul>
