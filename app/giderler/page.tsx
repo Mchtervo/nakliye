@@ -5,7 +5,7 @@ import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler
 import { giderSil } from "@/app/actions";
 import SilButonu from "@/components/SilButonu";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function GiderlerSayfasi() {
   const giderler = await prisma.gider.findMany({

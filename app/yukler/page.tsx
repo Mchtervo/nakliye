@@ -7,7 +7,7 @@ import OdendiButonu from "@/components/OdendiButonu";
 import OdemeGirForm from "@/components/OdemeGirForm";
 import ParaOzeti from "@/components/ParaOzeti";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 function DurumRozeti({ odenen, kalan }: { odenen: number; kalan: number }) {
   if (kalan <= 0) {

@@ -10,7 +10,7 @@ import ParaOzeti from "@/components/ParaOzeti";
 import AraButonu from "@/components/AraButonu";
 import { telefonGoster } from "@/lib/telefon";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function FirmaDetaySayfasi({
   params,

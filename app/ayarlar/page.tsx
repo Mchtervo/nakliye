@@ -9,7 +9,7 @@ function bugunAy(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function AyarlarSayfasi() {
   const ay = bugunAy();

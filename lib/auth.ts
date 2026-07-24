@@ -13,7 +13,6 @@ function toBase64Url(buf: ArrayBuffer | Uint8Array): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
   let s = "";
   for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]!);
-  // btoa tarayıcı/edge'de var; Node middleware polyfill'inde de var
   const b64 =
     typeof btoa === "function"
       ? btoa(s)
@@ -21,16 +20,28 @@ function toBase64Url(buf: ArrayBuffer | Uint8Array): string {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-async function hmac(govde: string): Promise<string> {
+let hmacAnahtar: CryptoKey | null = null;
+
+async function hmacAnahtari(): Promise<CryptoKey> {
+  if (hmacAnahtar) return hmacAnahtar;
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
+  hmacAnahtar = await crypto.subtle.importKey(
     "raw",
     enc.encode(secret()),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
-  const imza = await crypto.subtle.sign("HMAC", key, enc.encode(govde));
+  return hmacAnahtar;
+}
+
+async function hmac(govde: string): Promise<string> {
+  const key = await hmacAnahtari();
+  const imza = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(govde)
+  );
   return toBase64Url(imza);
 }
 

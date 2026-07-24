@@ -3,6 +3,7 @@ import { Barlow_Condensed, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import PwaKayit from "@/components/PwaKayit";
+import GezinmeIlerleme from "@/components/GezinmeIlerleme";
 
 const display = Barlow_Condensed({
   variable: "--font-display",
@@ -49,6 +50,7 @@ export default function RootLayout({
   return (
     <html lang="tr" className={`${display.variable} ${body.variable} h-full antialiased`}>
       <body className="min-h-full">
+        <GezinmeIlerleme />
         <div className="app-shell">
           <Nav />
           <main className="app-main">

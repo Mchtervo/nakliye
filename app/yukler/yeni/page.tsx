@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import YukForm from "@/components/YukForm";
 import { bugunTarihStr } from "@/lib/tarih";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function YeniYukSayfasi() {
   const firmalar = await prisma.firma.findMany({

@@ -1,5 +1,5 @@
 /* Nakliye Defteri — sadece statik kabuk; sayfa/API cache'lenmez */
-const CACHE = "nd-v2";
+const CACHE = "nd-v3";
 const SHELL = ["/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

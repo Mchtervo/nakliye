@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz } from "@/lib/para";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function FirmalarSayfasi() {
   const firmalar = await prisma.firma.findMany({

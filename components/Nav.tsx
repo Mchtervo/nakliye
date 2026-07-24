@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NavLink from "@/components/NavLink";
 
 const LINKLER = [
   {
@@ -99,7 +100,7 @@ export default function Nav() {
           {LINKLER.map((l) => {
             const aktif = aktifMi(l.href);
             return (
-              <Link
+              <NavLink
                 key={l.href}
                 href={l.href}
                 className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
@@ -113,7 +114,7 @@ export default function Nav() {
                 )}
                 <span className={aktif ? "text-amber" : ""}>{l.ikon}</span>
                 {l.ad}
-              </Link>
+              </NavLink>
             );
           })}
           <Link
@@ -188,7 +189,7 @@ export default function Nav() {
           {LINKLER.map((l) => {
             const aktif = aktifMi(l.href);
             return (
-              <Link
+              <NavLink
                 key={l.href}
                 href={l.href}
                 className={`relative flex flex-col items-center gap-0.5 rounded-xl py-2 text-[10px] font-semibold transition-all ${
@@ -200,7 +201,7 @@ export default function Nav() {
                 )}
                 {l.ikon}
                 {l.ad}
-              </Link>
+              </NavLink>
             );
           })}
         </div>

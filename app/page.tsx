@@ -6,7 +6,7 @@ import { telefonGoster } from "@/lib/telefon";
 import AraButonu from "@/components/AraButonu";
 import AnaEkranaEkle from "@/components/AnaEkranaEkle";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 function Metrik({
   baslik,
