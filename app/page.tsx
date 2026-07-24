@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz } from "@/lib/para";
+import { isletmeGideriMi } from "@/lib/sabitler";
 
 export const dynamic = "force-dynamic";
 
@@ -62,8 +63,9 @@ export default async function PanelSayfasi() {
   const gelirToplam = yukler.reduce((t, y) => t + y.toplamTutar, 0);
   const gelirNet = yukler.reduce((t, y) => t + y.netTutar, 0);
   const toplananKdv = yukler.reduce((t, y) => t + y.kdvTutar, 0);
-  const giderToplam = giderler.reduce((t, g) => t + g.toplamTutar, 0);
-  const giderNet = giderler.reduce((t, g) => t + g.netTutar, 0);
+  const isletmeGiderleri = giderler.filter((g) => isletmeGideriMi(g.kategori));
+  const giderToplam = isletmeGiderleri.reduce((t, g) => t + g.toplamTutar, 0);
+  const giderNet = isletmeGiderleri.reduce((t, g) => t + g.netTutar, 0);
   const odenenKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
   const netKar = gelirNet - giderNet;
   const kdvFarki = toplananKdv - odenenKdv;
@@ -159,7 +161,7 @@ export default async function PanelSayfasi() {
         <Metrik
           baslik="Bu ay gider"
           deger={tlYaz(giderToplam)}
-          alt={`${giderler.length} gider kaydı`}
+          alt={`${isletmeGiderleri.length} işletme gideri`}
           ton="ember"
           delay="reveal-d2"
         />

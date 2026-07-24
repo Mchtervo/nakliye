@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { kdvHesapla, tlKurusaCevir, tlYaz } from "@/lib/para";
+import { kdvHesapla, tlKurusaCevir, tlGirisBicimle, tlYaz } from "@/lib/para";
 
 export default function TutarKdvGirisi({
   etiket = "Tutar",
@@ -30,14 +30,19 @@ export default function TutarKdvGirisi({
           type="text"
           inputMode="decimal"
           required
-          placeholder="Örnek: 12.000 veya 12.000,50"
+          placeholder="Örnek: 1.670.000 veya 12.000,50"
           value={tutar}
-          onChange={(e) => setTutar(e.target.value)}
+          onChange={(e) => setTutar(tlGirisBicimle(e.target.value))}
           className="alan font-display text-xl font-bold"
         />
+        {kurus !== null && kurus > 0 && (
+          <p className="mt-1.5 text-sm font-semibold text-amber">
+            Girilen: {tlYaz(kurus)}
+          </p>
+        )}
         {tutar.trim() !== "" && kurus === null && (
           <p className="mt-1.5 text-sm font-medium text-ember">
-            Tutar anlaşılamadı. Örnek: 12.000 veya 12.000,50
+            Tutar anlaşılamadı. Örnek: 1.670.000 veya 12.000,50
           </p>
         )}
       </div>

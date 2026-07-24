@@ -56,8 +56,8 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
 
       {demirbas && (
         <div className="rounded-xl border border-amber/25 bg-amber/10 px-3 py-2.5 text-sm text-paper">
-          Tır, dorse, ekipman gibi alımlar buraya. Gider olarak kaydolur;
-          fatura KDV&apos;si ayrıca görünür (muhasebe için).
+          Tır / dorse / ekipman alımı. <strong>İşletme giderine yazılmaz</strong>,
+          ama fatura KDV&apos;si panoya yansır. Açıklamaya plaka / model yaz.
         </div>
       )}
       {kredi && (

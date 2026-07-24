@@ -11,6 +11,15 @@ export const GIDER_KATEGORILERI = [
   { kod: "DIGER", ad: "Diğer" },
 ] as const;
 
+/** Demirbaş işletme gideri sayılmaz; KDV yine takip edilir. */
+export function demirbasMi(kod: string): boolean {
+  return kod === "DEMIRBAS";
+}
+
+export function isletmeGideriMi(kod: string): boolean {
+  return !demirbasMi(kod);
+}
+
 export function kategoriAdi(kod: string): string {
   return GIDER_KATEGORILERI.find((k) => k.kod === kod)?.ad ?? kod;
 }

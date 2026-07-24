@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz } from "@/lib/para";
-import { kategoriAdi, GIDER_KATEGORILERI } from "@/lib/sabitler";
+import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
 import { ayAraligi } from "@/lib/tarih";
 
 export const dynamic = "force-dynamic";
@@ -70,9 +70,13 @@ export default async function RaporlarSayfasi({
   const gelirToplam = yukler.reduce((t, y) => t + y.toplamTutar, 0);
   const gelirNet = yukler.reduce((t, y) => t + y.netTutar, 0);
   const toplananKdv = yukler.reduce((t, y) => t + y.kdvTutar, 0);
-  const giderToplam = giderler.reduce((t, g) => t + g.toplamTutar, 0);
-  const giderNet = giderler.reduce((t, g) => t + g.netTutar, 0);
+  const isletmeGiderleri = giderler.filter((g) => isletmeGideriMi(g.kategori));
+  const giderToplam = isletmeGiderleri.reduce((t, g) => t + g.toplamTutar, 0);
+  const giderNet = isletmeGiderleri.reduce((t, g) => t + g.netTutar, 0);
   const odenenKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
+  const demirbasKdv = giderler
+    .filter((g) => g.kategori === "DEMIRBAS")
+    .reduce((t, g) => t + g.kdvTutar, 0);
   const netKar = gelirNet - giderNet;
   const maxGelirGider = Math.max(gelirToplam, giderToplam, 1);
 
@@ -86,7 +90,7 @@ export default async function RaporlarSayfasi({
     .sort((a, b) => b.tutar - a.tutar);
   const maxFirma = firmaSirasi[0]?.tutar || 1;
 
-  // Kategori bazlı gider
+  // Kategori bazlı gider (demirbaş ayrı satırda kalabilir)
   const katMap = new Map<string, number>();
   for (const g of giderler) {
     katMap.set(g.kategori, (katMap.get(g.kategori) || 0) + g.toplamTutar);

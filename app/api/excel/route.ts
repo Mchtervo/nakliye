@@ -106,9 +106,13 @@ export async function GET(req: Request) {
   const gelir = yukler.reduce((t, y) => t + y.toplamTutar, 0);
   const gelirNet = yukler.reduce((t, y) => t + y.netTutar, 0);
   const toplananKdv = yukler.reduce((t, y) => t + y.kdvTutar, 0);
-  const gider = giderler.reduce((t, g) => t + g.toplamTutar, 0);
-  const giderNet = giderler.reduce((t, g) => t + g.netTutar, 0);
+  const isletme = giderler.filter((g) => g.kategori !== "DEMIRBAS");
+  const demirbas = giderler.filter((g) => g.kategori === "DEMIRBAS");
+  const gider = isletme.reduce((t, g) => t + g.toplamTutar, 0);
+  const giderNet = isletme.reduce((t, g) => t + g.netTutar, 0);
   const odenenKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
+  const demirbasToplam = demirbas.reduce((t, g) => t + g.toplamTutar, 0);
+  const demirbasKdv = demirbas.reduce((t, g) => t + g.kdvTutar, 0);
 
   oz.addRows([
     ["Dönem", etiket],
@@ -117,16 +121,19 @@ export async function GET(req: Request) {
     ["Gelir (net)", tl(gelirNet)],
     ["Toplanan KDV", tl(toplananKdv)],
     [],
-    ["Gider (toplam)", tl(gider)],
-    ["Gider (net)", tl(giderNet)],
-    ["Ödenen KDV", tl(odenenKdv)],
+    ["İşletme gideri (toplam)", tl(gider)],
+    ["İşletme gideri (net)", tl(giderNet)],
+    ["Demirbaş (gider sayılmaz)", tl(demirbasToplam)],
+    ["Demirbaş KDV", tl(demirbasKdv)],
+    ["İndirilecek KDV (tümü)", tl(odenenKdv)],
     [],
     ["Net kâr (KDV hariç)", tl(gelirNet - giderNet)],
     ["KDV farkı", tl(toplananKdv - odenenKdv)],
     ["Yük sayısı", yukler.length],
-    ["Gider sayısı", giderler.length],
+    ["İşletme gider sayısı", isletme.length],
+    ["Demirbaş sayısı", demirbas.length],
   ]);
-  oz.getColumn(1).width = 24;
+  oz.getColumn(1).width = 32;
   oz.getColumn(2).width = 16;
 
   const buffer = await wb.xlsx.writeBuffer();

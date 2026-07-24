@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { yukOdemeEkle, type FormSonuc } from "@/app/actions";
-import { tlKurusaCevir, tlYaz } from "@/lib/para";
+import { tlKurusaCevir, tlGirisBicimle, tlYaz } from "@/lib/para";
 
 function bugun(): string {
   const d = new Date();
@@ -103,7 +103,7 @@ export default function OdemeGirForm({
           required
           placeholder={`En fazla ${tlYaz(kalanBaslangic)}`}
           value={girilen}
-          onChange={(e) => setGirilen(e.target.value)}
+          onChange={(e) => setGirilen(tlGirisBicimle(e.target.value))}
           className="alan !py-2.5 font-display text-lg font-bold"
         />
       </div>

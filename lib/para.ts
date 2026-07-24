@@ -94,6 +94,27 @@ export function tlYaz(kurus: number): string {
   }).format(kurus / 100);
 }
 
+/**
+ * Yazarken binlik nokta + ondalık virgül uygular.
+ * "1670000" → "1.670.000" | "1670000,5" → "1.670.000,5"
+ */
+export function tlGirisBicimle(girdi: string): string {
+  const ham = girdi.replace(/[^\d,]/g, "");
+  if (!ham) return "";
+
+  const virgulIdx = ham.indexOf(",");
+  let tam = virgulIdx === -1 ? ham : ham.slice(0, virgulIdx);
+  let ondalik = virgulIdx === -1 ? null : ham.slice(virgulIdx + 1).replace(/,/g, "");
+
+  tam = tam.replace(/^0+(?=\d)/, "");
+  if (tam === "") tam = "0";
+
+  const bicimliTam = tam.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  if (ondalik === null) return bicimliTam;
+  ondalik = ondalik.slice(0, 2);
+  return `${bicimliTam},${ondalik}`;
+}
+
 /** Kuruşu ondalıksız kısa biçimde yazar: "12.000 ₺" (tam TL ise) */
 export function tlYazKisa(kurus: number): string {
   if (kurus % 100 === 0) {

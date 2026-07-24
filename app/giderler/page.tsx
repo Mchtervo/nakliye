@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz, tarihYaz } from "@/lib/para";
-import { kategoriAdi, GIDER_KATEGORILERI } from "@/lib/sabitler";
+import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
 import { giderSil } from "@/app/actions";
 import SilButonu from "@/components/SilButonu";
 
@@ -12,18 +12,22 @@ export default async function GiderlerSayfasi() {
     orderBy: [{ tarih: "desc" }, { id: "desc" }],
   });
 
-  const genelToplam = giderler.reduce((t, g) => t + g.toplamTutar, 0);
+  const isletmeGiderleri = giderler.filter((g) => isletmeGideriMi(g.kategori));
+  const genelToplam = isletmeGiderleri.reduce((t, g) => t + g.toplamTutar, 0);
   const genelKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
   const demirbaslar = giderler.filter((g) => g.kategori === "DEMIRBAS");
   const demirbasToplam = demirbaslar.reduce((t, g) => t + g.toplamTutar, 0);
   const demirbasKdv = demirbaslar.reduce((t, g) => t + g.kdvTutar, 0);
 
-  const kategoriToplamlari = GIDER_KATEGORILERI.map((k) => {
-    const satirlar = giderler.filter((g) => g.kategori === k.kod);
-    const tutar = satirlar.reduce((t, g) => t + g.toplamTutar, 0);
-    const adet = satirlar.length;
-    return { ...k, tutar, adet };
-  })
+  const kategoriToplamlari = GIDER_KATEGORILERI.filter((k) =>
+    isletmeGideriMi(k.kod)
+  )
+    .map((k) => {
+      const satirlar = isletmeGiderleri.filter((g) => g.kategori === k.kod);
+      const tutar = satirlar.reduce((t, g) => t + g.toplamTutar, 0);
+      const adet = satirlar.length;
+      return { ...k, tutar, adet };
+    })
     .filter((k) => k.adet > 0)
     .sort((a, b) => b.tutar - a.tutar);
 
@@ -61,7 +65,11 @@ export default async function GiderlerSayfasi() {
                 {tlYaz(genelToplam)}
               </div>
               <div className="mt-0.5 text-xs text-fog">
-                {giderler.length} kayıt · KDV {tlYaz(genelKdv)}
+                {isletmeGiderleri.length} işletme gideri · tüm kayıtlarda KDV{" "}
+                {tlYaz(genelKdv)}
+                {demirbaslar.length > 0
+                  ? ` (demirbaş KDV: ${tlYaz(demirbasKdv)})`
+                  : ""}
               </div>
             </div>
           </div>
@@ -113,7 +121,7 @@ export default async function GiderlerSayfasi() {
                 {tlYaz(demirbasToplam)}
               </div>
               <div className="text-xs text-fog">
-                {demirbaslar.length} alım · gider olarak işlendi
+                {demirbaslar.length} alım · işletme giderine yazılmadı
               </div>
             </div>
             <div className="text-right">
