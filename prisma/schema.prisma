@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Firma {
+  id        Int      @id @default(autoincrement())
+  ad        String   @unique
+  telefon   String?
+  vergiNo   String?
+  createdAt DateTime @default(now())
+  yukler    Yuk[]
+}
+
+// Tüm para alanları KURUŞ cinsinden tam sayıdır (1 TL = 100 kuruş).
+model Yuk {
+  id          Int      @id @default(autoincrement())
+  tarih       DateTime
+  firmaId     Int
+  firma       Firma    @relation(fields: [firmaId], references: [id])
+  nereden     String
+  nereye      String
+  aciklama    String?
+  kdvli       Boolean  @default(true)
+  kdvDahilMi  Boolean  @default(true)
+  netTutar    Int
+  kdvTutar    Int
+  toplamTutar Int
+  odemeDurumu String   @default("BEKLIYOR") // BEKLIYOR | KISMI | ODENDI
+  odemeler    Odeme[]
+  createdAt   DateTime @default(now())
+}
+
+model Odeme {
+  id    Int      @id @default(autoincrement())
+  yukId Int
+  yuk   Yuk      @relation(fields: [yukId], references: [id], onDelete: Cascade)
+  tarih DateTime
+  tutar Int
+  not   String?
+}
+
+model Gider {
+  id             Int       @id @default(autoincrement())
+  tarih          DateTime
+  kategori       String
+  aciklama       String?
+  kdvli          Boolean   @default(true)
+  kdvDahilMi     Boolean   @default(true)
+  netTutar       Int
+  kdvTutar       Int
+  toplamTutar    Int
+  fisResmi       String? // local /uploads/... veya Supabase public URL
+  gonderildi     Boolean   @default(false)
+  gonderimTarihi DateTime?
+  litre          Float?
+  km             Int?
+  createdAt      DateTime  @default(now())
+}
+
+model Ayar {
+  anahtar String @id
+  deger   String
+}

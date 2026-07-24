@@ -1,0 +1,16 @@
+services:
+  nakliye:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATA_DIR: /data
+      DATABASE_URL: file:/data/dev.db
+      APP_SIFRE: ${APP_SIFRE:-nakliye2026}
+      SESSION_SECRET: ${SESSION_SECRET:-lutfen-degistir-guclu-bir-sifre}
+    volumes:
+      - nakliye-data:/data
+    restart: unless-stopped
+
+volumes:
+  nakliye-data:
