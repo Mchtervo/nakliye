@@ -4,6 +4,7 @@ import { tlYaz } from "@/lib/para";
 import { isletmeGideriMi } from "@/lib/sabitler";
 import { telefonGoster } from "@/lib/telefon";
 import AraButonu from "@/components/AraButonu";
+import AnaEkranaEkle from "@/components/AnaEkranaEkle";
 
 export const dynamic = "force-dynamic";
 
@@ -161,6 +162,8 @@ export default async function PanelSayfasi() {
           </div>
         </div>
       </section>
+
+      <AnaEkranaEkle />
 
       <section className="kart space-y-3 border-teal/25 p-4 sm:p-5 reveal reveal-d1">
         <div className="flex flex-wrap items-start justify-between gap-3">
