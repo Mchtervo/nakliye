@@ -74,9 +74,6 @@ export default async function RaporlarSayfasi({
   const giderToplam = isletmeGiderleri.reduce((t, g) => t + g.toplamTutar, 0);
   const giderNet = isletmeGiderleri.reduce((t, g) => t + g.netTutar, 0);
   const odenenKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
-  const demirbasKdv = giderler
-    .filter((g) => g.kategori === "DEMIRBAS")
-    .reduce((t, g) => t + g.kdvTutar, 0);
   const netKar = gelirNet - giderNet;
   const maxGelirGider = Math.max(gelirToplam, giderToplam, 1);
 
