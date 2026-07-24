@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export default function FisYukle() {
+export default function FisYukle({
+  baslik = "Fatura / fiş fotoğrafı",
+  aciklama = "Muhasebeciye göndermek için çek veya galeriden seç.",
+  vurgulu = false,
+}: {
+  baslik?: string;
+  aciklama?: string;
+  vurgulu?: boolean;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [onizleme, setOnizleme] = useState<string | null>(null);
   const [dosyaAdi, setDosyaAdi] = useState<string | null>(null);
@@ -32,8 +40,17 @@ export default function FisYukle() {
   }
 
   return (
-    <div className="space-y-2">
-      <span className="etiket">Fiş / fatura resmi (isteğe bağlı)</span>
+    <div
+      className={`space-y-2 rounded-xl border p-3 ${
+        vurgulu
+          ? "border-amber/35 bg-amber/8"
+          : "border-white/12 bg-white/4"
+      }`}
+    >
+      <div>
+        <span className="etiket !text-fog">{baslik}</span>
+        <p className="mt-0.5 text-xs text-fog">{aciklama}</p>
+      </div>
 
       <input
         ref={inputRef}
@@ -55,7 +72,7 @@ export default function FisYukle() {
               inputRef.current.setAttribute("capture", "environment");
               inputRef.current.click();
             }}
-            className="rounded-xl border border-dashed border-black/15 bg-white px-3 py-5 text-sm font-semibold text-ink transition-all hover:border-amber hover:bg-amber/5"
+            className="rounded-xl border border-dashed border-amber/40 bg-asphalt/60 px-3 py-5 text-sm font-semibold text-amber transition-colors hover:bg-amber/10"
           >
             Kamerayla çek
           </button>
@@ -66,21 +83,21 @@ export default function FisYukle() {
               inputRef.current.removeAttribute("capture");
               inputRef.current.click();
             }}
-            className="rounded-xl border border-dashed border-black/15 bg-white px-3 py-5 text-sm font-semibold text-ink transition-all hover:border-amber hover:bg-amber/5"
+            className="rounded-xl border border-dashed border-white/25 bg-asphalt/60 px-3 py-5 text-sm font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber"
           >
             Galeriden seç
           </button>
         </div>
       ) : (
-        <div className="reveal overflow-hidden rounded-xl border border-black/10 bg-white">
+        <div className="overflow-hidden rounded-xl border border-white/12 bg-asphalt/80">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={onizleme}
-            alt="Fiş önizleme"
-            className="max-h-56 w-full object-contain bg-[#f3f5f8]"
+            alt="Fatura önizleme"
+            className="max-h-56 w-full object-contain bg-black/30"
           />
-          <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-2">
-            <span className="truncate text-xs text-[#5a6a80]">{dosyaAdi}</span>
+          <div className="flex items-center justify-between gap-2 border-t border-white/10 px-3 py-2">
+            <span className="truncate text-xs text-fog">{dosyaAdi}</span>
             <button
               type="button"
               onClick={temizle}

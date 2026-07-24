@@ -123,7 +123,21 @@ export default function GiderForm({ bugunTarih }: { bugunTarih: string }) {
         />
       </div>
 
-      <FisYukle />
+      <FisYukle
+        vurgulu={demirbas || kredi}
+        baslik={
+          demirbas
+            ? "Fatura fotoğrafı (önerilir)"
+            : kredi
+              ? "Dekont / makbuz fotoğrafı"
+              : "Fatura / fiş fotoğrafı"
+        }
+        aciklama={
+          demirbas
+            ? "Tır faturasını çek — Muhasebeciye Gönder sayfasından iletirsin."
+            : "Muhasebeciye göndermek için çek veya galeriden seç."
+        }
+      />
 
       {durum?.hata && (
         <div className="rounded-xl border border-ember/30 bg-ember/10 px-3 py-2.5 text-sm font-semibold text-ember">
