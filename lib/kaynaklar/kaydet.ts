@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 import { sadelestir } from "@/lib/iller";
+import { guvenliKirp } from "@/lib/metin";
 
 export type KaydedilenIlan = {
   id: number;
@@ -72,7 +73,7 @@ export async function ilanlariKaydet(
       const kayit = await prisma.yukIlani.create({
         data: {
           kaynakId,
-          hamMetin: hamMetin.slice(0, 4000),
+          hamMetin: guvenliKirp(hamMetin, 4000),
           firmaAdi: ilan.firmaAdi,
           telefon: ilan.telefon,
           nereden: ilan.nereden,

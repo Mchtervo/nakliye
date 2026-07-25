@@ -7,6 +7,7 @@ import {
   type MesajIlanCikti,
 } from "@/lib/ai/semalar";
 import { ilBul } from "@/lib/iller";
+import { guvenliKirp } from "@/lib/metin";
 
 const SISTEM = `Sen Türkiye'deki nakliye/yük ilanlarını okuyan bir asistansın.
 Verilen metinde kaç tane yük ilanı varsa hepsini çıkar.
@@ -100,7 +101,7 @@ export async function ilanlariCozumle(
   const cikti = await aiJson<IlanCikti>({
     model: MODEL_HIZLI,
     sistem: SISTEM,
-    metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${metin.slice(0, 12000)}`,
+    metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(metin, 12000)}`,
     semaAdi: "yuk_ilanlari",
     sema: ILAN_LISTESI_SEMASI,
     caba: "low",
@@ -125,7 +126,7 @@ export async function mesajlariCozumle(
   if (gecerli.length === 0) return [];
 
   const govde = gecerli
-    .map((m, sira) => `[${sira + 1}]\n${m.metin.trim().slice(0, 1200)}`)
+    .map((m, sira) => `[${sira + 1}]\n${guvenliKirp(m.metin.trim(), 1200)}`)
     .join("\n\n");
 
   const cikti = await aiJson<MesajIlanCikti>({

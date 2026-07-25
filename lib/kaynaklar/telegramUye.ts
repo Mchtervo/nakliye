@@ -11,6 +11,7 @@ import { aramaSorgulariUret, grubuDegerlendir } from "@/lib/bolgeler";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { ilBul } from "@/lib/iller";
 import { ilgilileriSuz } from "@/lib/kaynaklar/filtre";
+import { guvenliKirp } from "@/lib/metin";
 import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 export const TELEGRAM_UYE = "TELEGRAM_UYE";
@@ -111,7 +112,7 @@ export async function mesajlariKuyrugaAl(
         data: adaylar.map((m) => ({
           kaynakId: kaynak.id,
           mesajId: m.mesajId ?? null,
-          metin: m.metin.trim().slice(0, 2000),
+          metin: guvenliKirp(m.metin.trim(), 2000),
         })),
         skipDuplicates: true,
       });
