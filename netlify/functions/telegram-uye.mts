@@ -7,14 +7,16 @@ import { StringSession } from "telegram/sessions";
  *
  * Her koşuda:
  *  1. Takip edilen gruplardan yeni mesajları okur ve uygulamaya kuyruğa atar.
- *  2. Keşif penceresi açıksa: zaten üye olunan uygun grupları takibe alır,
- *     global aramayla yeni gruplar bulur ve kotanın izin verdiği kadarına katılır.
+ *  2. Üye olunan grupları uygulamaya bildirir; uygun olanlar takibe alınır,
+ *     elle katılınan aday gruplar otomatik takibe geçer.
+ *  3. Arama penceresi açıksa (6 saatte bir) yeni grupları arar ve aday
+ *     olarak kaydettirir.
  *
+ * Gruba katılma bilinçli olarak yapılmaz; katılım kararı kullanıcınındır.
  * Zamanlanmış fonksiyon sınırı 30 saniye; bütün adımlar bütçeyle korunur.
  */
 
 const BUTCE_MS = 24_000;
-const KATILIM_BEKLEME_MS = 3_000;
 
 type OkumaGorevi = {
   aktif: boolean;
@@ -25,13 +27,6 @@ type OkumaGorevi = {
 type KesifGorevi = {
   aktif: boolean;
   sorgular: string[];
-  kalanKatilim: number;
-};
-
-type KatilmaEmri = {
-  chatId: string;
-  kullaniciAdi: string | null;
-  baslik: string;
 };
 
 type Aday = {
@@ -41,10 +36,6 @@ type Aday = {
   uyeSayisi: number | null;
   uye: boolean;
 };
-
-function bekle(ms: number): Promise<void> {
-  return new Promise((c) => setTimeout(c, ms));
-}
 
 function ortam() {
   const kok = (process.env.URL || process.env.DEPLOY_PRIME_URL || "").replace(
@@ -80,11 +71,22 @@ async function uygulama<T>(
   return (await cevap.json()) as T;
 }
 
-/** Grup / kanal olan sohbetleri aday biçimine çevirir. */
-function sohbetiAdayaCevir(sohbet: Api.TypeChat, uye: boolean): Aday | null {
+/**
+ * Grup / kanal olan sohbetleri aday biçimine çevirir.
+ * Sohbet listesinden gelenler üyedir; aramadan gelenlerde üyelik sadece
+ * `left` alanı kesin olarak false ise varsayılır.
+ */
+function sohbetiAdayaCevir(
+  sohbet: Api.TypeChat,
+  dialogdan: boolean
+): Aday | null {
+  const uyeMi = (ayrilmis: boolean | undefined) =>
+    dialogdan ? ayrilmis !== true : ayrilmis === false;
+
+  // Yayın kanalları da yük ilanı paylaşıyor; grup ve kanalı birlikte alıyoruz.
   if (sohbet instanceof Api.Channel) {
-    // Yayın kanalları da yük ilanı paylaşıyor; ikisini de alıyoruz.
-    if (sohbet.left && uye) return null;
+    const uye = uyeMi(sohbet.left);
+    if (dialogdan && !uye) return null;
     return {
       chatId: utils.getPeerId(sohbet),
       baslik: sohbet.title || "",
@@ -93,7 +95,9 @@ function sohbetiAdayaCevir(sohbet: Api.TypeChat, uye: boolean): Aday | null {
       uye,
     };
   }
-  if (sohbet instanceof Api.Chat && uye) {
+
+  // Temel gruplara aramayla ulaşılamaz; sadece üye olunanlar işe yarar.
+  if (sohbet instanceof Api.Chat && dialogdan && uyeMi(sohbet.left)) {
     return {
       chatId: utils.getPeerId(sohbet),
       baslik: sohbet.title || "",
@@ -102,6 +106,7 @@ function sohbetiAdayaCevir(sohbet: Api.TypeChat, uye: boolean): Aday | null {
       uye: true,
     };
   }
+
   return null;
 }
 
@@ -160,24 +165,21 @@ async function gruplariOku(
 
 async function kesfet(
   istemci: TelegramClient,
-  kesif: KesifGorevi,
+  sorgular: string[],
   mevcutSohbetler: Api.TypeChat[],
   bitis: number
 ) {
   const adaylar: Aday[] = [];
-  const varliklar = new Map<string, Api.TypeChat>();
 
-  // 1) Hesabın zaten üye olduğu gruplar: katılmaya gerek yok.
+  // 1) Üye olunan gruplar: uygun olanlar takibe alınır, elle katılınan
+  //    aday gruplar burada otomatik takibe geçer.
   for (const sohbet of mevcutSohbetler) {
     const aday = sohbetiAdayaCevir(sohbet, true);
-    if (aday?.baslik) {
-      adaylar.push(aday);
-      varliklar.set(aday.chatId, sohbet);
-    }
+    if (aday?.baslik) adaylar.push(aday);
   }
 
-  // 2) Global aramayla yeni gruplar.
-  for (const sorgu of kesif.sorgular) {
+  // 2) Arama penceresi açıksa yeni gruplar aday olarak kaydedilir.
+  for (const sorgu of sorgular) {
     if (Date.now() > bitis) break;
     try {
       const sonuc = await istemci.invoke(
@@ -185,10 +187,7 @@ async function kesfet(
       );
       for (const sohbet of sonuc.chats) {
         const aday = sohbetiAdayaCevir(sohbet, false);
-        if (aday?.baslik) {
-          adaylar.push(aday);
-          varliklar.set(aday.chatId, sohbet);
-        }
+        if (aday?.baslik) adaylar.push(aday);
       }
     } catch (hata) {
       console.warn(
@@ -201,40 +200,12 @@ async function kesfet(
 
   if (adaylar.length === 0) return null;
 
-  const karar = await uygulama<{
+  return uygulama<{
     yeniAday: number;
     hazirUyelik: number;
+    terfi: number;
     elenen: number;
-    katil: KatilmaEmri[];
   }>("/api/telegram/uye/kesif", { govde: { adaylar } });
-
-  const sonuclar: { chatId: string; katildi: boolean; hata?: string }[] = [];
-
-  for (const emir of karar.katil) {
-    if (Date.now() > bitis) break;
-
-    const hedef =
-      varliklar.get(emir.chatId) ?? emir.kullaniciAdi ?? emir.chatId;
-    try {
-      await istemci.invoke(new Api.channels.JoinChannel({ channel: hedef }));
-      sonuclar.push({ chatId: emir.chatId, katildi: true });
-      console.log("[telegram-uye] katılındı:", emir.baslik);
-    } catch (hata) {
-      sonuclar.push({
-        chatId: emir.chatId,
-        katildi: false,
-        hata: hata instanceof Error ? hata.message : "Katılınamadı",
-      });
-    }
-    // Arka arkaya katılım hesabı riske atar; araya bekleme konur.
-    await bekle(KATILIM_BEKLEME_MS);
-  }
-
-  if (sonuclar.length > 0) {
-    await uygulama("/api/telegram/uye/grup", { govde: { sonuclar } });
-  }
-
-  return { ...karar, katilan: sonuclar.filter((s) => s.katildi).length };
 }
 
 export default async function handler(): Promise<Response> {
@@ -258,12 +229,9 @@ export default async function handler(): Promise<Response> {
     );
     const kesif = await uygulama<KesifGorevi>("/api/telegram/uye/kesif");
 
-    if (!gorev.aktif) {
+    if (!gorev.aktif || !kesif.aktif) {
       console.log("[telegram-uye] Modül kapalı.");
       return new Response("kapali", { status: 200 });
-    }
-    if (gorev.gruplar.length === 0 && kesif.sorgular.length === 0) {
-      return new Response("is yok", { status: 200 });
     }
 
     istemci = new TelegramClient(new StringSession(oturum), apiId, apiHash, {
@@ -283,8 +251,9 @@ export default async function handler(): Promise<Response> {
     const okuma = await gruplariOku(istemci, gorev, bitis);
     if (okuma) console.log("[telegram-uye] okuma", JSON.stringify(okuma));
 
-    if (kesif.sorgular.length > 0 && Date.now() < bitis) {
-      const sonuc = await kesfet(istemci, kesif, gruplar, bitis);
+    // Üyelik senkronu her koşuda: elle katıldığın grup 5 dakikada devreye girer.
+    if (Date.now() < bitis) {
+      const sonuc = await kesfet(istemci, kesif.sorgular, gruplar, bitis);
       if (sonuc) console.log("[telegram-uye] keşif", JSON.stringify(sonuc));
     }
 

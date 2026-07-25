@@ -38,7 +38,7 @@ Faydalı komutlar:
 - **Muhasebeciye Gönder** (`/muhasebeci`) — fiş görselleri + `giderler.xlsx` + `ozet.html` tek ZIP; WhatsApp veya e-posta
 - **AI Merkezi** (`/ai`)
   - Yük Bulucu — Telegram gruplarını kendi hesabınla tarar, ilan siteleri ve web aramasını da okur
-  - Grup Keşfi — seçtiğin bölgelerdeki yük gruplarını bulur, uygun olanlara katılır
+  - Grup Keşfi — seçtiğin bölgelerdeki yük gruplarını bulur, aday listesine yazar
   - Dönüş Yükü — her yük kaydında ters yön için otomatik arama açılır
   - Aday Firmalar — sanayi bölgelerinden potansiyel müşteri çıkarır
   - Analiz Merkezi — günlük kârlılık, yakıt, tahsilat ve KDV değerlendirmesi
@@ -82,7 +82,7 @@ yapay zekâ onu da çözümleyip listeye ekler.
 
 Bot yalnızca **eklendiği** grupları görebilir. Grup yöneticileri çoğu zaman bot
 eklemeye izin vermez. Kendi hesabınla bağlandığında ise **zaten üye olduğun bütün
-gruplar** okunur ve seçtiğin bölgelerde yeni gruplar bulunup katılınır.
+gruplar** okunur ve seçtiğin bölgelerde yeni gruplar bulunup aday listesine yazılır.
 
 1. [my.telegram.org](https://my.telegram.org) → API development tools → uygulama oluştur
 2. Çıkan değerleri `.env`'e yaz:
@@ -100,13 +100,17 @@ gruplar** okunur ve seçtiğin bölgelerde yeni gruplar bulunup katılınır.
 Nasıl davranır:
 
 - Her 5 dakikada bir takipteki grupların yeni mesajları okunur.
-- 6 saatte bir keşif turu: üye olunan uygun gruplar takibe alınır, aramayla bulunan
-  yeni gruplara **günde en fazla 4** katılım yapılır.
+- Her koşuda üyelik senkronu yapılır: üye olduğun uygun gruplar takibe alınır.
+- 6 saatte bir arama turu: bulunan uygun gruplar **aday** olarak kaydedilir.
 - Grup başlığında nakliye terimi aranır; "evden eve", emlak, sohbet gibi gruplar elenir.
 
+**Gruba katılma otomatik yapılmaz.** Aday gruplar Ayarlar ekranında üye sayısıyla
+listelenir; "Aç" düğmesi grubu Telegram'da açar. Katıldıktan sonra grup 5 dakika
+içinde kendiliğinden takibe geçer, ayrıca bir şey yapman gerekmez.
+
 `TELEGRAM_SESSION` hesabına tam erişim verir — kimseyle paylaşma. Telegram, aşırı
-otomatik davranışta hesaba geçici kısıtlama koyabilir; bu yüzden arama ve katılım
-bilinçli olarak seyrek ve kotalıdır.
+otomatik davranışta hesaba geçici kısıtlama koyabilir; bu yüzden grup araması
+bilinçli olarak seyrektir.
 
 ### 4. Cron anahtarı
 
@@ -137,7 +141,7 @@ Site settings → Environment variables altına aynı değerleri gir:
 Zamanlanmış fonksiyonlar `netlify/functions/` altında tanımlıdır ve deploy ile
 kendiliğinden devreye girer:
 
-- `telegram-uye.mts` — 5 dakikada bir grupları okur, keşif penceresi açıksa yeni grup arar
+- `telegram-uye.mts` — 5 dakikada bir grupları okur ve üyeliği senkronlar, 6 saatte bir yeni grup arar
 - `ai-kuyruk.mts` — 5 dakikada bir biriken mesajları AI ile ilana çevirir
 - `ai-tarama.mts` — 15 dakikada bir ilan sitesi / web araması kaynaklarını tarar
 - `ai-analiz.mts` — her sabah TR 08:00'de günlük analizi üretir
@@ -149,7 +153,7 @@ kendiliğinden devreye girer:
 - Şehrini ve sık çalıştığın rotaları gir (bildirim filtresi)
 - Takip edilecek bölgeleri seç (grup araması ve bildirim kapsamı)
 - İstersen en düşük ücret sınırı koy
-- **Telegram grupları**: takipteki ve aday gruplar burada listelenir
+- **Telegram grupları**: takipteki gruplar ve katılabileceğin aday gruplar listelenir
 - **Diğer yük kaynakları**: ilan sitesi adresi veya AI arama sorgusu ekle
 
 ---
@@ -179,7 +183,9 @@ Ekrandan **Yüke çevir** dediğinde mevcut yük formu ilan bilgileriyle dolu a�
 
 - Giriş (login) isteyen ilan siteleri taranamaz.
 - Facebook grupları için resmî ve kalıcı bir API yolu yok; ilanı bota iletmek gerekir.
-- Telegram'da yalnızca **açık** (herkese görünür) gruplara aramayla katılınabilir;
-  davetle girilen kapalı gruplara elle katılman gerekir — sonrasında otomatik okunur.
+- Gruplara katılma otomatik değildir: uygulama grubu bulup aday olarak listeler,
+  katılma kararı senindir. Katıldığın her grup (davetle girilen kapalı gruplar dâhil)
+  sonraki koşuda kendiliğinden takibe geçer.
+- Telegram aramasıyla yalnızca **açık** (herkese görünür) gruplar bulunabilir.
 - Kişisel WhatsApp'a otomatik mesaj atan resmî API yok; WhatsApp tek tık gönderme
   bağlantısı olarak çalışır, anlık bildirim Telegram ve push üzerinden gider.

@@ -8,7 +8,7 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Bu turda denenecek arama sorguları ve kalan katılım hakkı. */
+/** Bu turda denenecek arama sorguları. */
 export async function GET(request: Request) {
   const engel = cronKontrol(request);
   if (engel) return engel;
@@ -43,7 +43,7 @@ function adaylariAyikla(govde: { adaylar?: unknown }): BulunanGrup[] {
     .slice(0, 500);
 }
 
-/** Bulunan grupları değerlendirir, katılınacakların listesini döner. */
+/** Bulunan grupları değerlendirir: üye olunanlar takibe, kalanlar adaya. */
 export async function POST(request: Request) {
   const engel = cronKontrol(request);
   if (engel) return engel;

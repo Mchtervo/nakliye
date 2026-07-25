@@ -15,18 +15,12 @@ import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 export const TELEGRAM_UYE = "TELEGRAM_UYE";
 
-/** Hesabın şüpheli görünmemesi için günlük katılım sayısı sınırlı. */
-const GUNLUK_KATILIM_SINIRI = 4;
 /** Bir keşif turunda denenecek arama sorgusu sayısı. */
 const TUR_BASINA_SORGU = 3;
-/** İki grup keşfi arasındaki en kısa süre. */
+/** İki grup araması arasındaki en kısa süre. */
 const KESIF_ARALIGI_MS = 6 * 60 * 60 * 1000;
 /** İlk kez okunan grupta geriye dönük alınacak mesaj sayısı. */
 export const ILK_OKUMA_ADEDI = 20;
-
-function bugunAnahtari(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /** Telegram hesabı bağlanmış mı (my.telegram.org anahtarları + oturum). */
 export function telegramUyeKullanilabilir(): boolean {
@@ -257,56 +251,33 @@ export async function kuyrugaBakim(gunSayisi = 3): Promise<number> {
 }
 
 // --- Grup keşfi ---------------------------------------------------------
-
-async function kalanKatilimHakki(): Promise<number> {
-  const gun = await ayarOku(AYAR_ANAHTARLARI.telegramKatilimGun);
-  if (gun !== bugunAnahtari()) return GUNLUK_KATILIM_SINIRI;
-
-  const adet = Number(await ayarOku(AYAR_ANAHTARLARI.telegramKatilimAdet));
-  const kullanilan = Number.isFinite(adet) ? adet : 0;
-  return Math.max(0, GUNLUK_KATILIM_SINIRI - kullanilan);
-}
-
-async function katilimiIsaretle(adet: number): Promise<void> {
-  if (adet <= 0) return;
-  const bugun = bugunAnahtari();
-  const gun = await ayarOku(AYAR_ANAHTARLARI.telegramKatilimGun);
-  const oncekiHam = Number(await ayarOku(AYAR_ANAHTARLARI.telegramKatilimAdet));
-  const onceki = gun === bugun && Number.isFinite(oncekiHam) ? oncekiHam : 0;
-
-  await ayarYaz(AYAR_ANAHTARLARI.telegramKatilimGun, bugun);
-  await ayarYaz(AYAR_ANAHTARLARI.telegramKatilimAdet, String(onceki + adet));
-}
+//
+// Gruba katılma işi bilinçli olarak buraya ait değil: katılımı kullanıcı
+// kendi kontrolünde yapar. Burada sadece uygun gruplar aday olarak
+// kaydedilir, üye olunanlar takibe alınır.
 
 export type KesifGorevi = {
   aktif: boolean;
   sorgular: string[];
-  kalanKatilim: number;
 };
 
 /**
  * Her turda sorgu listesinden sıradaki birkaç tanesi denenir.
- * Keşif seyrek çalışır: sık arama yapmak hesabı riske atar.
+ * Arama seyrek yapılır: sık global arama hesabı riske atar.
+ * Sorgu dönmemesi keşfin kapalı olduğu anlamına gelmez; üyelik
+ * senkronu her koşuda çalışır.
  */
 export async function kesifGoreviUret(): Promise<KesifGorevi> {
   const tercih = await aiTercihleriOku();
-  if (!tercih.telegramUyeAcik) {
-    return { aktif: false, sorgular: [], kalanKatilim: 0 };
-  }
+  if (!tercih.telegramUyeAcik) return { aktif: false, sorgular: [] };
 
   const sonKesif = Date.parse(
     (await ayarOku(AYAR_ANAHTARLARI.telegramKesifZaman)) || ""
   );
-  if (
-    Number.isFinite(sonKesif) &&
-    Date.now() - sonKesif < KESIF_ARALIGI_MS
-  ) {
-    return { aktif: true, sorgular: [], kalanKatilim: 0 };
+  if (Number.isFinite(sonKesif) && Date.now() - sonKesif < KESIF_ARALIGI_MS) {
+    return { aktif: true, sorgular: [] };
   }
-  await ayarYaz(
-    AYAR_ANAHTARLARI.telegramKesifZaman,
-    new Date().toISOString()
-  );
+  await ayarYaz(AYAR_ANAHTARLARI.telegramKesifZaman, new Date().toISOString());
 
   const tumSorgular = aramaSorgulariUret(tercih.bolgeler);
   const siraHam = Number(await ayarOku(AYAR_ANAHTARLARI.telegramSorguSira));
@@ -322,11 +293,7 @@ export async function kesifGoreviUret(): Promise<KesifGorevi> {
     String((sira + sorgular.length) % tumSorgular.length)
   );
 
-  return {
-    aktif: true,
-    sorgular,
-    kalanKatilim: await kalanKatilimHakki(),
-  };
+  return { aktif: true, sorgular };
 }
 
 export type BulunanGrup = {
@@ -334,28 +301,25 @@ export type BulunanGrup = {
   baslik: string;
   kullaniciAdi?: string | null;
   uyeSayisi?: number | null;
-  /** Hesap bu gruba zaten üye: katılmaya gerek yok, doğrudan takibe alınır. */
+  /** Hesap bu gruba üye mi. Üyeyse doğrudan takibe alınır. */
   uye?: boolean;
 };
 
-export type KatilmaEmri = {
-  chatId: string;
-  kullaniciAdi: string | null;
-  baslik: string;
-};
-
 export type DegerlendirmeRaporu = {
+  /** Üye olunmayan, katılmaya değer yeni gruplar. */
   yeniAday: number;
+  /** Zaten üye olunduğu için doğrudan takibe alınanlar. */
   hazirUyelik: number;
+  /** Elle katılınmış, aday listesinden takibe geçenler. */
+  terfi: number;
   elenen: number;
-  katil: KatilmaEmri[];
 };
 
 /**
- * Bulunan grupları değerlendirir.
- * Hesabın zaten üye olduğu uygun gruplar doğrudan takibe alınır;
- * üye olunmayanlar aday olarak kaydedilir ve kotanın izin verdiği kadarı
- * katılım listesine konur.
+ * Bulunan grupları değerlendirir:
+ * - Üye olunan uygun gruplar takibe alınır.
+ * - Daha önce aday kaydedilmiş bir gruba elle katılındıysa takibe geçirilir.
+ * - Üye olunmayanlar aday olarak kaydedilir; katılma kararı kullanıcınındır.
  */
 export async function adaylariDegerlendir(
   bulunanlar: BulunanGrup[]
@@ -363,23 +327,22 @@ export async function adaylariDegerlendir(
   const rapor: DegerlendirmeRaporu = {
     yeniAday: 0,
     hazirUyelik: 0,
+    terfi: 0,
     elenen: 0,
-    katil: [],
   };
   const tercih = await aiTercihleriOku();
   if (!tercih.telegramUyeAcik) return rapor;
 
-  let kalan = await kalanKatilimHakki();
   const gorulen = new Set<string>();
 
   // Tek sorguda mevcut kayıtlar: aday listesi yüzlerce satır olabiliyor.
-  const kayitli = new Set(
+  const kayitli = new Map(
     (
       await prisma.ilanKaynagi.findMany({
         where: { tur: TELEGRAM_UYE },
-        select: { hedef: true },
+        select: { id: true, hedef: true, durum: true },
       })
-    ).map((k) => k.hedef)
+    ).map((k) => [k.hedef, k])
   );
 
   for (const grup of bulunanlar) {
@@ -387,15 +350,27 @@ export async function adaylariDegerlendir(
     const baslik = (grup.baslik || "").trim();
     if (!chatId || !baslik || gorulen.has(chatId)) continue;
     gorulen.add(chatId);
-    if (kayitli.has(chatId)) continue;
+
+    const uye = grup.uye === true;
+    const mevcut = kayitli.get(chatId);
+
+    if (mevcut) {
+      // Aday listesindeki bir gruba elle katılınmış: takibe al.
+      if (uye && mevcut.durum === "ADAY") {
+        await prisma.ilanKaynagi.update({
+          where: { id: mevcut.id },
+          data: { aktif: true, durum: "AKTIF", sonHata: null },
+        });
+        rapor.terfi += 1;
+      }
+      continue;
+    }
 
     const karar = grubuDegerlendir(baslik, tercih.bolgeler);
     if (!karar.uygun) {
       rapor.elenen += 1;
       continue;
     }
-
-    const uye = grup.uye === true;
 
     await prisma.ilanKaynagi.create({
       data: {
@@ -405,70 +380,17 @@ export async function adaylariDegerlendir(
         aktif: uye,
         durum: uye ? "AKTIF" : "ADAY",
         bolge: karar.bolge,
+        kullaniciAdi: grup.kullaniciAdi || null,
+        uyeSayisi:
+          typeof grup.uyeSayisi === "number" && grup.uyeSayisi > 0
+            ? grup.uyeSayisi
+            : null,
       },
     });
 
-    if (uye) {
-      rapor.hazirUyelik += 1;
-      continue;
-    }
-
-    rapor.yeniAday += 1;
-    if (kalan > 0) {
-      rapor.katil.push({
-        chatId,
-        kullaniciAdi: grup.kullaniciAdi ?? null,
-        baslik,
-      });
-      kalan -= 1;
-    }
+    if (uye) rapor.hazirUyelik += 1;
+    else rapor.yeniAday += 1;
   }
 
-  return rapor;
-}
-
-export type KatilmaSonucu = {
-  chatId: string;
-  katildi: boolean;
-  hata?: string | null;
-};
-
-export type KatilmaRaporu = { katilan: number; basarisiz: number };
-
-/** Katılım denemelerinin sonucunu kaynak kayıtlarına işler. */
-export async function katilimSonuclariniIsle(
-  sonuclar: KatilmaSonucu[]
-): Promise<KatilmaRaporu> {
-  const rapor: KatilmaRaporu = { katilan: 0, basarisiz: 0 };
-
-  for (const sonuc of sonuclar) {
-    const chatId = String(sonuc.chatId || "").trim();
-    if (!chatId) continue;
-
-    const kaynak = await prisma.ilanKaynagi.findUnique({
-      where: { tur_hedef: { tur: TELEGRAM_UYE, hedef: chatId } },
-      select: { id: true },
-    });
-    if (!kaynak) continue;
-
-    if (sonuc.katildi) {
-      await prisma.ilanKaynagi.update({
-        where: { id: kaynak.id },
-        data: { aktif: true, durum: "AKTIF", sonHata: null },
-      });
-      rapor.katilan += 1;
-    } else {
-      await prisma.ilanKaynagi.update({
-        where: { id: kaynak.id },
-        data: {
-          durum: "ADAY",
-          sonHata: (sonuc.hata || "Katılınamadı").slice(0, 300),
-        },
-      });
-      rapor.basarisiz += 1;
-    }
-  }
-
-  await katilimiIsaretle(rapor.katilan);
   return rapor;
 }

@@ -88,10 +88,12 @@ model IlanKaynagi {
   tur         String // TELEGRAM | TELEGRAM_UYE | WEB | AI_ARAMA
   ad          String
   hedef       String // chatId | URL | arama sorgusu
-  aktif       Boolean    @default(true)
-  durum       String     @default("AKTIF") // ADAY | AKTIF | PASIF
-  bolge       String? // MARMARA | IC_ANADOLU | ...
-  sonMesajId  Int? // TELEGRAM_UYE: en son okunan mesaj kimliği
+  aktif        Boolean   @default(true)
+  durum        String    @default("AKTIF") // ADAY | AKTIF | PASIF
+  bolge        String? // MARMARA | IC_ANADOLU | ...
+  kullaniciAdi String? // TELEGRAM_UYE: @kullaniciadi (elle katılmak için)
+  uyeSayisi    Int? // TELEGRAM_UYE: grubun üye sayısı
+  sonMesajId   Int? // TELEGRAM_UYE: en son okunan mesaj kimliği
   sonTarama   DateTime?
   sonHata     String?
   bulunanAdet Int        @default(0)

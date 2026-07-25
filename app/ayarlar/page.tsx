@@ -53,7 +53,17 @@ export default async function AyarlarSayfasi() {
   const gruplar = tumKaynaklar.filter((k) => k.tur === TELEGRAM_UYE);
   const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
   const takipteki = gruplar.filter((g) => g.durum === "AKTIF" && g.aktif);
-  const adaylar = gruplar.filter((g) => g.durum === "ADAY");
+  // Adaylar üye sayısına göre: elle katılırken önce büyük gruplar görünsün.
+  const adaylar = gruplar
+    .filter((g) => g.durum === "ADAY")
+    .sort((a, b) => (b.uyeSayisi ?? 0) - (a.uyeSayisi ?? 0));
+  const siraliGruplar = [
+    ...takipteki,
+    ...adaylar,
+    ...gruplar.filter(
+      (g) => g.durum !== "ADAY" && !(g.durum === "AKTIF" && g.aktif)
+    ),
+  ];
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
@@ -122,8 +132,9 @@ export default async function AyarlarSayfasi() {
             Telegram grupları
           </h2>
           <p className="text-sm text-fog">
-            Hesabın üye olduğu uygun gruplar kendiliğinden takibe alınır; yeni
-            gruplar aranıp katılınır.
+            Üye olduğun uygun gruplar kendiliğinden takibe alınır. Aday
+            gruplara sen katılırsın; katıldıktan sonra 5 dakika içinde
+            takibe geçerler.
           </p>
         </div>
 
@@ -149,7 +160,7 @@ export default async function AyarlarSayfasi() {
 
         {gruplar.length > 0 && (
           <div className="space-y-1.5">
-            {gruplar.slice(0, 40).map((g) => (
+            {siraliGruplar.slice(0, 40).map((g) => (
               <div
                 key={g.id}
                 className="rounded-xl border border-white/10 bg-white/4 px-3 py-2"
@@ -161,19 +172,36 @@ export default async function AyarlarSayfasi() {
                     </div>
                     <div className="text-xs text-fog">
                       {g.durum === "ADAY"
-                        ? "Aday · henüz katılınmadı"
+                        ? [
+                            "Aday · sen katılınca takibe geçer",
+                            g.uyeSayisi ? `${g.uyeSayisi} üye` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
                         : `${g.bulunanAdet} ilan${
                             g.sonTarama ? ` · ${tarihYaz(g.sonTarama)}` : ""
                           }`}
                     </div>
                   </div>
-                  <AksiyonButonu
-                    calistir={kaynakSil.bind(null, g.id)}
-                    etiket="Sil"
-                    bekleyenEtiket="..."
-                    onay={`${g.ad} listeden çıkarılsın mı?`}
-                    sinif="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ember/90 hover:bg-ember/10"
-                  />
+                  <div className="flex shrink-0 items-center gap-1">
+                    {g.durum === "ADAY" && g.kullaniciAdi && (
+                      <a
+                        href={`https://t.me/${g.kullaniciAdi}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-semibold text-paper hover:bg-white/8"
+                      >
+                        Aç
+                      </a>
+                    )}
+                    <AksiyonButonu
+                      calistir={kaynakSil.bind(null, g.id)}
+                      etiket="Sil"
+                      bekleyenEtiket="..."
+                      onay={`${g.ad} listeden çıkarılsın mı?`}
+                      sinif="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ember/90 hover:bg-ember/10"
+                    />
+                  </div>
                 </div>
                 {g.sonHata && (
                   <p className="mt-1.5 rounded-lg border border-ember/25 bg-ember/10 px-2 py-1 text-xs text-ember">

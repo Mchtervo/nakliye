@@ -19,8 +19,6 @@ export const AYAR_ANAHTARLARI = {
   telegramUyeAktif: "telegram_uye_aktif",
   telegramSorguSira: "telegram_sorgu_sira",
   telegramKesifZaman: "telegram_kesif_zaman",
-  telegramKatilimGun: "telegram_katilim_gun",
-  telegramKatilimAdet: "telegram_katilim_adet",
 } as const;
 
 export type AyarAnahtari =
