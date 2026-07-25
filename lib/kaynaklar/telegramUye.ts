@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { mesajlariCozumle } from "@/lib/ai/ilanCozumle";
+import {
+  ilanlariCozumle,
+  mesajlariCozumle,
+  type CozulmusIlan,
+} from "@/lib/ai/ilanCozumle";
 import { aiKullanilabilir } from "@/lib/ai/istemci";
 import {
   AYAR_ANAHTARLARI,
@@ -22,6 +26,8 @@ const TUR_BASINA_SORGU = 3;
 const KESIF_ARALIGI_MS = 6 * 60 * 60 * 1000;
 /** İlk kez okunan grupta geriye dönük alınacak mesaj sayısı. */
 export const ILK_OKUMA_ADEDI = 20;
+/** Toplu çağrı düştüğünde tek tek denemeye ayrılan süre. */
+const TEK_TEK_BUTCE_MS = 25_000;
 
 /** Telegram hesabı bağlanmış mı (my.telegram.org anahtarları + oturum). */
 export function telegramUyeKullanilabilir(): boolean {
@@ -147,6 +153,40 @@ export type KuyrukRaporu = {
 };
 
 /**
+ * Toplu çağrı başarısız olduğunda her mesajı ayrı ayrı dener.
+ * Yalnızca gerçekten çözülemeyen mesaj hatalı işaretlenir.
+ */
+async function tekTekCozumle(
+  parti: { id: number; metin: string }[]
+): Promise<{
+  sonuc: { anahtar: number; ilan: CozulmusIlan }[];
+  denenen: number[];
+}> {
+  const sonuc: { anahtar: number; ilan: CozulmusIlan }[] = [];
+  const denenen: number[] = [];
+  const bitis = Date.now() + TEK_TEK_BUTCE_MS;
+
+  for (const mesaj of parti) {
+    // Süre dolduysa kalanlar kuyrukta bırakılır, sonraki turda denenir.
+    if (Date.now() > bitis) break;
+    denenen.push(mesaj.id);
+
+    try {
+      const ilanlar = await ilanlariCozumle(mesaj.metin);
+      for (const ilan of ilanlar) sonuc.push({ anahtar: mesaj.id, ilan });
+    } catch (hata) {
+      const metin = hata instanceof Error ? hata.message : "Çözümlenemedi";
+      await prisma.hamMesaj.update({
+        where: { id: mesaj.id },
+        data: { hata: metin.slice(0, 300) },
+      });
+    }
+  }
+
+  return { sonuc, denenen };
+}
+
+/**
  * Kuyruktaki ham mesajları tek AI çağrısında çözümler.
  * Netlify'ın kısa fonksiyon süresine sığması için parti küçük tutulur.
  */
@@ -172,25 +212,23 @@ export async function kuyrugunuCoz(limit = 10): Promise<KuyrukRaporu> {
 
   if (parti.length === 0) return rapor;
 
-  rapor.islenen = parti.length;
-  const kimlikler = parti.map((m) => m.id);
-
+  let kimlikler = parti.map((m) => m.id);
   let cozulenler;
+
   try {
     cozulenler = await mesajlariCozumle(
       parti.map((m) => ({ anahtar: m.id, metin: m.metin }))
     );
   } catch (hata) {
-    const mesaj = hata instanceof Error ? hata.message : "Çözümleme hatası";
-    rapor.hata = mesaj;
-    // Aynı parti sonsuza kadar denenmesin.
-    await prisma.hamMesaj.updateMany({
-      where: { id: { in: kimlikler } },
-      data: { islendi: true, hata: mesaj.slice(0, 300) },
-    });
-    rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
-    return rapor;
+    // Çok ilan içeren tek bir mesaj yüzünden parti düşebiliyor; iyi
+    // mesajları kaybetmemek için hepsi tek tek denenir.
+    rapor.hata = hata instanceof Error ? hata.message : "Çözümleme hatası";
+    const yedek = await tekTekCozumle(parti);
+    cozulenler = yedek.sonuc;
+    kimlikler = yedek.denenen;
   }
+
+  rapor.islenen = kimlikler.length;
 
   const metinler = new Map(parti.map((m) => [m.id, m.metin]));
   const kaynaklar = new Map(parti.map((m) => [m.id, m.kaynakId]));

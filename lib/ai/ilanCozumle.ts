@@ -140,7 +140,8 @@ ilan varsa hepsini ayrı ayrı listele.`,
     semaAdi: "mesaj_yuk_ilanlari",
     sema: MESAJ_ILAN_SEMASI,
     caba: "low",
-    maxCikti: 6000,
+    // Tek mesajda onlarca rota olabiliyor; dar sınır JSON'u yarıda kesiyor.
+    maxCikti: 12000,
   });
 
   const sonuc: MesajIlani[] = [];
