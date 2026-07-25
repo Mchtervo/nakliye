@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { kurustanGiris, tarihYaz, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
-import { aiKullanilabilir } from "@/lib/ai/istemci";
+import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
 import { fiyatGorunumu, gecenSure } from "@/lib/ilanGorunum";
 import { SUPHE_SINIRI, tercihKosulu } from "@/lib/kaynaklar/filtre";
@@ -61,7 +61,9 @@ export default async function AiYuklerSayfasi({
       prisma.yukIlani.count({ where: { guvenSkoru: { lt: SUPHE_SINIRI } } }),
     ]);
 
-  const anahtarVar = aiKullanilabilir();
+  const aiAcik = aiKullanilabilir();
+  const killSwitch = aiKapaliMi();
+  const anahtarVar = Boolean(process.env.OPENAI_API_KEY);
 
   return (
     <div className="space-y-5">
@@ -92,15 +94,23 @@ export default async function AiYuklerSayfasi({
         </div>
       </div>
 
-      {!anahtarVar && (
-        <div className="rounded-xl border border-ember/30 bg-ember/10 px-4 py-3 text-sm text-paper reveal">
-          <strong>OpenAI anahtarı yok.</strong> İlanları çözümlemek için
-          <code className="mx-1 rounded bg-black/30 px-1">OPENAI_API_KEY</code>
-          tanımlanmalı. Kurulum adımları README dosyasında.
+      {killSwitch && (
+        <div className="rounded-xl border border-amber/30 bg-amber/10 px-4 py-3 text-sm text-paper reveal">
+          <strong>AI kapalı (AI_KAPALI=true).</strong> Cron OpenAI çağrısı
+          yapmıyor. Telegram tarama devam eder; kuyruk birikir. Yeni key ile
+          önce Ayarlar&apos;dan &quot;10 mesaj işle ve dur&quot; testini çalıştır.
         </div>
       )}
 
-      {anahtarVar && kaynakSayisi === 0 && (
+      {!killSwitch && !anahtarVar && (
+        <div className="rounded-xl border border-ember/30 bg-ember/10 px-4 py-3 text-sm text-paper reveal">
+          <strong>OpenAI anahtarı yok.</strong> İlanları çözümlemek için
+          <code className="mx-1 rounded bg-black/30 px-1">OPENAI_API_KEY</code>
+          tanımlanmalı.
+        </div>
+      )}
+
+      {aiAcik && kaynakSayisi === 0 && (
         <div className="kart space-y-2 border-amber/25 p-4 text-sm text-fog reveal">
           <div className="font-display text-base font-bold text-paper">
             Nasıl çalışır

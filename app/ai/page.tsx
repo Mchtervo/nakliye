@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { aiKullanilabilir } from "@/lib/ai/istemci";
+import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { tlYaz } from "@/lib/para";
 
 export const dynamic = "force-dynamic";
@@ -75,11 +75,17 @@ export default async function AiMerkeziSayfasi() {
         </p>
       </div>
 
-      {!aiKullanilabilir() && (
-        <div className="rounded-xl border border-ember/30 bg-ember/10 px-4 py-3 text-sm text-paper reveal">
-          <strong>OpenAI anahtarı tanımlı değil.</strong> AI modülleri anahtar
-          eklenene kadar boş görünür.
+      {aiKapaliMi() ? (
+        <div className="rounded-xl border border-amber/30 bg-amber/10 px-4 py-3 text-sm text-paper reveal">
+          <strong>AI kapalı (AI_KAPALI=true).</strong> OpenAI çağrıları durduruldu.
         </div>
+      ) : (
+        !aiKullanilabilir() && (
+          <div className="rounded-xl border border-ember/30 bg-ember/10 px-4 py-3 text-sm text-paper reveal">
+            <strong>OpenAI anahtarı tanımlı değil.</strong> AI modülleri anahtar
+            eklenene kadar boş görünür.
+          </div>
+        )
       )}
 
       {enIyiIlan && (
