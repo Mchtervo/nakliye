@@ -1,4 +1,5 @@
 import { aiJson } from "@/lib/ai/istemci";
+import { AI_MAX_CIKTI } from "@/lib/ai/modeller";
 import { MODEL_HIZLI } from "@/lib/ai/modeller";
 import {
   ILAN_LISTESI_SEMASI,
@@ -6,7 +7,8 @@ import {
   type IlanCikti,
   type MesajIlanCikti,
 } from "@/lib/ai/semalar";
-import { ilBul } from "@/lib/iller";
+import { aracKoduBul, type AracTipiKodu } from "@/lib/arac";
+import { ilBul, illeriBul, sadelestir } from "@/lib/iller";
 import { guvenliKirp } from "@/lib/metin";
 
 const SISTEM = `Sen Türkiye'deki nakliye/yük ilanlarını okuyan bir asistansın.
@@ -15,12 +17,25 @@ Verilen metinde kaç tane yük ilanı varsa hepsini çıkar.
 Kurallar:
 - Sadece GERÇEK yük ilanlarını al. Sohbet, selam, "araç arıyorum", reklam,
   ödeme şikayeti gibi mesajlar ilan değildir; onları listeye ekleme.
+- YER ADI EN ÖNEMLİ KURAL: nereden/nereye alanına yer adını METİNDE GEÇTİĞİ
+  GİBİ yaz. Kısaltmayı açma, ilçeyi ile çevirme, yazımı düzeltme. Metinde
+  "İst" yazıyorsa "İst", "Ostim" yazıyorsa "Ostim" yaz. Metinde geçmeyen bir
+  şehir/ilçe adını ASLA yazma; yer belirtilmemişse null bırak. Tahmin yok.
 - "Ankara > Bolu", "Ankara-Bolu", "Ankaradan Boluya" gibi yazımların hepsi
   çıkış ve varış demektir.
-- Şehir isimlerini 81 ilden birine normalize et (ör. "İst" -> "İstanbul",
-  "Gebze" -> "Kocaeli"). İlçe yazılıysa bağlı olduğu ili yaz.
+- ÇOK GÜZERGAHLI MESAJ: Bir mesajda birden çok güzergah listelenmiş olabilir
+  ("ÇAN'DAN: VAN 2400+, KONYA 850+, MERSİN 1100+"). Her satırı AYRI ilan yap.
+  Ortak çıkış yerini hepsine uygula ama bir satırın varışını veya fiyatını
+  ASLA başka satıra taşıma.
+- FİYAT TÜRÜ: ucretTuru alanını doldur. Bir çıkıştan çok sayıda şehir ve
+  yanlarında 500-3000 arası sayılar listelenmişse ("VAN 2400+", "900+KDV")
+  bu TON_BASI fiyattır. "komple", "navlun", "araç" gibi ifadelerle verilen
+  tek ve büyük tutar ("45 bin", "38000 TL komple") KOMPLE'dir. Emin
+  olamıyorsan BELIRSIZ yaz.
 - Ücret "8500", "8.500 TL", "8500tl" gibi yazılabilir; sadece sayıyı ver.
   Ücret yazmıyorsa null bırak.
+- tonaj: yükün ton cinsinden ağırlığı ("24 ton" -> 24). "3 TİR", "10 araç"
+  gibi ifadeler ARAÇ ADEDİDİR, tonaj değildir; onları tonaja yazma.
 - Telefonu sadece rakam olarak ver (05321234567).
 - Uydurma bilgi ekleme; yoksa null bırak.
 - guvenSkoru: metin net bir yük ilanıysa 80-100, şüpheliyse 40-70, zayıfsa 0-39.`;
@@ -33,8 +48,12 @@ export type CozulmusIlan = {
   cikisIl: string | null;
   varisIl: string | null;
   yuklemeTarihi: Date | null;
-  ucret: number | null; // kuruş
+  ucret: number | null; // kuruş — komple navlun
+  fiyatTon: number | null; // kuruş — ton başı
+  fiyatBelirsiz: boolean;
+  tonaj: number | null;
   aracTipi: string | null;
+  aracTipiKod: AracTipiKodu | null;
   yukTipi: string | null;
   guvenSkoru: number;
 };
@@ -69,21 +88,80 @@ function ucretKurusaCevir(tl: number | null): number | null {
   return Math.round(tl * 100);
 }
 
+function tonajTemizle(ham: number | null): number | null {
+  if (ham === null || !Number.isFinite(ham)) return null;
+  const ton = Math.round(ham);
+  // 50 tonun üstü ve 1 tonun altı yük ilanı değil, yanlış okumadır.
+  return ton >= 1 && ton <= 50 ? ton : null;
+}
+
 type HamIlan = IlanCikti["ilanlar"][number];
 
-function ilaniNormalize(i: HamIlan): CozulmusIlan {
+const KACIS = /[.*+?^${}()|[\]\\]/g;
+
+/** Doğrulama için ham metinden bir kez çıkarılan bilgiler. */
+export type MetinBaglami = { sade: string; iller: Set<string> };
+
+export function baglamCikar(hamMetin: string): MetinBaglami {
+  return { sade: sadelestir(hamMetin), iller: new Set(illeriBul(hamMetin)) };
+}
+
+/**
+ * Model bazen metinde hiç geçmeyen şehir uyduruyor. Yer adı ham metinde
+ * ya birebir geçmeli ya da metinde geçen bir ilçenin ili olmalı; aksi
+ * hâlde uydurmadır ve kullanıcı olmayan bir yüke telefon açar.
+ */
+function yerMetindeVarMi(yer: string | null, baglam: MetinBaglami): boolean {
+  if (!yer) return true;
+  const sade = sadelestir(yer);
+  if (!sade) return false;
+
+  // "Bolu" -> "boluya" kabul, "sabolu" değil.
+  if (new RegExp(`(^|\\s)${sade.replace(KACIS, "\\$&")}`).test(baglam.sade)) {
+    return true;
+  }
+
+  // Metinde "Gebze" yazıp model "Kocaeli" demişse bu uydurma değildir.
+  const il = ilBul(yer);
+  return il !== null && baglam.iller.has(il);
+}
+
+function ilaniNormalize(i: HamIlan, baglam: MetinBaglami): CozulmusIlan {
+  let nereden = i.nereden?.trim() || null;
+  let nereye = i.nereye?.trim() || null;
+  let skor = Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0)));
+
+  // Uydurulan alan silinir ve ilan güvenilmez sayılır; sessizce kaydedilip
+  // gerçek bilgi gibi gösterilmesindense elenmesi iyidir.
+  if (!yerMetindeVarMi(nereden, baglam)) {
+    nereden = null;
+    skor = Math.min(skor, 35);
+  }
+  if (!yerMetindeVarMi(nereye, baglam)) {
+    nereye = null;
+    skor = Math.min(skor, 35);
+  }
+
+  const fiyat = ucretKurusaCevir(i.ucretTl);
+  const tur = fiyat === null ? null : i.ucretTuru;
+
   return {
     firmaAdi: i.firmaAdi?.trim() || null,
     telefon: telefonTemizle(i.telefon),
-    nereden: i.nereden?.trim() || null,
-    nereye: i.nereye?.trim() || null,
-    cikisIl: ilBul(i.cikisIl) || ilBul(i.nereden),
-    varisIl: ilBul(i.varisIl) || ilBul(i.nereye),
+    nereden,
+    nereye,
+    // İl eşlemesi modele bırakılmaz; ham yer adından burada türetilir.
+    cikisIl: ilBul(nereden),
+    varisIl: ilBul(nereye),
     yuklemeTarihi: tarihCevir(i.yuklemeTarihi),
-    ucret: ucretKurusaCevir(i.ucretTl),
+    ucret: tur === "KOMPLE" ? fiyat : null,
+    fiyatTon: tur === "TON_BASI" ? fiyat : null,
+    fiyatBelirsiz: tur === "BELIRSIZ",
+    tonaj: tonajTemizle(i.tonaj),
     aracTipi: i.aracTipi?.trim() || null,
+    aracTipiKod: aracKoduBul(i.aracTipi),
     yukTipi: i.yukTipi?.trim() || null,
-    guvenSkoru: Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0))),
+    guvenSkoru: skor,
   };
 }
 
@@ -93,26 +171,76 @@ function kullanilabilirMi(i: CozulmusIlan): boolean {
 
 /** Serbest metinden yük ilanlarını çıkarır. */
 export async function ilanlariCozumle(
-  hamMetin: string
+  hamMetin: string,
+  kapsamIlleri: string[] = []
 ): Promise<CozulmusIlan[]> {
   const metin = hamMetin.trim();
   if (metin.length < 12) return [];
 
   const cikti = await aiJson<IlanCikti>({
     model: MODEL_HIZLI,
-    sistem: SISTEM,
+    sistem: `${SISTEM}${kapsamTalimati(kapsamIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(metin, 12000)}`,
     semaAdi: "yuk_ilanlari",
     sema: ILAN_LISTESI_SEMASI,
     caba: "low",
-    maxCikti: 4000,
+    maxCikti: AI_MAX_CIKTI,
+    kaynak: "ilanCozumle.tek",
   });
 
-  return (cikti.ilanlar || []).map(ilaniNormalize).filter(kullanilabilirMi);
+  const baglam = baglamCikar(metin);
+  const kapsam = new Set(kapsamIlleri);
+  const sonuc: CozulmusIlan[] = [];
+  for (const ham of cikti.ilanlar || []) {
+    const ilan = ilaniNormalize(ham, baglam);
+    if (!kullanilabilirMi(ilan)) continue;
+    if (kapsamDisiMi(ilan, kapsam)) continue;
+    sonuc.push(ilan);
+  }
+  return sonuc;
 }
 
 export type MesajGirdisi = { anahtar: number; metin: string };
 export type MesajIlani = { anahtar: number; ilan: CozulmusIlan };
+
+export type MesajCozumRaporu = {
+  ilanlar: MesajIlani[];
+  /** Model yazdı ama sunucu bölge dışı diye eledi. */
+  bolgeElenen: number;
+  /** Modelden gelen toplam ilan (elemeden önce). */
+  modelCikti: number;
+};
+
+/**
+ * Çözümlemenin il kapsamı. Bir komisyoncu tek mesajda 30 rota
+ * listeliyor; hepsinin JSON'unu yazdırmak çıktı token'ının çoğunu
+ * ilgilenilmeyen güzergahlara harcamak demek.
+ *
+ * "İlk N rota" kesmiyoruz — sıralama rastgele, iyi yük kaybolur.
+ * Bunun yerine sadece hedef bölge + komşulara değen rotalar çıkarılır.
+ */
+function kapsamTalimati(iller: string[]): string {
+  if (iller.length === 0 || iller.length >= 70) return "";
+  return `
+
+KAPSAM (ZORUNLU): Sadece çıkışı VEYA varışı şu illerden birinde olan
+güzergahları çıkar. Diğer güzergahları HİÇ yazma, listeye ekleme.
+${iller.join(", ")}
+İlçe/semt adı yazılmışsa bağlı olduğu ile göre değerlendir
+(ör. Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul).`;
+}
+
+/** İlan kapsam dışı mı? Sadece iki uç da bilinip ikisi de dışardaysa evet. */
+function kapsamDisiMi(ilan: CozulmusIlan, iller: Set<string>): boolean {
+  if (iller.size === 0) return false;
+  const cikis = ilan.cikisIl;
+  const varis = ilan.varisIl;
+  if (!cikis && !varis) return false;
+  if (cikis && iller.has(cikis)) return false;
+  if (varis && iller.has(varis)) return false;
+  // Bir uç çözülemediyse kapsam dışı olduğunu kanıtlayamayız, elemeyiz.
+  return Boolean(cikis) && Boolean(varis);
+}
 
 /**
  * Grup mesajlarını tek çağrıda çözümler; her ilan geldiği mesaja bağlanır.
@@ -120,10 +248,13 @@ export type MesajIlani = { anahtar: number; ilan: CozulmusIlan };
  * gönderilir, ancak ham metin eşlemesi mesaj bazında korunur.
  */
 export async function mesajlariCozumle(
-  mesajlar: MesajGirdisi[]
-): Promise<MesajIlani[]> {
+  mesajlar: MesajGirdisi[],
+  kapsamIlleri: string[] = []
+): Promise<MesajCozumRaporu> {
   const gecerli = mesajlar.filter((m) => m.metin.trim().length >= 12);
-  if (gecerli.length === 0) return [];
+  if (gecerli.length === 0) {
+    return { ilanlar: [], bolgeElenen: 0, modelCikti: 0 };
+  }
 
   const govde = gecerli
     .map((m, sira) => `[${sira + 1}]\n${guvenliKirp(m.metin.trim(), 1200)}`)
@@ -135,23 +266,46 @@ export async function mesajlariCozumle(
 
 Mesajlar [1], [2] gibi numaralarla ayrılmıştır. Her ilan için mesajNo
 alanına ilanın alındığı mesajın numarasını yaz. Bir mesajda birden fazla
-ilan varsa hepsini ayrı ayrı listele.`,
+ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMESAJLAR:\n${govde}`,
     semaAdi: "mesaj_yuk_ilanlari",
     sema: MESAJ_ILAN_SEMASI,
     caba: "low",
-    // Tek mesajda onlarca rota olabiliyor; dar sınır JSON'u yarıda kesiyor.
-    maxCikti: 12000,
+    // Reasoning de bu havuzdan yer; 1500 varsayılan (OPENAI_MAX_CIKTI).
+    maxCikti: AI_MAX_CIKTI,
+    kaynak: "ilanCozumle.parti",
   });
 
-  const sonuc: MesajIlani[] = [];
+  // Doğrulama mesaj bazında yapılır: hem uydurma yeri hem de ilanı yanlış
+  // mesaja bağlama hatasını yakalar.
+  const baglamlar = gecerli.map((m) => baglamCikar(m.metin));
+  const kapsam = new Set(kapsamIlleri);
+
+  const ilanlar: MesajIlani[] = [];
+  let bolgeElenen = 0;
+  let modelCikti = 0;
+
   for (const ham of cikti.ilanlar || []) {
-    const kaynak = gecerli[Math.round(ham.mesajNo) - 1];
+    const sira = Math.round(ham.mesajNo) - 1;
+    const kaynak = gecerli[sira];
     if (!kaynak) continue;
 
-    const ilan = ilaniNormalize(ham);
+    const ilan = ilaniNormalize(ham, baglamlar[sira]);
     if (!kullanilabilirMi(ilan)) continue;
-    sonuc.push({ anahtar: kaynak.anahtar, ilan });
+    modelCikti += 1;
+    if (kapsamDisiMi(ilan, kapsam)) {
+      bolgeElenen += 1;
+      continue;
+    }
+    ilanlar.push({ anahtar: kaynak.anahtar, ilan });
   }
-  return sonuc;
+
+  if (bolgeElenen > 0) {
+    console.log(
+      `[ilanCozumle] bölge dışı rota elendi: ${bolgeElenen}` +
+        ` (kabul: ${ilanlar.length}, model: ${modelCikti})`
+    );
+  }
+
+  return { ilanlar, bolgeElenen, modelCikti };
 }

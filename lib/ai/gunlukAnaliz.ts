@@ -216,6 +216,7 @@ export async function gunlukAnaliziUret(
     metin: `İşletmenin güncel rakamları:\n\n${ozet}\n\nBugünün değerlendirmesini yaz.`,
     caba: "medium",
     maxCikti: 1200,
+    kaynak: "gunlukAnaliz",
   });
 
   const baslik = `${new Intl.DateTimeFormat("tr-TR", {

@@ -1,6 +1,7 @@
 import { aiJson } from "@/lib/ai/istemci";
 import { MODEL_ANALIZ } from "@/lib/ai/modeller";
 import { ILAN_LISTESI_SEMASI, type IlanCikti } from "@/lib/ai/semalar";
+import { aracKoduBul } from "@/lib/arac";
 import { ilBul } from "@/lib/iller";
 import { ilanOzeti } from "@/lib/kaynaklar/web";
 import { bosSonuc, type KaynakAdaptoru, type TaramaSonucu } from "@/lib/kaynaklar/tip";
@@ -10,7 +11,7 @@ Web arama aracını kullanarak güncel yük/navlun ilanlarını bul.
 
 Kurallar:
 - Sadece bugün veya son birkaç güne ait, gerçek ve ulaşılabilir ilanları al.
-- Şehirleri 81 ilden birine normalize et.
+- Yer adlarını ilanda yazdığı gibi ver; olmayan şehir uydurma.
 - Telefon ve ücreti ilanda yazıyorsa al, yoksa null bırak.
 - Bilgi uydurma. Emin olmadığın ilanı listeye ekleme.
 - En fazla 10 ilan döndür.`;
@@ -30,8 +31,9 @@ export const aiAramaAdaptoru: KaynakAdaptoru = {
         sema: ILAN_LISTESI_SEMASI,
         caba: "low",
         webArama: true,
-        maxCikti: 4000,
+        maxCikti: 1500,
         zamanAsimiMs: 90000,
+        kaynak: "aiArama",
       });
 
       const bulunanlar = (cikti.ilanlar || [])
@@ -40,12 +42,24 @@ export const aiAramaAdaptoru: KaynakAdaptoru = {
           telefon: i.telefon?.replace(/\D/g, "") || null,
           nereden: i.nereden?.trim() || null,
           nereye: i.nereye?.trim() || null,
-          cikisIl: ilBul(i.cikisIl) || ilBul(i.nereden),
-          varisIl: ilBul(i.varisIl) || ilBul(i.nereye),
+          cikisIl: ilBul(i.nereden),
+          varisIl: ilBul(i.nereye),
           yuklemeTarihi: null,
           ucret:
-            i.ucretTl && i.ucretTl > 0 ? Math.round(i.ucretTl * 100) : null,
+            i.ucretTuru !== "TON_BASI" && i.ucretTl && i.ucretTl > 0
+              ? Math.round(i.ucretTl * 100)
+              : null,
+          fiyatTon:
+            i.ucretTuru === "TON_BASI" && i.ucretTl && i.ucretTl > 0
+              ? Math.round(i.ucretTl * 100)
+              : null,
+          fiyatBelirsiz: i.ucretTuru === "BELIRSIZ" && Boolean(i.ucretTl),
+          tonaj:
+            i.tonaj && i.tonaj >= 1 && i.tonaj <= 50
+              ? Math.round(i.tonaj)
+              : null,
           aracTipi: i.aracTipi?.trim() || null,
+          aracTipiKod: aracKoduBul(i.aracTipi),
           yukTipi: i.yukTipi?.trim() || null,
           guvenSkoru: Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0))),
         }))

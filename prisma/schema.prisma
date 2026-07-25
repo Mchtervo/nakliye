@@ -108,17 +108,49 @@ model IlanKaynagi {
 /// Gruplardan çekilen ham mesajlar. AI çözümlemesi kuyruktan yapılır;
 /// böylece okuma işi kısa sürer, çözümleme ayrı turda yapılır.
 model HamMesaj {
-  id        Int          @id @default(autoincrement())
-  kaynakId  Int?
-  kaynak    IlanKaynagi? @relation(fields: [kaynakId], references: [id], onDelete: Cascade)
-  mesajId   Int?
-  metin     String
-  islendi   Boolean      @default(false)
-  hata      String?
-  createdAt DateTime     @default(now())
+  id           Int          @id @default(autoincrement())
+  kaynakId     Int?
+  kaynak       IlanKaynagi? @relation(fields: [kaynakId], references: [id], onDelete: Cascade)
+  mesajId      Int?
+  metin        String
+  metinHash    String? // birebir tekrarı AI'a göndermemek için
+  onek         String? // aynı listenin tekrarını yakalamak için başlangıç
+  islendi      Boolean      @default(false)
+  denemeSayisi Int          @default(0) // AI denemesi; 2'yi geçince kalıcı HATA
+  hata         String?
+  createdAt    DateTime     @default(now())
 
   @@unique([kaynakId, mesajId])
-  @@index([islendi, createdAt])
+  @@index([islendi, denemeSayisi, createdAt])
+  @@index([metinHash])
+  @@index([kaynakId, onek, createdAt])
+}
+
+/// Her OpenAI çağrısının token / maliyet kaydı. Ölçemediğimiz şeyi yönetemeyiz.
+model AiCagri {
+  id              Int      @id @default(autoincrement())
+  zaman           DateTime @default(now())
+  kaynak          String // ilanCozumle | fisOku | firmaBul | ...
+  model           String
+  girdiToken      Int      @default(0)
+  ciktiToken      Int      @default(0)
+  reasoningToken  Int      @default(0)
+  maliyetMikro    Int      @default(0) // USD * 1_000_000
+  basarili        Boolean  @default(false)
+  hata            String?
+  sureMs          Int?
+
+  @@index([zaman])
+  @@index([kaynak, zaman])
+}
+
+/// Rota satırı tekrarı: aynı satır AI'ya bir kez gider.
+/// Komisyoncu listeyi 8 kez atınca yeni satır yoksa hiç çağrı yapılmaz.
+model SatirHash {
+  hash      String   @id
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 /// AI'nin çözümlediği yük ilanı
@@ -134,8 +166,12 @@ model YukIlani {
   cikisIl       String?
   varisIl       String?
   yuklemeTarihi DateTime?
-  ucret         Int? // kuruş
-  aracTipi      String?
+  ucret         Int? // kuruş — KOMPLE navlun
+  fiyatTon      Int? // kuruş — ton başı fiyat ("900+kdv" gibi)
+  fiyatBelirsiz Boolean      @default(false) // fiyat var ama türü anlaşılmadı
+  tonaj         Int? // ton
+  aracTipi      String? // ilanda yazdığı gibi
+  aracTipiKod   String? // TENTELI | FRIGO | DAMPER | KAPALI_KASA | LOWBED | SAL_DORSE | KAMYON | DIGER
   yukTipi       String?
   guvenSkoru    Int          @default(0) // 0-100
   durum         String       @default("YENI") // YENI | ILGILENIYOR | ELENDI | YUKE_DONDU

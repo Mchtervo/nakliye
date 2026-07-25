@@ -13,6 +13,10 @@ export type KaydedilenIlan = {
   cikisIl: string | null;
   varisIl: string | null;
   ucret: number | null;
+  fiyatTon: number | null;
+  tonaj: number | null;
+  aracTipiKod: string | null;
+  guvenSkoru: number;
   hamMetin: string;
   donusTalebiId: number | null;
 };
@@ -20,14 +24,18 @@ export type KaydedilenIlan = {
 /**
  * Aynı ilanın farklı kaynaklardan / tekrar tekrar kaydedilmesini önler.
  * Telefon varsa telefon + rota + ücret; yoksa metnin kendisi esas alınır.
+ *
+ * Rota il değil ham yer adıyla anahtarlanır: aynı komisyoncunun "Çan ->
+ * Kızıltepe" ve "Çan -> Mardin" ilanları aynı ile düşüyor, il kullanılırsa
+ * ikincisi tekrar sanılıp siliniyor.
  */
 export function dedupHashUret(ilan: CozulmusIlan, hamMetin: string): string {
   const cekirdek = ilan.telefon
     ? [
         ilan.telefon,
-        ilan.cikisIl ?? "",
-        ilan.varisIl ?? "",
-        ilan.ucret ?? "",
+        sadelestir(ilan.nereden ?? ilan.cikisIl ?? ""),
+        sadelestir(ilan.nereye ?? ilan.varisIl ?? ""),
+        ilan.ucret ?? ilan.fiyatTon ?? "",
         ilan.yuklemeTarihi?.toISOString().slice(0, 10) ?? "",
       ].join("|")
     : sadelestir(hamMetin).slice(0, 400);
@@ -82,7 +90,11 @@ export async function ilanlariKaydet(
           varisIl: ilan.varisIl,
           yuklemeTarihi: ilan.yuklemeTarihi,
           ucret: ilan.ucret,
+          fiyatTon: ilan.fiyatTon,
+          fiyatBelirsiz: ilan.fiyatBelirsiz,
+          tonaj: ilan.tonaj,
           aracTipi: ilan.aracTipi,
+          aracTipiKod: ilan.aracTipiKod,
           yukTipi: ilan.yukTipi,
           guvenSkoru: ilan.guvenSkoru,
           dedupHash,
@@ -106,6 +118,10 @@ export async function ilanlariKaydet(
         cikisIl: kayit.cikisIl,
         varisIl: kayit.varisIl,
         ucret: kayit.ucret,
+        fiyatTon: kayit.fiyatTon,
+        tonaj: kayit.tonaj,
+        aracTipiKod: kayit.aracTipiKod,
+        guvenSkoru: kayit.guvenSkoru,
         hamMetin: kayit.hamMetin,
         donusTalebiId: kayit.donusTalebiId,
       });

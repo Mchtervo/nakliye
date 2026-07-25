@@ -16,17 +16,34 @@ const ILAN_ALANLARI: Record<string, unknown> = {
     ...metinVeyaBos,
     description: "Sadece rakamlar, mümkünse 05xxxxxxxxx biçiminde",
   },
-  nereden: { ...metinVeyaBos, description: "Yükleme yeri, yazıldığı gibi" },
-  nereye: { ...metinVeyaBos, description: "Boşaltma yeri, yazıldığı gibi" },
-  cikisIl: { ...metinVeyaBos, description: "Yükleme ili (81 ilden biri)" },
-  varisIl: { ...metinVeyaBos, description: "Boşaltma ili (81 ilden biri)" },
+  nereden: {
+    ...metinVeyaBos,
+    description:
+      "Yükleme yeri, METİNDE GEÇTİĞİ GİBİ. Kısaltmayı açma, ilçeyi ile çevirme. Metinde yoksa null.",
+  },
+  nereye: {
+    ...metinVeyaBos,
+    description:
+      "Boşaltma yeri, METİNDE GEÇTİĞİ GİBİ. Kısaltmayı açma, ilçeyi ile çevirme. Metinde yoksa null.",
+  },
   yuklemeTarihi: {
     ...metinVeyaBos,
     description: "YYYY-MM-DD biçiminde; belirtilmemişse null",
   },
   ucretTl: {
     ...sayiVeyaBos,
-    description: "Navlun bedeli TL cinsinden sayı; belirtilmemişse null",
+    description: "Fiyat, TL cinsinden sade sayı; belirtilmemişse null",
+  },
+  ucretTuru: {
+    type: "string",
+    enum: ["TON_BASI", "KOMPLE", "BELIRSIZ"],
+    description:
+      "ucretTl ton başı mı komple navlun mu. Anlaşılmıyorsa BELIRSIZ.",
+  },
+  tonaj: {
+    ...sayiVeyaBos,
+    description:
+      "Yükün ton cinsinden ağırlığı (ör. 24). Araç adedi değildir. Yoksa null.",
   },
   aracTipi: { ...metinVeyaBos, description: "Tır, kırkayak, tenteli vb." },
   yukTipi: { ...metinVeyaBos, description: "Taşınacak malın cinsi" },
@@ -63,10 +80,10 @@ export type IlanCikti = {
     telefon: string | null;
     nereden: string | null;
     nereye: string | null;
-    cikisIl: string | null;
-    varisIl: string | null;
     yuklemeTarihi: string | null;
     ucretTl: number | null;
+    ucretTuru: "TON_BASI" | "KOMPLE" | "BELIRSIZ";
+    tonaj: number | null;
     aracTipi: string | null;
     yukTipi: string | null;
     guvenSkoru: number;

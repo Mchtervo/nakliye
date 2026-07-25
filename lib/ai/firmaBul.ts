@@ -36,8 +36,9 @@ export async function adayFirmalariBul(
     sema: ADAY_FIRMA_SEMASI,
     caba: "medium",
     webArama: true,
-    maxCikti: 4000,
+    maxCikti: 1500,
     zamanAsimiMs: 120000,
+    kaynak: "firmaBul",
   });
 
   const kaynak = sektor ? `${sehir} · ${sektor}` : sehir;

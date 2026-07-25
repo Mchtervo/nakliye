@@ -5,7 +5,17 @@ import type { Config } from "@netlify/functions";
  * Netlify fonksiyon süresi kısıtlı olduğu için her koşuda az sayıda
  * kaynak işlenir; sıralama en eski taramaya göre döner.
  */
+function aiKapaliMi(): boolean {
+  const v = (process.env.AI_KAPALI || "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "evet" || v === "yes";
+}
+
 export default async function handler(): Promise<Response> {
+  if (aiKapaliMi()) {
+    console.log("[ai-tarama] AI_KAPALI=true — atlandı.");
+    return new Response("ai kapali", { status: 200 });
+  }
+
   const kok = (process.env.URL || process.env.DEPLOY_PRIME_URL || "").replace(
     /\/$/,
     ""

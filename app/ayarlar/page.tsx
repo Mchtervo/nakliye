@@ -15,9 +15,13 @@ import { kurustanGiris, tarihYaz } from "@/lib/para";
 import { KAYNAK_TUR_ADLARI, type KaynakTuru } from "@/lib/kaynaklar/tip";
 import {
   TELEGRAM_UYE,
+  grupDurumlari,
   telegramUyeKullanilabilir,
 } from "@/lib/kaynaklar/telegramUye";
+import { gecenSure } from "@/lib/ilanGorunum";
 import { kaynakDurumDegistir, kaynakSil } from "@/app/ai-actions";
+import { aiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
+import AiMaliyetPaneli from "@/components/AiMaliyetPaneli";
 
 function bugunAy(): string {
   const d = new Date();
@@ -43,14 +47,16 @@ function DurumRozeti({ tamam, ad }: { tamam: boolean; ad: string }) {
 export default async function AyarlarSayfasi() {
   const ay = bugunAy();
 
-  const [hizliAra, tercih, tumKaynaklar, bekleyenMesaj] = await Promise.all([
-    prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
-    aiTercihleriOku(),
-    prisma.ilanKaynagi.findMany({ orderBy: [{ tur: "asc" }, { ad: "asc" }] }),
-    prisma.hamMesaj.count({ where: { islendi: false } }),
-  ]);
+  const [hizliAra, tercih, tumKaynaklar, bekleyenMesaj, gruplar, maliyet] =
+    await Promise.all([
+      prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
+      aiTercihleriOku(),
+      prisma.ilanKaynagi.findMany({ orderBy: [{ tur: "asc" }, { ad: "asc" }] }),
+      prisma.hamMesaj.count({ where: { islendi: false } }),
+      grupDurumlari(),
+      aiMaliyetOzeti(),
+    ]);
 
-  const gruplar = tumKaynaklar.filter((k) => k.tur === TELEGRAM_UYE);
   const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
   const takipteki = gruplar.filter((g) => g.durum === "AKTIF" && g.aktif);
   // Adaylar üye sayısına göre: elle katılırken önce büyük gruplar görünsün.
@@ -110,10 +116,15 @@ export default async function AyarlarSayfasi() {
           rotalar={tercih.rotalar.join(", ")}
           minUcretYazi={tercih.minUcret ? kurustanGiris(tercih.minUcret) : ""}
           bolgeler={tercih.bolgeler}
+          aracTipleri={tercih.aracTipleri}
+          maxTonaj={tercih.maxTonaj ? String(tercih.maxTonaj) : ""}
+          anaUs={tercih.anaUs || ""}
           telegramAcik={tercih.telegramAcik}
           pushAcik={tercih.pushAcik}
           telegramUyeAcik={tercih.telegramUyeAcik}
         />
+
+        <AiMaliyetPaneli ozet={maliyet} />
 
         <div className="border-t border-white/8 pt-3">
           <h3 className="font-display text-base font-bold text-paper">
@@ -178,9 +189,16 @@ export default async function AyarlarSayfasi() {
                           ]
                             .filter(Boolean)
                             .join(" · ")
-                        : `${g.bulunanAdet} ilan${
-                            g.sonTarama ? ` · ${tarihYaz(g.sonTarama)}` : ""
-                          }`}
+                        : [
+                            g.sonTarama
+                              ? `okuma ${gecenSure(g.sonTarama)}`
+                              : "hiç okunmadı",
+                            `24s ${g.mesaj24s} mesaj`,
+                            g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
+                            `${g.ilanAdedi} ilan`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">

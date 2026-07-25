@@ -3,12 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AYAR_ANAHTARLARI, ayarYaz } from "@/lib/ayarlar";
+import { aracKodlariCozumle } from "@/lib/arac";
 import { bolgeCozumle } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
 import { tlKurusaCevir } from "@/lib/para";
 import { kaynaklariTara } from "@/lib/kaynaklar/tarama";
+import { butceKesiminiAc } from "@/lib/ai/butce";
 import { adayFirmalariBul } from "@/lib/ai/firmaBul";
 import { gunlukAnaliziUret } from "@/lib/ai/gunlukAnaliz";
+import { aiTestBypassIle } from "@/lib/ai/istemci";
+import { mikrodolarYaz } from "@/lib/ai/maliyet";
+import { kuyrugunuCoz } from "@/lib/kaynaklar/telegramUye";
 import type { KaynakTuru } from "@/lib/kaynaklar/tip";
 
 export type AiSonuc = { hata: string } | { bilgi: string } | null;
@@ -132,10 +137,29 @@ export async function aiTercihKaydet(
     formData.getAll("bolgeler").map(String).join(",")
   ).join(",");
 
+  const aracTipleri = aracKodlariCozumle(
+    formData.getAll("aracTipleri").map(String).join(",")
+  ).join(",");
+
+  const tonajHam = metinOku(formData.get("maxTonaj"));
+  const maxTonaj = tonajHam ? Number(tonajHam.replace(/\D/g, "")) : 0;
+  if (tonajHam && (!Number.isFinite(maxTonaj) || maxTonaj <= 0 || maxTonaj > 50)) {
+    return { hata: "Max tonaj 1-50 arası olmalı." };
+  }
+
+  const anaUsHam = metinOku(formData.get("anaUs"));
+  const anaUs = anaUsHam ? ilBul(anaUsHam) : null;
+  if (anaUsHam && !anaUs) {
+    return { hata: "Ana üs şehrini tanıyamadım. Örnek: Ankara" };
+  }
+
   await ayarYaz(AYAR_ANAHTARLARI.aiSehir, sehir || "");
   await ayarYaz(AYAR_ANAHTARLARI.aiRotalar, rotalar);
   await ayarYaz(AYAR_ANAHTARLARI.aiMinUcret, String(minUcret ?? 0));
   await ayarYaz(AYAR_ANAHTARLARI.aiBolgeler, bolgeler);
+  await ayarYaz(AYAR_ANAHTARLARI.aiAracTipleri, aracTipleri);
+  await ayarYaz(AYAR_ANAHTARLARI.aiMaxTonaj, String(maxTonaj || 0));
+  await ayarYaz(AYAR_ANAHTARLARI.aiAnaUs, anaUs || "");
   await ayarYaz(
     AYAR_ANAHTARLARI.bildirimTelegram,
     formData.get("bildirimTelegram") === "1" ? "1" : "0"
@@ -227,4 +251,64 @@ export async function donusTalebiKapat(id: number): Promise<void> {
     .update({ where: { id }, data: { aktif: false } })
     .catch(() => null);
   revalidatePath("/ai/donus");
+}
+
+/**
+ * Test modu: tam 10 mesaj işle ve dur.
+ * AI_KAPALI=true iken bile çalışır (cron'lar kapalı kalır).
+ * Yeni key ile önce bunu çalıştırıp maliyeti ölç.
+ */
+export async function aiTestOnMesaj(): Promise<AiSonuc> {
+  if (!process.env.OPENAI_API_KEY) {
+    return { hata: "OPENAI_API_KEY yok — önce Netlify'a yeni key ekle." };
+  }
+
+  const baslangic = new Date();
+  try {
+    const rapor = await aiTestBypassIle(() =>
+      kuyrugunuCoz(10, { testModu: true })
+    );
+
+    const cagrilar = await prisma.aiCagri.findMany({
+      where: { zaman: { gte: baslangic } },
+      select: {
+        maliyetMikro: true,
+        girdiToken: true,
+        ciktiToken: true,
+        reasoningToken: true,
+        basarili: true,
+      },
+    });
+    const maliyet = cagrilar.reduce((t, c) => t + c.maliyetMikro, 0);
+    const girdi = cagrilar.reduce((t, c) => t + c.girdiToken, 0);
+    const cikti = cagrilar.reduce((t, c) => t + c.ciktiToken, 0);
+    const reasoning = cagrilar.reduce((t, c) => t + c.reasoningToken, 0);
+
+    revalidatePath("/ayarlar");
+    revalidatePath("/ai/yukler");
+
+    if (rapor.hata) {
+      return {
+        hata: `${rapor.hata} | Çağrı: ${cagrilar.length}, maliyet: ${mikrodolarYaz(maliyet)}`,
+      };
+    }
+
+    return {
+      bilgi:
+        `Test bitti (10'luk tur). İşlenen: ${rapor.islenen}, yeni ilan: ${rapor.yeniIlan}, ` +
+        `çağrı: ${cagrilar.length}, girdi: ${girdi}, çıktı: ${cikti}, reasoning: ${reasoning}, ` +
+        `maliyet: ${mikrodolarYaz(maliyet)}. Cron hâlâ AI_KAPALI ile kapalı.`,
+    };
+  } catch (hata) {
+    return {
+      hata: hata instanceof Error ? hata.message : "Test modu başarısız.",
+    };
+  }
+}
+
+/** Günlük bütçe kesmesini elle aç (limit yarın sıfırlanana kadar dikkat). */
+export async function aiButceKesiminiAc(): Promise<AiSonuc> {
+  await butceKesiminiAc();
+  revalidatePath("/ayarlar");
+  return { bilgi: "Bütçe kesmesi kaldırıldı. Günlük limit hâlâ geçerli." };
 }

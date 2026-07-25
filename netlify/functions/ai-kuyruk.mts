@@ -4,7 +4,17 @@ import type { Config } from "@netlify/functions";
  * Telegram gruplarından toplanan ham mesajları AI ile çözümler.
  * Okuma işinden ayrı çalışır; biri yavaşlarsa diğeri etkilenmez.
  */
+function aiKapaliMi(): boolean {
+  const v = (process.env.AI_KAPALI || "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "evet" || v === "yes";
+}
+
 export default async function handler(): Promise<Response> {
+  if (aiKapaliMi()) {
+    console.log("[ai-kuyruk] AI_KAPALI=true — atlandı.");
+    return new Response("ai kapali", { status: 200 });
+  }
+
   const kok = (process.env.URL || process.env.DEPLOY_PRIME_URL || "").replace(
     /\/$/,
     ""
@@ -17,8 +27,8 @@ export default async function handler(): Promise<Response> {
   }
 
   try {
-    // Yoğun saatlerde gruplardan gelen mesaj 12'yi aşıyor; parti bu yüzden
-    // geniş tutuluyor, yoksa kuyruk hiç erimiyor.
+    // Gece (23:00-06:00 TR) API AI'yı erteleyip mesajları biriktirir.
+    // Sabah biriken kuyruk hızlı erisin diye limit biraz yüksek.
     const cevap = await fetch(`${kok}/api/ai/kuyruk?limit=22`, {
       method: "POST",
       headers: { Authorization: `Bearer ${anahtar}` },

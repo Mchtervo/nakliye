@@ -3,18 +3,33 @@ import {
   ilanlariCozumle,
   mesajlariCozumle,
   type CozulmusIlan,
+  type MesajIlani,
 } from "@/lib/ai/ilanCozumle";
-import { aiKullanilabilir } from "@/lib/ai/istemci";
+import { butceMusaitMi } from "@/lib/ai/butce";
+import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
+import { AI_MAX_DENEME } from "@/lib/ai/modeller";
 import {
   AYAR_ANAHTARLARI,
   aiTercihleriOku,
   ayarOku,
   ayarYaz,
 } from "@/lib/ayarlar";
-import { aramaSorgulariUret, grubuDegerlendir } from "@/lib/bolgeler";
+import {
+  aramaSorgulariUret,
+  genisIlKumesi,
+  grubuDegerlendir,
+  ilinBolgesi,
+} from "@/lib/bolgeler";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { ilBul } from "@/lib/iller";
+import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
 import { ilgilileriSuz } from "@/lib/kaynaklar/filtre";
+import {
+  elemeSebebi,
+  metinHashUret,
+  rotaHashleri,
+  yeniSatirlariSec,
+} from "@/lib/kaynaklar/onFiltre";
 import { guvenliKirp } from "@/lib/metin";
 import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
@@ -26,8 +41,8 @@ const TUR_BASINA_SORGU = 3;
 const KESIF_ARALIGI_MS = 6 * 60 * 60 * 1000;
 /** İlk kez okunan grupta geriye dönük alınacak mesaj sayısı. */
 export const ILK_OKUMA_ADEDI = 20;
-/** Toplu çağrı düştüğünde tek tek denemeye ayrılan süre. */
-const TEK_TEK_BUTCE_MS = 25_000;
+/** İkili bölme / çözümleme için ayrılan süre (tek çağrı timeout 60s). */
+const COZUM_BUTCE_MS = 90_000;
 
 /** Telegram hesabı bağlanmış mı (my.telegram.org anahtarları + oturum). */
 export function telegramUyeKullanilabilir(): boolean {
@@ -70,16 +85,6 @@ export async function okumaGoreviUret(limit = 5): Promise<OkumaGorevi> {
   };
 }
 
-/**
- * Yük ilanı olma ihtimali olmayan mesajları AI'ye hiç göndermemek için
- * ucuz bir ön eleme. En az bir il adı geçmeyen mesaj ilan sayılmaz.
- */
-function ilanAdayiMi(metin: string): boolean {
-  const sade = metin.trim();
-  if (sade.length < 15 || sade.length > 3000) return false;
-  return ilBul(sade) !== null;
-}
-
 export type GelenGrup = {
   id: number;
   sonMesajId?: number | null;
@@ -91,13 +96,41 @@ export type YutmaRaporu = {
   alinan: number;
   kuyruga: number;
   grup: number;
+  /** AI'a hiç gönderilmeyenler; sebebiyle birlikte. */
+  elenen: Record<string, number>;
+  /** Satır hash ile atlanan rota satırı adedi. */
+  satirAtlanan: number;
 };
 
-/** Gruplardan gelen ham mesajları kuyruğa yazar; AI çalıştırmaz. */
+/**
+ * Gruplardan gelen ham mesajları kuyruğa yazar; AI çalıştırmaz.
+ * Tekrar, reklam ve bölge dışı mesajlar burada elenir — asıl maliyet
+ * tasarrufu bu adımda yapılır, çünkü elenen mesaj hiç token harcamaz.
+ *
+ * Yakın tekrar: zaman penceresi değil SATIR HASH. Aynı listenin 8 kez
+ * atılması yeni satır yoksa hiç AI çağrısı üretmez; yeni eklenen rota
+ * satırı tek başına geçer.
+ */
 export async function mesajlariKuyrugaAl(
   gruplar: GelenGrup[]
 ): Promise<YutmaRaporu> {
-  const rapor: YutmaRaporu = { alinan: 0, kuyruga: 0, grup: 0 };
+  const rapor: YutmaRaporu = {
+    alinan: 0,
+    kuyruga: 0,
+    grup: 0,
+    elenen: {},
+    satirAtlanan: 0,
+  };
+  const ele = (sebep: string, n = 1) => {
+    rapor.elenen[sebep] = (rapor.elenen[sebep] ?? 0) + n;
+  };
+
+  const tercih = await aiTercihleriOku();
+  const hedefIller = new Set(genisIlKumesi(tercih.bolgeler));
+
+  // Bu turda görülen satır hash'leri (oturum içi). DB sorgusu mesaj bazında.
+  const turIci = new Set<string>();
+  const yeniHashler: string[] = [];
 
   for (const grup of gruplar) {
     const kaynak = await prisma.ilanKaynagi.findUnique({
@@ -109,16 +142,61 @@ export async function mesajlariKuyrugaAl(
     rapor.grup += 1;
     rapor.alinan += grup.mesajlar.length;
 
-    const adaylar = grup.mesajlar
-      .filter((m) => ilanAdayiMi(m.metin))
-      .slice(0, 200);
+    const adaylar: { mesajId: number | null; metin: string; hash: string }[] =
+      [];
+
+    for (const m of grup.mesajlar.slice(0, 200)) {
+      const sebep = elemeSebebi(m.metin, hedefIller);
+      if (sebep) {
+        ele(sebep);
+        continue;
+      }
+
+      // Aday satır hash'lerini DB'den toplu sor.
+      const adayHashler = rotaHashleri(m.metin).filter((h) => !turIci.has(h));
+      if (adayHashler.length > 0) {
+        const dbde = await prisma.satirHash.findMany({
+          where: { hash: { in: adayHashler } },
+          select: { hash: true },
+        });
+        for (const h of dbde) turIci.add(h.hash);
+      }
+
+      const secim = yeniSatirlariSec(m.metin, turIci);
+      rapor.satirAtlanan += secim.atlanan;
+
+      if (!secim.metin) {
+        ele("SATIR_TEKRAR");
+        continue;
+      }
+
+      const hash = metinHashUret(secim.metin);
+      if (adaylar.some((a) => a.hash === hash)) {
+        ele("TEKRAR");
+        continue;
+      }
+
+      adaylar.push({
+        mesajId: m.mesajId ?? null,
+        metin: guvenliKirp(secim.metin, 2000),
+        hash,
+      });
+
+      for (const h of secim.yeniHashler) {
+        if (!turIci.has(h)) {
+          turIci.add(h);
+          yeniHashler.push(h);
+        }
+      }
+    }
 
     if (adaylar.length > 0) {
       const sonuc = await prisma.hamMesaj.createMany({
-        data: adaylar.map((m) => ({
+        data: adaylar.map((a) => ({
           kaynakId: kaynak.id,
-          mesajId: m.mesajId ?? null,
-          metin: guvenliKirp(m.metin.trim(), 2000),
+          mesajId: a.mesajId,
+          metin: a.metin,
+          metinHash: a.hash,
         })),
         skipDuplicates: true,
       });
@@ -139,6 +217,19 @@ export async function mesajlariKuyrugaAl(
     });
   }
 
+  if (yeniHashler.length > 0) {
+    await prisma.satirHash.createMany({
+      data: yeniHashler.map((hash) => ({ hash })),
+      skipDuplicates: true,
+    });
+  }
+
+  // Günlük rapora yaz.
+  const sayac: Record<string, number> = { ...rapor.elenen };
+  if (rapor.satirAtlanan > 0) sayac.SATIR_ATLANAN = rapor.satirAtlanan;
+  if (rapor.kuyruga > 0) sayac.KUYRUK_ALINAN = rapor.kuyruga;
+  await elemeArtir(sayac);
+
   return rapor;
 }
 
@@ -150,85 +241,250 @@ export type KuyrukRaporu = {
   bildirilen: number;
   kalan: number;
   hata: string | null;
+  /** Gece penceresinde AI ertelendi. */
+  geceErtelendi?: boolean;
+  bolgeElenen?: number;
+  cagriSayisi?: number;
 };
 
+type PartiMesaj = { id: number; metin: string };
+
 /**
- * Toplu çağrı başarısız olduğunda her mesajı ayrı ayrı dener.
- * Yalnızca gerçekten çözülemeyen mesaj hatalı işaretlenir.
+ * Tek mesaj — en son çare. Parti ikiye bölüne bölüne buraya iner.
  */
-async function tekTekCozumle(
-  parti: { id: number; metin: string }[]
+async function tekMesajCozumle(
+  mesaj: PartiMesaj,
+  kapsam: string[]
 ): Promise<{
-  sonuc: { anahtar: number; ilan: CozulmusIlan }[];
-  denenen: number[];
+  sonuc: MesajIlani[];
+  basarili: number[];
+  basarisiz: number[];
+  cagri: number;
 }> {
-  const sonuc: { anahtar: number; ilan: CozulmusIlan }[] = [];
-  const denenen: number[] = [];
-  const bitis = Date.now() + TEK_TEK_BUTCE_MS;
-
-  for (const mesaj of parti) {
-    // Süre dolduysa kalanlar kuyrukta bırakılır, sonraki turda denenir.
-    if (Date.now() > bitis) break;
-    denenen.push(mesaj.id);
-
-    try {
-      const ilanlar = await ilanlariCozumle(mesaj.metin);
-      for (const ilan of ilanlar) sonuc.push({ anahtar: mesaj.id, ilan });
-    } catch (hata) {
-      const metin = hata instanceof Error ? hata.message : "Çözümlenemedi";
-      await prisma.hamMesaj.update({
-        where: { id: mesaj.id },
-        data: { hata: metin.slice(0, 300) },
-      });
-    }
+  try {
+    const ilanlar = await ilanlariCozumle(mesaj.metin, kapsam);
+    return {
+      sonuc: ilanlar.map((ilan) => ({ anahtar: mesaj.id, ilan })),
+      basarili: [mesaj.id],
+      basarisiz: [],
+      cagri: 1,
+    };
+  } catch (hata) {
+    const metin = hata instanceof Error ? hata.message : "Çözümlenemedi";
+    await prisma.hamMesaj.update({
+      where: { id: mesaj.id },
+      data: { hata: metin.slice(0, 300) },
+    });
+    return { sonuc: [], basarili: [], basarisiz: [mesaj.id], cagri: 1 };
   }
-
-  return { sonuc, denenen };
 }
 
 /**
- * Kuyruktaki ham mesajları tek AI çağrısında çözümler.
- * Netlify'ın kısa fonksiyon süresine sığması için parti küçük tutulur.
+ * Parti başarısız olunca ikiye böl. Tek tek deneme en son çare:
+ * 8 mesajlık parti → 4+4 → 2+2 → 1+1. Böylece iyi mesajlar pahalı
+ * tekil çağrıya düşmeden kurtulur.
  */
-export async function kuyrugunuCoz(limit = 10): Promise<KuyrukRaporu> {
+async function bolerekCozumle(
+  parti: PartiMesaj[],
+  kapsam: string[],
+  bitis: number
+): Promise<{
+  sonuc: MesajIlani[];
+  basarili: number[];
+  basarisiz: number[];
+  bolgeElenen: number;
+  cagri: number;
+}> {
+  if (parti.length === 0) {
+    return { sonuc: [], basarili: [], basarisiz: [], bolgeElenen: 0, cagri: 0 };
+  }
+  if (Date.now() > bitis) {
+    return { sonuc: [], basarili: [], basarisiz: [], bolgeElenen: 0, cagri: 0 };
+  }
+
+  if (parti.length === 1) {
+    const tek = await tekMesajCozumle(parti[0], kapsam);
+    return { ...tek, bolgeElenen: 0 };
+  }
+
+  try {
+    const rapor = await mesajlariCozumle(
+      parti.map((m) => ({ anahtar: m.id, metin: m.metin })),
+      kapsam
+    );
+    return {
+      sonuc: rapor.ilanlar,
+      basarili: parti.map((m) => m.id),
+      basarisiz: [],
+      bolgeElenen: rapor.bolgeElenen,
+      cagri: 1,
+    };
+  } catch {
+    const orta = Math.ceil(parti.length / 2);
+    const sol = await bolerekCozumle(parti.slice(0, orta), kapsam, bitis);
+    const sag = await bolerekCozumle(parti.slice(orta), kapsam, bitis);
+    return {
+      sonuc: [...sol.sonuc, ...sag.sonuc],
+      basarili: [...sol.basarili, ...sag.basarili],
+      basarisiz: [...sol.basarisiz, ...sag.basarisiz],
+      bolgeElenen: sol.bolgeElenen + sag.bolgeElenen,
+      cagri: sol.cagri + sag.cagri,
+    };
+  }
+}
+
+/**
+ * Kuyruktan işlenecek mesajları seçer.
+ *
+ * Düz FIFO'da tek bir yoğun grup partinin tamamını doldurup diğer
+ * grupları aç bırakıyordu: panelde "6 grupta 0 ilan" görünmesinin
+ * sebeplerinden biri buydu. Sıra gruplar arasında dönüşümlü dağıtılır.
+ */
+async function partiSec(limit: number): Promise<
+  { id: number; metin: string; kaynakId: number | null; denemeSayisi: number }[]
+> {
+  const havuz = await prisma.hamMesaj.findMany({
+    // denemeSayisi >= AI_MAX_DENEME → daha deneme yok.
+    where: { islendi: false, denemeSayisi: { lt: AI_MAX_DENEME } },
+    orderBy: { createdAt: "asc" },
+    take: limit * 5,
+    select: { id: true, metin: true, kaynakId: true, denemeSayisi: true },
+  });
+  if (havuz.length <= limit) return havuz;
+
+  const kuyruklar = new Map<number | null, typeof havuz>();
+  for (const mesaj of havuz) {
+    const liste = kuyruklar.get(mesaj.kaynakId) ?? [];
+    liste.push(mesaj);
+    kuyruklar.set(mesaj.kaynakId, liste);
+  }
+
+  const secilen: typeof havuz = [];
+  let sira = 0;
+  while (secilen.length < limit) {
+    let eklendi = false;
+    for (const liste of kuyruklar.values()) {
+      if (sira >= liste.length) continue;
+      secilen.push(liste[sira]);
+      eklendi = true;
+      if (secilen.length === limit) break;
+    }
+    if (!eklendi) break;
+    sira += 1;
+  }
+  return secilen;
+}
+
+export type KuyrukSecenek = {
+  /**
+   * Test modu: AI_KAPALI ve gece ertelemeyi yok sayar, tek tur 10 mesaj.
+   * Cron'lar hâlâ kill switch'e bağlı kalır.
+   */
+  testModu?: boolean;
+};
+
+/**
+ * Kuyruktaki ham mesajları AI ile çözümler.
+ *
+ * Gece (23:00–06:00 TR) AI çalışmaz: mesajlar HamMesaj'da birikir.
+ * Sabah aynı kelimeler 8 kez atılmışsa satır hash sayesinde tek seferde
+ * elenir — gece erteleme bu yüzden ekstra tasarruf sağlar.
+ * Telegram okuması gece de devam eder (bedava).
+ */
+export async function kuyrugunuCoz(
+  limit = 10,
+  secenek: KuyrukSecenek = {}
+): Promise<KuyrukRaporu> {
   const rapor: KuyrukRaporu = {
     islenen: 0,
     yeniIlan: 0,
     bildirilen: 0,
     kalan: 0,
     hata: null,
+    bolgeElenen: 0,
+    cagriSayisi: 0,
   };
+  const testModu = Boolean(secenek.testModu);
 
-  if (!aiKullanilabilir()) {
+  if (!testModu && aiKapaliMi()) {
+    rapor.hata = "AI_KAPALI=true — kuyruk işlenmiyor.";
+    rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
+    return rapor;
+  }
+
+  if (!testModu && aiGeceMi()) {
+    rapor.geceErtelendi = true;
+    rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
+    await elemeArtir({ GECE_ERTELEME: 1 });
+    return rapor;
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
     rapor.hata = "OPENAI_API_KEY tanımlı değil.";
     return rapor;
   }
 
-  const parti = await prisma.hamMesaj.findMany({
-    where: { islendi: false },
-    orderBy: { createdAt: "asc" },
-    take: Math.max(1, Math.min(limit, 25)),
-  });
-
-  if (parti.length === 0) return rapor;
-
-  let kimlikler = parti.map((m) => m.id);
-  let cozulenler;
-
-  try {
-    cozulenler = await mesajlariCozumle(
-      parti.map((m) => ({ anahtar: m.id, metin: m.metin }))
-    );
-  } catch (hata) {
-    // Çok ilan içeren tek bir mesaj yüzünden parti düşebiliyor; iyi
-    // mesajları kaybetmemek için hepsi tek tek denenir.
-    rapor.hata = hata instanceof Error ? hata.message : "Çözümleme hatası";
-    const yedek = await tekTekCozumle(parti);
-    cozulenler = yedek.sonuc;
-    kimlikler = yedek.denenen;
+  if (!(await butceMusaitMi())) {
+    rapor.hata = "Günlük AI bütçesi doldu — otomatik kesildi.";
+    rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
+    return rapor;
   }
 
-  rapor.islenen = kimlikler.length;
+  // Kill switch test modunda bypass; yine de API key şart.
+  if (!testModu && !aiKullanilabilir()) {
+    rapor.hata = "OPENAI_API_KEY tanımlı değil veya AI kapalı.";
+    return rapor;
+  }
+
+  const secilen = await partiSec(Math.max(1, Math.min(limit, 25)));
+  if (secilen.length === 0) return rapor;
+
+  // Her denemede artır; 2'yi geçince kalıcı HATA, AI'ya gönderme.
+  const parti: typeof secilen = [];
+  for (const m of secilen) {
+    const guncel = await prisma.hamMesaj.update({
+      where: { id: m.id },
+      data: { denemeSayisi: { increment: 1 } },
+      select: { id: true, denemeSayisi: true },
+    });
+    if (guncel.denemeSayisi > AI_MAX_DENEME) {
+      await prisma.hamMesaj.update({
+        where: { id: m.id },
+        data: {
+          islendi: true,
+          hata: `Max deneme (${AI_MAX_DENEME}) aşıldı — kalıcı HATA.`,
+        },
+      });
+      continue;
+    }
+    parti.push(m);
+  }
+  if (parti.length === 0) {
+    rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
+    return rapor;
+  }
+
+  const tercih = await aiTercihleriOku();
+  const kapsam = genisIlKumesi(tercih.bolgeler);
+  const bitis = Date.now() + COZUM_BUTCE_MS;
+
+  const cozum = await bolerekCozumle(
+    parti.map((m) => ({ id: m.id, metin: m.metin })),
+    kapsam,
+    bitis
+  );
+
+  const cozulenler = cozum.sonuc;
+  rapor.islenen = cozum.basarili.length + cozum.basarisiz.length;
+  rapor.bolgeElenen = cozum.bolgeElenen;
+  rapor.cagriSayisi = cozum.cagri;
+
+  if (cozum.bolgeElenen > 0) {
+    await elemeArtir({ BOLGE_ROTA: cozum.bolgeElenen });
+  }
+  if (cozum.cagri > 0) {
+    await elemeArtir({ AI_CAGRI: cozum.cagri });
+  }
 
   const metinler = new Map(parti.map((m) => [m.id, m.metin]));
   const kaynaklar = new Map(parti.map((m) => [m.id, m.kaynakId]));
@@ -236,7 +492,7 @@ export async function kuyrugunuCoz(limit = 10): Promise<KuyrukRaporu> {
   // Aynı kaynağa ait ilanlar birlikte kaydedilir.
   const kaynagaGore = new Map<
     number | null,
-    { ilan: (typeof cozulenler)[number]["ilan"]; hamMetin: string }[]
+    { ilan: CozulmusIlan; hamMetin: string }[]
   >();
 
   for (const { anahtar, ilan } of cozulenler) {
@@ -260,15 +516,38 @@ export async function kuyrugunuCoz(limit = 10): Promise<KuyrukRaporu> {
     }
   }
 
-  await prisma.hamMesaj.updateMany({
-    where: { id: { in: kimlikler } },
-    data: { islendi: true },
-  });
+  // Başarılılar işlendi. Başarısızlar deneme hakkı varsa kuyrukta kalır;
+  // denemeSayisi > MAX olanlar yukarıda kalıcı HATA yazıldı.
+  if (cozum.basarili.length > 0) {
+    await prisma.hamMesaj.updateMany({
+      where: { id: { in: cozum.basarili } },
+      data: { islendi: true, hata: null },
+    });
+  }
+
+  // Max denemeye ulaşmış başarısızlar: kalıcı HATA, bir daha kuyruk yok.
+  if (cozum.basarisiz.length > 0) {
+    const tukenen = await prisma.hamMesaj.findMany({
+      where: {
+        id: { in: cozum.basarisiz },
+        denemeSayisi: { gte: AI_MAX_DENEME },
+      },
+      select: { id: true },
+    });
+    if (tukenen.length > 0) {
+      await prisma.hamMesaj.updateMany({
+        where: { id: { in: tukenen.map((t) => t.id) } },
+        data: {
+          islendi: true,
+          hata: `Max deneme (${AI_MAX_DENEME}) aşıldı — kalıcı HATA.`,
+        },
+      });
+    }
+  }
 
   rapor.yeniIlan = yeniler.length;
 
-  if (yeniler.length > 0) {
-    const tercih = await aiTercihleriOku();
+  if (yeniler.length > 0 && !testModu) {
     const bildirilecek = ilgilileriSuz(yeniler, tercih);
     if (bildirilecek.length > 0) {
       await yukIlanlariniBildir(bildirilecek);
@@ -280,12 +559,85 @@ export async function kuyrugunuCoz(limit = 10): Promise<KuyrukRaporu> {
   return rapor;
 }
 
-/** İşlenmiş kuyruk kayıtlarını temizler. */
+export type GrupDurumu = {
+  id: number;
+  ad: string;
+  kullaniciAdi: string | null;
+  uyeSayisi: number | null;
+  durum: string;
+  aktif: boolean;
+  sonTarama: Date | null;
+  sonHata: string | null;
+  ilkOkumaYapildi: boolean;
+  /** Son 24 saatte kuyruğa alınan mesaj. */
+  mesaj24s: number;
+  /** Kuyrukta bekleyen (henüz AI görmemiş) mesaj. */
+  bekleyen: number;
+  /** Gerçek ilan sayısı — sayaç değil, tablodan sayılır. */
+  ilanAdedi: number;
+};
+
+/**
+ * Grupların gerçekten okunup okunmadığını gösterir. "0 ilan" tek başına
+ * bir şey söylemiyor: grup sessiz de olabilir, mesajları kuyrukta sırasını
+ * bekliyor da olabilir. Ayrım panelde görünsün diye ayrı ayrı sayılır.
+ */
+export async function grupDurumlari(): Promise<GrupDurumu[]> {
+  const gruplar = await prisma.ilanKaynagi.findMany({
+    where: { tur: TELEGRAM_UYE },
+    orderBy: [{ durum: "asc" }, { ad: "asc" }],
+  });
+  if (gruplar.length === 0) return [];
+
+  const dun = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [sonGun, bekleyen, ilanlar] = await Promise.all([
+    prisma.hamMesaj.groupBy({
+      by: ["kaynakId"],
+      where: { createdAt: { gte: dun } },
+      _count: { _all: true },
+    }),
+    prisma.hamMesaj.groupBy({
+      by: ["kaynakId"],
+      where: { islendi: false },
+      _count: { _all: true },
+    }),
+    prisma.yukIlani.groupBy({
+      by: ["kaynakId"],
+      _count: { _all: true },
+    }),
+  ]);
+
+  const say = (
+    liste: { kaynakId: number | null; _count: { _all: number } }[],
+    id: number
+  ) => liste.find((x) => x.kaynakId === id)?._count._all ?? 0;
+
+  return gruplar.map((g) => ({
+    id: g.id,
+    ad: g.ad,
+    kullaniciAdi: g.kullaniciAdi,
+    uyeSayisi: g.uyeSayisi,
+    durum: g.durum,
+    aktif: g.aktif,
+    sonTarama: g.sonTarama,
+    sonHata: g.sonHata,
+    ilkOkumaYapildi: g.sonMesajId !== null,
+    mesaj24s: say(sonGun, g.id),
+    bekleyen: say(bekleyen, g.id),
+    ilanAdedi: say(ilanlar, g.id),
+  }));
+}
+
+/** İşlenmiş kuyruk kayıtlarını ve eski satır hash'lerini temizler. */
 export async function kuyrugaBakim(gunSayisi = 3): Promise<number> {
   const sinir = new Date(Date.now() - gunSayisi * 24 * 60 * 60 * 1000);
   const sonuc = await prisma.hamMesaj.deleteMany({
     where: { islendi: true, createdAt: { lt: sinir } },
   });
+  // 7 günden eski satır hash'leri: aynı listenin uzak tekrarı yeniden
+  // değerlendirilsin ama tablo şişmesin.
+  const hashSinir = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await prisma.satirHash.deleteMany({ where: { createdAt: { lt: hashSinir } } });
   return sonuc.count;
 }
 
@@ -405,7 +757,14 @@ export async function adaylariDegerlendir(
       continue;
     }
 
-    const karar = grubuDegerlendir(baslik, tercih.bolgeler);
+    // Üye olunan grupta başlık filtresi çalıştırılmaz: kullanıcı zaten
+    // bilerek katılmış. Başlığa bakıp elemek ("Grupaj Kargo" içinde
+    // nakliye kelimesi yok diye) gruplarının yarısını görünmez yapıyordu.
+    // Süzme ilan seviyesinde yapılır, grup seviyesinde değil.
+    const karar = uye
+      ? { uygun: true, bolge: ilinBolgesi(ilBul(baslik)) }
+      : grubuDegerlendir(baslik, tercih.bolgeler);
+
     if (!karar.uygun) {
       rapor.elenen += 1;
       continue;

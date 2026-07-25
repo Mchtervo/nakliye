@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { kurustanGiris, tarihYaz, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKullanilabilir } from "@/lib/ai/istemci";
+import { aracTipiAdi } from "@/lib/arac";
+import { fiyatGorunumu, gecenSure } from "@/lib/ilanGorunum";
+import { SUPHE_SINIRI, tercihKosulu } from "@/lib/kaynaklar/filtre";
 import { eskiIlanlariTemizle, simdiTara } from "@/app/ai-actions";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import IlanAksiyonlari from "@/components/IlanAksiyonlari";
@@ -13,17 +16,9 @@ const SEKMELER = [
   { kod: "YENI", ad: "Yeni" },
   { kod: "ILGILENIYOR", ad: "Takipte" },
   { kod: "DONUS", ad: "Dönüş" },
+  { kod: "SUPHELI", ad: "Şüpheli" },
   { kod: "HEPSI", ad: "Hepsi" },
 ] as const;
-
-function gecenSure(tarih: Date): string {
-  const dakika = Math.floor((Date.now() - tarih.getTime()) / 60000);
-  if (dakika < 1) return "az önce";
-  if (dakika < 60) return `${dakika} dk önce`;
-  const saat = Math.floor(dakika / 60);
-  if (saat < 24) return `${saat} saat önce`;
-  return `${Math.floor(saat / 24)} gün önce`;
-}
 
 export default async function AiYuklerSayfasi({
   searchParams,
@@ -35,14 +30,22 @@ export default async function AiYuklerSayfasi({
     ? (sp.sekme as string)
     : "YENI";
 
+  const tercih = await aiTercihleriOku();
+
+  // "Yeni" sekmesi aracına ve bölgene uymayanı göstermez; "Hepsi" filtresiz,
+  // "Şüpheli" ise güven skoru düşük olanları ayrı tutar.
   const filtre =
     sekme === "HEPSI"
       ? {}
       : sekme === "DONUS"
         ? { donusTalebiId: { not: null } }
-        : { durum: sekme };
+        : sekme === "SUPHELI"
+          ? { guvenSkoru: { lt: SUPHE_SINIRI } }
+          : sekme === "YENI"
+            ? { durum: "YENI", ...tercihKosulu(tercih) }
+            : { durum: sekme };
 
-  const [ilanlar, tercih, kaynakSayisi, yeniSayisi, donusSayisi] =
+  const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi] =
     await Promise.all([
       prisma.yukIlani.findMany({
         where: filtre,
@@ -50,10 +53,12 @@ export default async function AiYuklerSayfasi({
         take: 60,
         include: { kaynak: { select: { ad: true, tur: true } } },
       }),
-      aiTercihleriOku(),
       prisma.ilanKaynagi.count({ where: { aktif: true } }),
-      prisma.yukIlani.count({ where: { durum: "YENI" } }),
+      prisma.yukIlani.count({
+        where: { durum: "YENI", ...tercihKosulu(tercih) },
+      }),
       prisma.yukIlani.count({ where: { donusTalebiId: { not: null } } }),
+      prisma.yukIlani.count({ where: { guvenSkoru: { lt: SUPHE_SINIRI } } }),
     ]);
 
   const anahtarVar = aiKullanilabilir();
@@ -119,7 +124,13 @@ export default async function AiYuklerSayfasi({
         {SEKMELER.map((s) => {
           const aktif = s.kod === sekme;
           const rozet =
-            s.kod === "YENI" ? yeniSayisi : s.kod === "DONUS" ? donusSayisi : null;
+            s.kod === "YENI"
+              ? yeniSayisi
+              : s.kod === "DONUS"
+                ? donusSayisi
+                : s.kod === "SUPHELI"
+                  ? supheliSayisi
+                  : null;
           return (
             <Link
               key={s.kod}
@@ -137,11 +148,22 @@ export default async function AiYuklerSayfasi({
         })}
       </div>
 
-      {tercih.sehir && (
+      {sekme === "YENI" && (
         <p className="text-xs text-fog reveal">
-          Bildirim filtresi: <span className="text-paper">{tercih.sehir}</span> çıkışlı
-          {tercih.rotalar.length > 0 && ` · ${tercih.rotalar.join(" · ")}`}
-          {tercih.minUcret ? ` · en az ${tlYaz(tercih.minUcret)}` : ""}
+          Filtre:{" "}
+          {[
+            tercih.aracTipleri.map((k) => aracTipiAdi(k)).join(" / ") || null,
+            tercih.maxTonaj ? `en fazla ${tercih.maxTonaj} ton` : null,
+            tercih.sehir || tercih.anaUs || null,
+            tercih.rotalar.join(" · ") || null,
+            tercih.minUcret ? `en az ${tlYaz(tercih.minUcret)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "yok"}
+          {" · "}
+          <Link href="/ayarlar#ai" className="text-amber">
+            değiştir
+          </Link>
         </p>
       )}
 
@@ -153,7 +175,9 @@ export default async function AiYuklerSayfasi({
         </div>
       ) : (
         <div className="space-y-3">
-          {ilanlar.map((ilan, i) => (
+          {ilanlar.map((ilan, i) => {
+            const fiyat = fiyatGorunumu(ilan);
+            return (
             <div
               key={ilan.id}
               className={`kart space-y-3 p-4 sm:p-5 reveal reveal-d${Math.min(i + 1, 6)} ${
@@ -188,6 +212,7 @@ export default async function AiYuklerSayfasi({
                       ilan.firmaAdi,
                       ilan.yukTipi,
                       ilan.aracTipi,
+                      ilan.tonaj ? `${ilan.tonaj} ton` : null,
                       ilan.yuklemeTarihi ? tarihYaz(ilan.yuklemeTarihi) : null,
                     ]
                       .filter(Boolean)
@@ -195,9 +220,21 @@ export default async function AiYuklerSayfasi({
                   </div>
                 </div>
 
-                {ilan.ucret !== null && (
-                  <div className="font-display text-xl font-extrabold text-teal">
-                    {tlYaz(ilan.ucret)}
+                {fiyat.ana && (
+                  <div className="text-right">
+                    <div className="font-display text-xl font-extrabold text-teal">
+                      {fiyat.ana}
+                    </div>
+                    {fiyat.tahmin && (
+                      <div className="text-[11px] text-fog">
+                        tahmini komple {fiyat.tahmin}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {fiyat.belirsiz && (
+                  <div className="text-xs font-semibold text-amber">
+                    fiyat türü belirsiz
                   </div>
                 )}
               </div>
@@ -226,7 +263,8 @@ export default async function AiYuklerSayfasi({
                 />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

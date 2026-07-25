@@ -111,6 +111,58 @@ export function bolgeIlleri(kodlar: BolgeKodu[]): string[] {
   return [...iller];
 }
 
+/**
+ * Bölgeye komşu olan, bölge dışındaki iller.
+ *
+ * Sadece bölge illeri alınırsa sınırın hemen ötesindeki yükler kaçıyor:
+ * Bursa'da olan bir araç için Kütahya veya Manisa yükü de iştir. Öte
+ * yandan tüm Türkiye'yi çözümlemek boşuna token yakıyor.
+ */
+const BOLGE_KOMSULARI: Record<BolgeKodu, string[]> = {
+  MARMARA: ["Bolu", "Düzce", "Kütahya", "Manisa", "İzmir", "Eskişehir"],
+  IC_ANADOLU: [
+    "Bolu", "Kastamonu", "Karabük", "Çorum", "Amasya", "Tokat", "Ordu",
+    "Giresun", "Erzincan", "Malatya", "Kahramanmaraş", "Adana", "Mersin",
+    "Antalya", "Isparta", "Afyonkarahisar", "Kütahya", "Bilecik", "Bursa",
+  ],
+  EGE: [
+    "Balıkesir", "Bursa", "Bilecik", "Eskişehir", "Konya", "Karaman",
+    "Isparta", "Burdur", "Antalya", "Çanakkale",
+  ],
+  AKDENIZ: [
+    "Muğla", "Denizli", "Afyonkarahisar", "Konya", "Karaman", "Niğde",
+    "Kayseri", "Malatya", "Adıyaman", "Gaziantep", "Şanlıurfa", "Kilis",
+    "Uşak",
+  ],
+  KARADENIZ: [
+    "Sakarya", "Kocaeli", "Ankara", "Kırıkkale", "Yozgat", "Sivas",
+    "Erzincan", "Erzurum", "Bayburt", "Gümüşhane", "Artvin", "Ardahan",
+    "Kastamonu", "Çankırı", "Elazığ", "Bingöl", "Tunceli",
+  ],
+  DOGU_ANADOLU: [
+    "Sivas", "Kayseri", "Kahramanmaraş", "Adıyaman", "Diyarbakır",
+    "Batman", "Siirt", "Şırnak", "Mardin", "Gümüşhane", "Bayburt",
+    "Trabzon", "Rize", "Artvin", "Giresun", "Ordu", "Tokat",
+  ],
+  GUNEYDOGU: [
+    "Malatya", "Elazığ", "Bingöl", "Muş", "Bitlis", "Van", "Hakkari",
+    "Kahramanmaraş", "Osmaniye", "Hatay", "Adana",
+  ],
+};
+
+/**
+ * Çözümlemeye değer il kümesi: seçili bölgeler + komşuları.
+ * Bölge seçilmemişse 81 il döner.
+ */
+export function genisIlKumesi(kodlar: BolgeKodu[]): string[] {
+  if (kodlar.length === 0) return [...ILLER];
+  const iller = new Set(bolgeIlleri(kodlar));
+  for (const kod of kodlar) {
+    for (const il of BOLGE_KOMSULARI[kod] ?? []) iller.add(il);
+  }
+  return [...iller];
+}
+
 /** Bir ilin hangi bölgeye ait olduğunu söyler. */
 export function ilinBolgesi(il: string | null | undefined): BolgeKodu | null {
   const normal = ilBul(il);

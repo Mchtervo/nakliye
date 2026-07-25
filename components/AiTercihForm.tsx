@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { aiTercihKaydet, type AiSonuc } from "@/app/ai-actions";
+import { ARAC_TIPLERI, type AracTipiKodu } from "@/lib/arac";
 import { BOLGELER, type BolgeKodu } from "@/lib/bolgeler";
 
 export default function AiTercihForm({
@@ -9,6 +10,9 @@ export default function AiTercihForm({
   rotalar,
   minUcretYazi,
   bolgeler,
+  aracTipleri,
+  maxTonaj,
+  anaUs,
   telegramAcik,
   pushAcik,
   telegramUyeAcik,
@@ -17,6 +21,9 @@ export default function AiTercihForm({
   rotalar: string;
   minUcretYazi: string;
   bolgeler: BolgeKodu[];
+  aracTipleri: AracTipiKodu[];
+  maxTonaj: string;
+  anaUs: string;
   telegramAcik: boolean;
   pushAcik: boolean;
   telegramUyeAcik: boolean;
@@ -28,6 +35,66 @@ export default function AiTercihForm({
 
   return (
     <form action={aksiyon} className="space-y-3">
+      <div className="space-y-3 rounded-xl border border-amber/20 bg-amber/5 p-3">
+        <div className="text-xs font-bold uppercase tracking-wider text-amber">
+          Aracım
+        </div>
+        <div>
+          <span className="etiket">Araç tipi</span>
+          <div className="mt-1 grid grid-cols-2 gap-1.5">
+            {ARAC_TIPLERI.filter((a) => a.kod !== "DIGER").map((a) => (
+              <label
+                key={a.kod}
+                className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-2.5 py-2"
+              >
+                <input
+                  type="checkbox"
+                  name="aracTipleri"
+                  value={a.kod}
+                  defaultChecked={aracTipleri.includes(a.kod)}
+                  className="h-4.5 w-4.5 rounded accent-[#f0a020]"
+                />
+                <span className="text-sm font-semibold text-paper">{a.ad}</span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-fog">
+            Seçilen tipe uymayan ilanlar listede gösterilmez. Araç tipi
+            yazmayan ilanlar elenmez.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="maxTonaj" className="etiket">
+              Max tonaj
+            </label>
+            <input
+              id="maxTonaj"
+              name="maxTonaj"
+              type="text"
+              inputMode="numeric"
+              placeholder="Örnek: 24"
+              defaultValue={maxTonaj}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="anaUs" className="etiket">
+              Ana üs
+            </label>
+            <input
+              id="anaUs"
+              name="anaUs"
+              type="text"
+              placeholder="Örnek: Ankara"
+              defaultValue={anaUs}
+              className="alan"
+            />
+          </div>
+        </div>
+      </div>
+
       <div>
         <label htmlFor="sehir" className="etiket">
           Bulunduğun şehir

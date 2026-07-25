@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { aracKodlariCozumle, type AracTipiKodu } from "@/lib/arac";
 import {
   bolgeCozumle,
   VARSAYILAN_BOLGELER,
   type BolgeKodu,
 } from "@/lib/bolgeler";
+import { ilBul } from "@/lib/iller";
 
 export const AYAR_ANAHTARLARI = {
   hizliAraTelefon: "hizli_ara_telefon",
@@ -12,6 +14,10 @@ export const AYAR_ANAHTARLARI = {
   aiRotalar: "ai_rotalar",
   aiMinUcret: "ai_min_ucret",
   aiBolgeler: "ai_bolgeler",
+  // Aracım: ilanları süzmek için kullanılır
+  aiAracTipleri: "ai_arac_tipleri",
+  aiMaxTonaj: "ai_max_tonaj",
+  aiAnaUs: "ai_ana_us",
   telegramChatId: "telegram_chat_id",
   bildirimTelegram: "bildirim_telegram",
   bildirimPush: "bildirim_push",
@@ -58,6 +64,9 @@ export type AiTercihleri = {
   rotalar: string[];
   minUcret: number | null; // kuruş
   bolgeler: BolgeKodu[];
+  aracTipleri: AracTipiKodu[];
+  maxTonaj: number | null;
+  anaUs: string | null;
   telegramChatId: string | null;
   telegramAcik: boolean;
   pushAcik: boolean;
@@ -70,6 +79,9 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.aiRotalar,
     AYAR_ANAHTARLARI.aiMinUcret,
     AYAR_ANAHTARLARI.aiBolgeler,
+    AYAR_ANAHTARLARI.aiAracTipleri,
+    AYAR_ANAHTARLARI.aiMaxTonaj,
+    AYAR_ANAHTARLARI.aiAnaUs,
     AYAR_ANAHTARLARI.telegramChatId,
     AYAR_ANAHTARLARI.bildirimTelegram,
     AYAR_ANAHTARLARI.bildirimPush,
@@ -78,6 +90,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
   const bolgeHam = a[AYAR_ANAHTARLARI.aiBolgeler];
+  const tonajHam = Number(a[AYAR_ANAHTARLARI.aiMaxTonaj]);
 
   return {
     sehir: a[AYAR_ANAHTARLARI.aiSehir] || null,
@@ -88,6 +101,10 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     minUcret: Number.isFinite(minHam) && minHam > 0 ? minHam : null,
     bolgeler:
       bolgeHam === undefined ? VARSAYILAN_BOLGELER : bolgeCozumle(bolgeHam),
+    aracTipleri: aracKodlariCozumle(a[AYAR_ANAHTARLARI.aiAracTipleri]),
+    maxTonaj:
+      Number.isFinite(tonajHam) && tonajHam > 0 ? Math.round(tonajHam) : null,
+    anaUs: ilBul(a[AYAR_ANAHTARLARI.aiAnaUs]),
     telegramChatId: a[AYAR_ANAHTARLARI.telegramChatId] || null,
     // Varsayılan açık: kullanıcı kapatmadıkça bildirim gitsin.
     telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",

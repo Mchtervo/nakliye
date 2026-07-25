@@ -39,6 +39,7 @@ export async function fisOku(gorselUrl: string): Promise<FisOkuma> {
     sema: FIS_SEMASI,
     caba: "low",
     maxCikti: 900,
+    kaynak: "fisOku",
   });
 
   if (!gecerliKategoriMi(sonuc.kategori)) {
