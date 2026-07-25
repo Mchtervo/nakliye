@@ -8,6 +8,9 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/giris") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/uploads") ||
+    // Netlify'ın kendi uçları: zamanlanmış fonksiyonlar buradan çağrılır,
+    // araya girilirse cron çalışmaz.
+    pathname.startsWith("/.netlify") ||
     // Makine uçları: kendi gizli anahtarlarıyla doğrulanır, oturum aramaz.
     pathname.startsWith("/api/telegram/webhook") ||
     pathname.startsWith("/api/telegram/uye") ||
@@ -35,6 +38,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon\\.svg|icon-.*\\.png|apple-touch-icon\\.png|manifest\\.webmanifest|sw\\.js|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)",
+    "/((?!\\.netlify|_next/static|_next/image|favicon.ico|icon\\.svg|icon-.*\\.png|apple-touch-icon\\.png|manifest\\.webmanifest|sw\\.js|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)",
   ],
 };
