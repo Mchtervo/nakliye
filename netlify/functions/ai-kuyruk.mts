@@ -17,7 +17,9 @@ export default async function handler(): Promise<Response> {
   }
 
   try {
-    const cevap = await fetch(`${kok}/api/ai/kuyruk?limit=12`, {
+    // Yoğun saatlerde gruplardan gelen mesaj 12'yi aşıyor; parti bu yüzden
+    // geniş tutuluyor, yoksa kuyruk hiç erimiyor.
+    const cevap = await fetch(`${kok}/api/ai/kuyruk?limit=22`, {
       method: "POST",
       headers: { Authorization: `Bearer ${anahtar}` },
     });
