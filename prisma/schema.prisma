@@ -85,17 +85,38 @@ model KasaHareket {
 /// Yük ilanlarının toplandığı kaynak (Telegram grubu, web sayfası, AI araması)
 model IlanKaynagi {
   id          Int        @id @default(autoincrement())
-  tur         String // TELEGRAM | WEB | AI_ARAMA
+  tur         String // TELEGRAM | TELEGRAM_UYE | WEB | AI_ARAMA
   ad          String
   hedef       String // chatId | URL | arama sorgusu
   aktif       Boolean    @default(true)
+  durum       String     @default("AKTIF") // ADAY | AKTIF | PASIF
+  bolge       String? // MARMARA | IC_ANADOLU | ...
+  sonMesajId  Int? // TELEGRAM_UYE: en son okunan mesaj kimliği
   sonTarama   DateTime?
   sonHata     String?
   bulunanAdet Int        @default(0)
   createdAt   DateTime   @default(now())
   ilanlar     YukIlani[]
+  hamMesajlar HamMesaj[]
 
   @@unique([tur, hedef])
+  @@index([tur, durum])
+}
+
+/// Gruplardan çekilen ham mesajlar. AI çözümlemesi kuyruktan yapılır;
+/// böylece okuma işi kısa sürer, çözümleme ayrı turda yapılır.
+model HamMesaj {
+  id        Int          @id @default(autoincrement())
+  kaynakId  Int?
+  kaynak    IlanKaynagi? @relation(fields: [kaynakId], references: [id], onDelete: Cascade)
+  mesajId   Int?
+  metin     String
+  islendi   Boolean      @default(false)
+  hata      String?
+  createdAt DateTime     @default(now())
+
+  @@unique([kaynakId, mesajId])
+  @@index([islendi, createdAt])
 }
 
 /// AI'nin çözümlediği yük ilanı

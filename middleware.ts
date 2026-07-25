@@ -10,7 +10,9 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/uploads") ||
     // Makine uçları: kendi gizli anahtarlarıyla doğrulanır, oturum aramaz.
     pathname.startsWith("/api/telegram/webhook") ||
+    pathname.startsWith("/api/telegram/uye") ||
     pathname.startsWith("/api/ai/tara") ||
+    pathname.startsWith("/api/ai/kuyruk") ||
     pathname.startsWith("/api/ai/gunluk-analiz") ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||

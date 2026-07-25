@@ -1,4 +1,5 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
+import { bolgeyeUyuyorMu } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
@@ -26,8 +27,11 @@ export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
     }
   }
 
-  // Hiç tercih girilmemişse her ilan ilgilidir.
-  return !sehir && tercih.rotalar.length === 0;
+  // Şehir/rota girilmemişse bölge tercihi belirleyici olur.
+  if (!sehir && tercih.rotalar.length === 0) {
+    return bolgeyeUyuyorMu(tercih.bolgeler, ilan.cikisIl, ilan.varisIl);
+  }
+  return false;
 }
 
 export function ilgilileriSuz(

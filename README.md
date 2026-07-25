@@ -26,6 +26,7 @@ Faydalı komutlar:
 | `npm run build` | Üretim derlemesi |
 | `npm run supabase:kur` | Supabase depolama kovasını hazırlar |
 | `npm run telegram:kur -- https://site-adresin` | Telegram webhook'unu kurar |
+| `npm run telegram:oturum` | Kendi Telegram hesabınla giriş yapıp oturum anahtarı üretir |
 | `npm run push:kur` | Web Push (VAPID) anahtarlarını üretir |
 
 ---
@@ -36,7 +37,8 @@ Faydalı komutlar:
 - **KDV Merkezi** (`/kdv`) — aylık hesaplanan, indirilecek ve ödenecek KDV
 - **Muhasebeciye Gönder** (`/muhasebeci`) — fiş görselleri + `giderler.xlsx` + `ozet.html` tek ZIP; WhatsApp veya e-posta
 - **AI Merkezi** (`/ai`)
-  - Yük Bulucu — Telegram grupları, ilan siteleri ve web aramasından ilan toplar
+  - Yük Bulucu — Telegram gruplarını kendi hesabınla tarar, ilan siteleri ve web aramasını da okur
+  - Grup Keşfi — seçtiğin bölgelerdeki yük gruplarını bulur, uygun olanlara katılır
   - Dönüş Yükü — her yük kaydında ters yön için otomatik arama açılır
   - Aday Firmalar — sanayi bölgelerinden potansiyel müşteri çıkarır
   - Analiz Merkezi — günlük kârlılık, yakıt, tahsilat ve KDV değerlendirmesi
@@ -76,16 +78,46 @@ Kullanılan modeller `lib/ai/modeller.ts` içinde; istersen `OPENAI_MODEL_HIZLI`
 Gördüğün herhangi bir ilanı (Facebook, WhatsApp fark etmez) bota iletmen yeterli;
 yapay zekâ onu da çözümleyip listeye ekler.
 
-### 3. Cron anahtarı
+### 3. Kendi Telegram hesabın (otomatik grup bulma)
+
+Bot yalnızca **eklendiği** grupları görebilir. Grup yöneticileri çoğu zaman bot
+eklemeye izin vermez. Kendi hesabınla bağlandığında ise **zaten üye olduğun bütün
+gruplar** okunur ve seçtiğin bölgelerde yeni gruplar bulunup katılınır.
+
+1. [my.telegram.org](https://my.telegram.org) → API development tools → uygulama oluştur
+2. Çıkan değerleri `.env`'e yaz:
+   ```
+   TELEGRAM_API_ID=1234567
+   TELEGRAM_API_HASH=...
+   ```
+3. Bir kerelik giriş yap (telefonuna kod gelir):
+   ```bash
+   npm run telegram:oturum
+   ```
+4. Çıkan `TELEGRAM_SESSION=...` satırını `.env`'e ve Netlify'a ekle.
+5. **Ayarlar → Yapay zekâ** ekranından bölgeleri seç (varsayılan: İç Anadolu, Marmara).
+
+Nasıl davranır:
+
+- Her 5 dakikada bir takipteki grupların yeni mesajları okunur.
+- 6 saatte bir keşif turu: üye olunan uygun gruplar takibe alınır, aramayla bulunan
+  yeni gruplara **günde en fazla 4** katılım yapılır.
+- Grup başlığında nakliye terimi aranır; "evden eve", emlak, sohbet gibi gruplar elenir.
+
+`TELEGRAM_SESSION` hesabına tam erişim verir — kimseyle paylaşma. Telegram, aşırı
+otomatik davranışta hesaba geçici kısıtlama koyabilir; bu yüzden arama ve katılım
+bilinçli olarak seyrek ve kotalıdır.
+
+### 4. Cron anahtarı
 
 ```bash
 node -e "console.log(crypto.randomUUID())"
 ```
 
-Çıkan değeri `.env`'e `AI_CRON_SECRET=` olarak yaz. Bu anahtar `/api/ai/tara` ve
-`/api/ai/gunluk-analiz` uçlarını korur; zamanlanmış fonksiyonlar bununla çağırır.
+Çıkan değeri `.env`'e `AI_CRON_SECRET=` olarak yaz. Bu anahtar `/api/ai/*` ve
+`/api/telegram/uye/*` uçlarını korur; zamanlanmış fonksiyonlar bununla çağırır.
 
-### 4. Telefon bildirimi (isteğe bağlı)
+### 5. Telefon bildirimi (isteğe bağlı)
 
 ```bash
 npm run push:kur
@@ -94,40 +126,52 @@ npm run push:kur
 Çıkan üç satırı `.env`'e ekle, sonra uygulamada **Ayarlar → Yapay zekâ → Bu cihazda
 bildirimi aç** de.
 
-### 5. Netlify
+### 6. Netlify
 
 Site settings → Environment variables altına aynı değerleri gir:
 
 `OPENAI_API_KEY`, `AI_CRON_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
+`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_SESSION`,
 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
 
 Zamanlanmış fonksiyonlar `netlify/functions/` altında tanımlıdır ve deploy ile
 kendiliğinden devreye girer:
 
-- `ai-tarama.mts` — 15 dakikada bir, sırayla birkaç kaynağı tarar
+- `telegram-uye.mts` — 5 dakikada bir grupları okur, keşif penceresi açıksa yeni grup arar
+- `ai-kuyruk.mts` — 5 dakikada bir biriken mesajları AI ile ilana çevirir
+- `ai-tarama.mts` — 15 dakikada bir ilan sitesi / web araması kaynaklarını tarar
 - `ai-analiz.mts` — her sabah TR 08:00'de günlük analizi üretir
 
-### 6. Uygulama içi ayarlar
+### 7. Uygulama içi ayarlar
 
 **Ayarlar → Yapay zekâ**
 
 - Şehrini ve sık çalıştığın rotaları gir (bildirim filtresi)
+- Takip edilecek bölgeleri seç (grup araması ve bildirim kapsamı)
 - İstersen en düşük ücret sınırı koy
-- **Yük kaynakları**: ilan sitesi adresi veya AI arama sorgusu ekle
-  (boş bırakırsan Telegram grupları yine çalışır)
+- **Telegram grupları**: takipteki ve aday gruplar burada listelenir
+- **Diğer yük kaynakları**: ilan sitesi adresi veya AI arama sorgusu ekle
 
 ---
 
 ## Nasıl çalışıyor
 
 ```
-Telegram grupları ──webhook──┐
-Yük ilan siteleri ───cron────┼──> OpenAI ile çözümleme ──> tekrar kontrolü ──> YukIlani
-OpenAI web arama ────cron────┘                                                    │
-                                                          şehir / rota / dönüş filtresi
-                                                                     │
-                                              Telegram + telefon bildirimi · /ai/yukler
+Telegram (kendi hesabın) ─5dk──> ham mesaj kuyruğu ─┐
+Telegram (bot) ──────webhook────────────────────────┤
+Yük ilan siteleri ───────cron───────────────────────┼──> OpenAI çözümleme
+OpenAI web arama ────────cron───────────────────────┘            │
+                                                     tekrar kontrolü (dedup)
+                                                                 │
+                                              bölge / şehir / rota / dönüş filtresi
+                                                                 │
+                                          Telegram + telefon bildirimi · /ai/yukler
 ```
+
+Okuma ile çözümleme bilerek ayrılmıştır: gruplardan mesaj çekmek hızlıdır, AI
+çözümlemesi yavaştır. Ham mesajlar önce `HamMesaj` kuyruğuna yazılır, ayrı bir
+zamanlanmış iş kuyruğu partiler hâlinde işler. Böylece iki taraf da Netlify'ın
+süre sınırına takılmaz.
 
 Ekrandan **Yüke çevir** dediğinde mevcut yük formu ilan bilgileriyle dolu açılır.
 
@@ -135,5 +179,7 @@ Ekrandan **Yüke çevir** dediğinde mevcut yük formu ilan bilgileriyle dolu a�
 
 - Giriş (login) isteyen ilan siteleri taranamaz.
 - Facebook grupları için resmî ve kalıcı bir API yolu yok; ilanı bota iletmek gerekir.
+- Telegram'da yalnızca **açık** (herkese görünür) gruplara aramayla katılınabilir;
+  davetle girilen kapalı gruplara elle katılman gerekir — sonrasında otomatik okunur.
 - Kişisel WhatsApp'a otomatik mesaj atan resmî API yok; WhatsApp tek tık gönderme
   bağlantısı olarak çalışır, anlık bildirim Telegram ve push üzerinden gider.

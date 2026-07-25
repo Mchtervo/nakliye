@@ -13,6 +13,10 @@ import { telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
 import { kurustanGiris, tarihYaz } from "@/lib/para";
 import { KAYNAK_TUR_ADLARI, type KaynakTuru } from "@/lib/kaynaklar/tip";
+import {
+  TELEGRAM_UYE,
+  telegramUyeKullanilabilir,
+} from "@/lib/kaynaklar/telegramUye";
 import { kaynakDurumDegistir, kaynakSil } from "@/app/ai-actions";
 
 function bugunAy(): string {
@@ -39,11 +43,17 @@ function DurumRozeti({ tamam, ad }: { tamam: boolean; ad: string }) {
 export default async function AyarlarSayfasi() {
   const ay = bugunAy();
 
-  const [hizliAra, tercih, kaynaklar] = await Promise.all([
+  const [hizliAra, tercih, tumKaynaklar, bekleyenMesaj] = await Promise.all([
     prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
     aiTercihleriOku(),
     prisma.ilanKaynagi.findMany({ orderBy: [{ tur: "asc" }, { ad: "asc" }] }),
+    prisma.hamMesaj.count({ where: { islendi: false } }),
   ]);
+
+  const gruplar = tumKaynaklar.filter((k) => k.tur === TELEGRAM_UYE);
+  const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
+  const takipteki = gruplar.filter((g) => g.durum === "AKTIF" && g.aktif);
+  const adaylar = gruplar.filter((g) => g.durum === "ADAY");
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
@@ -68,6 +78,10 @@ export default async function AyarlarSayfasi() {
           <DurumRozeti tamam={aiKullanilabilir()} ad="OpenAI" />
           <DurumRozeti tamam={telegramKullanilabilir()} ad="Telegram botu" />
           <DurumRozeti
+            tamam={telegramUyeKullanilabilir()}
+            ad="Telegram hesabı"
+          />
+          <DurumRozeti
             tamam={Boolean(tercih.telegramChatId)}
             ad="Telegram bağlantısı"
           />
@@ -85,8 +99,10 @@ export default async function AyarlarSayfasi() {
           sehir={tercih.sehir || ""}
           rotalar={tercih.rotalar.join(", ")}
           minUcretYazi={tercih.minUcret ? kurustanGiris(tercih.minUcret) : ""}
+          bolgeler={tercih.bolgeler}
           telegramAcik={tercih.telegramAcik}
           pushAcik={tercih.pushAcik}
+          telegramUyeAcik={tercih.telegramUyeAcik}
         />
 
         <div className="border-t border-white/8 pt-3">
@@ -103,10 +119,85 @@ export default async function AyarlarSayfasi() {
       <section className="kart space-y-4 p-4 sm:p-5 reveal reveal-d2">
         <div>
           <h2 className="font-display text-lg font-bold text-paper">
-            Yük kaynakları
+            Telegram grupları
           </h2>
           <p className="text-sm text-fog">
-            Telegram grupları bot eklendiğinde kendiliğinden listeye düşer.
+            Hesabın üye olduğu uygun gruplar kendiliğinden takibe alınır; yeni
+            gruplar aranıp katılınır.
+          </p>
+        </div>
+
+        {!telegramUyeKullanilabilir() ? (
+          <p className="rounded-xl border border-amber/25 bg-amber/10 px-3 py-2.5 text-sm text-paper">
+            Telegram hesabı bağlı değil. Bilgisayarda{" "}
+            <strong>npm run telegram:oturum</strong> çalıştırıp çıkan{" "}
+            <strong>TELEGRAM_SESSION</strong> anahtarını Netlify&apos;a ekle.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2 text-xs font-semibold">
+            <span className="rounded-full border border-ok/35 bg-ok/12 px-2.5 py-1 text-ok">
+              {takipteki.length} grup takipte
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-fog">
+              {adaylar.length} aday
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-fog">
+              {bekleyenMesaj} mesaj sırada
+            </span>
+          </div>
+        )}
+
+        {gruplar.length > 0 && (
+          <div className="space-y-1.5">
+            {gruplar.slice(0, 40).map((g) => (
+              <div
+                key={g.id}
+                className="rounded-xl border border-white/10 bg-white/4 px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-paper">
+                      {g.ad}
+                    </div>
+                    <div className="text-xs text-fog">
+                      {g.durum === "ADAY"
+                        ? "Aday · henüz katılınmadı"
+                        : `${g.bulunanAdet} ilan${
+                            g.sonTarama ? ` · ${tarihYaz(g.sonTarama)}` : ""
+                          }`}
+                    </div>
+                  </div>
+                  <AksiyonButonu
+                    calistir={kaynakSil.bind(null, g.id)}
+                    etiket="Sil"
+                    bekleyenEtiket="..."
+                    onay={`${g.ad} listeden çıkarılsın mı?`}
+                    sinif="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ember/90 hover:bg-ember/10"
+                  />
+                </div>
+                {g.sonHata && (
+                  <p className="mt-1.5 rounded-lg border border-ember/25 bg-ember/10 px-2 py-1 text-xs text-ember">
+                    {g.sonHata.slice(0, 140)}
+                  </p>
+                )}
+              </div>
+            ))}
+            {gruplar.length > 40 && (
+              <p className="text-xs text-fog">
+                …ve {gruplar.length - 40} grup daha.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="kart space-y-4 p-4 sm:p-5 reveal reveal-d3">
+        <div>
+          <h2 className="font-display text-lg font-bold text-paper">
+            Diğer yük kaynakları
+          </h2>
+          <p className="text-sm text-fog">
+            İlan siteleri, AI web araması ve bot eklediğin gruplar.
           </p>
         </div>
 
@@ -165,7 +256,7 @@ export default async function AyarlarSayfasi() {
         </div>
       </section>
 
-      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d3">
+      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d4">
         <h2 className="font-display text-lg font-bold text-paper">Hızlı ara</h2>
         <p className="text-sm text-fog">
           Ana ekrandaki Ara butonu bu numarayı açar (eş, ortak, ofis…).
@@ -173,7 +264,7 @@ export default async function AyarlarSayfasi() {
         <HizliAraForm baslangic={hizliAra?.deger || ""} />
       </section>
 
-      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d4">
+      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d5">
         <h2 className="font-display text-lg font-bold text-paper">Excel döküm</h2>
         <p className="text-sm text-fog">
           Seçili ayın yük, gider ve özetini Excel olarak indir.
@@ -186,7 +277,7 @@ export default async function AyarlarSayfasi() {
         </Link>
       </section>
 
-      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d5">
+      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d6">
         <h2 className="font-display text-lg font-bold text-paper">Yedekle</h2>
         <p className="text-sm text-fog">
           Tüm veritabanı + fiş fotoğrafları tek ZIP. Güvenli bir yere kaydet

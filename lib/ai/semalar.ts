@@ -10,6 +10,35 @@ import { GIDER_KATEGORILERI } from "@/lib/sabitler";
 const metinVeyaBos = { type: ["string", "null"] };
 const sayiVeyaBos = { type: ["number", "null"] };
 
+const ILAN_ALANLARI: Record<string, unknown> = {
+  firmaAdi: { ...metinVeyaBos, description: "İlanı veren firma / kişi" },
+  telefon: {
+    ...metinVeyaBos,
+    description: "Sadece rakamlar, mümkünse 05xxxxxxxxx biçiminde",
+  },
+  nereden: { ...metinVeyaBos, description: "Yükleme yeri, yazıldığı gibi" },
+  nereye: { ...metinVeyaBos, description: "Boşaltma yeri, yazıldığı gibi" },
+  cikisIl: { ...metinVeyaBos, description: "Yükleme ili (81 ilden biri)" },
+  varisIl: { ...metinVeyaBos, description: "Boşaltma ili (81 ilden biri)" },
+  yuklemeTarihi: {
+    ...metinVeyaBos,
+    description: "YYYY-MM-DD biçiminde; belirtilmemişse null",
+  },
+  ucretTl: {
+    ...sayiVeyaBos,
+    description: "Navlun bedeli TL cinsinden sayı; belirtilmemişse null",
+  },
+  aracTipi: { ...metinVeyaBos, description: "Tır, kırkayak, tenteli vb." },
+  yukTipi: { ...metinVeyaBos, description: "Taşınacak malın cinsi" },
+  guvenSkoru: {
+    type: "integer",
+    description:
+      "0-100. Bunun gerçek bir yük ilanı olduğuna ve alanların doğruluğuna güven.",
+  },
+};
+
+const ILAN_ZORUNLU = Object.keys(ILAN_ALANLARI);
+
 export const ILAN_LISTESI_SEMASI: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -21,45 +50,8 @@ export const ILAN_LISTESI_SEMASI: Record<string, unknown> = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: [
-          "firmaAdi",
-          "telefon",
-          "nereden",
-          "nereye",
-          "cikisIl",
-          "varisIl",
-          "yuklemeTarihi",
-          "ucretTl",
-          "aracTipi",
-          "yukTipi",
-          "guvenSkoru",
-        ],
-        properties: {
-          firmaAdi: { ...metinVeyaBos, description: "İlanı veren firma / kişi" },
-          telefon: {
-            ...metinVeyaBos,
-            description: "Sadece rakamlar, mümkünse 05xxxxxxxxx biçiminde",
-          },
-          nereden: { ...metinVeyaBos, description: "Yükleme yeri, yazıldığı gibi" },
-          nereye: { ...metinVeyaBos, description: "Boşaltma yeri, yazıldığı gibi" },
-          cikisIl: { ...metinVeyaBos, description: "Yükleme ili (81 ilden biri)" },
-          varisIl: { ...metinVeyaBos, description: "Boşaltma ili (81 ilden biri)" },
-          yuklemeTarihi: {
-            ...metinVeyaBos,
-            description: "YYYY-MM-DD biçiminde; belirtilmemişse null",
-          },
-          ucretTl: {
-            ...sayiVeyaBos,
-            description: "Navlun bedeli TL cinsinden sayı; belirtilmemişse null",
-          },
-          aracTipi: { ...metinVeyaBos, description: "Tır, kırkayak, tenteli vb." },
-          yukTipi: { ...metinVeyaBos, description: "Taşınacak malın cinsi" },
-          guvenSkoru: {
-            type: "integer",
-            description:
-              "0-100. Bunun gerçek bir yük ilanı olduğuna ve alanların doğruluğuna güven.",
-          },
-        },
+        required: ILAN_ZORUNLU,
+        properties: ILAN_ALANLARI,
       },
     },
   },
@@ -79,6 +71,38 @@ export type IlanCikti = {
     yukTipi: string | null;
     guvenSkoru: number;
   }[];
+};
+
+/**
+ * Numaralanmış mesaj yığınından ilan çıkarır. Her ilan hangi mesajdan
+ * geldiğini söyler; tekrar kontrolü ve ham metin eşlemesi buna dayanır.
+ */
+export const MESAJ_ILAN_SEMASI: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["ilanlar"],
+  properties: {
+    ilanlar: {
+      type: "array",
+      description: "Mesajlarda bulunan yük ilanları. İlan yoksa boş dizi.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["mesajNo", ...ILAN_ZORUNLU],
+        properties: {
+          mesajNo: {
+            type: "integer",
+            description: "İlanın alındığı mesajın köşeli parantezdeki numarası",
+          },
+          ...ILAN_ALANLARI,
+        },
+      },
+    },
+  },
+};
+
+export type MesajIlanCikti = {
+  ilanlar: (IlanCikti["ilanlar"][number] & { mesajNo: number })[];
 };
 
 const AKTIF_KATEGORILER = GIDER_KATEGORILERI.filter((k) => !k.eski).map(

@@ -1,6 +1,11 @@
 import { aiJson } from "@/lib/ai/istemci";
 import { MODEL_HIZLI } from "@/lib/ai/modeller";
-import { ILAN_LISTESI_SEMASI, type IlanCikti } from "@/lib/ai/semalar";
+import {
+  ILAN_LISTESI_SEMASI,
+  MESAJ_ILAN_SEMASI,
+  type IlanCikti,
+  type MesajIlanCikti,
+} from "@/lib/ai/semalar";
 import { ilBul } from "@/lib/iller";
 
 const SISTEM = `Sen Türkiye'deki nakliye/yük ilanlarını okuyan bir asistansın.
@@ -63,6 +68,28 @@ function ucretKurusaCevir(tl: number | null): number | null {
   return Math.round(tl * 100);
 }
 
+type HamIlan = IlanCikti["ilanlar"][number];
+
+function ilaniNormalize(i: HamIlan): CozulmusIlan {
+  return {
+    firmaAdi: i.firmaAdi?.trim() || null,
+    telefon: telefonTemizle(i.telefon),
+    nereden: i.nereden?.trim() || null,
+    nereye: i.nereye?.trim() || null,
+    cikisIl: ilBul(i.cikisIl) || ilBul(i.nereden),
+    varisIl: ilBul(i.varisIl) || ilBul(i.nereye),
+    yuklemeTarihi: tarihCevir(i.yuklemeTarihi),
+    ucret: ucretKurusaCevir(i.ucretTl),
+    aracTipi: i.aracTipi?.trim() || null,
+    yukTipi: i.yukTipi?.trim() || null,
+    guvenSkoru: Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0))),
+  };
+}
+
+function kullanilabilirMi(i: CozulmusIlan): boolean {
+  return i.guvenSkoru >= 40 && Boolean(i.cikisIl || i.varisIl);
+}
+
 /** Serbest metinden yük ilanlarını çıkarır. */
 export async function ilanlariCozumle(
   hamMetin: string
@@ -80,19 +107,49 @@ export async function ilanlariCozumle(
     maxCikti: 4000,
   });
 
-  return (cikti.ilanlar || [])
-    .map((i) => ({
-      firmaAdi: i.firmaAdi?.trim() || null,
-      telefon: telefonTemizle(i.telefon),
-      nereden: i.nereden?.trim() || null,
-      nereye: i.nereye?.trim() || null,
-      cikisIl: ilBul(i.cikisIl) || ilBul(i.nereden),
-      varisIl: ilBul(i.varisIl) || ilBul(i.nereye),
-      yuklemeTarihi: tarihCevir(i.yuklemeTarihi),
-      ucret: ucretKurusaCevir(i.ucretTl),
-      aracTipi: i.aracTipi?.trim() || null,
-      yukTipi: i.yukTipi?.trim() || null,
-      guvenSkoru: Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0))),
-    }))
-    .filter((i) => i.guvenSkoru >= 40 && (i.cikisIl || i.varisIl));
+  return (cikti.ilanlar || []).map(ilaniNormalize).filter(kullanilabilirMi);
+}
+
+export type MesajGirdisi = { anahtar: number; metin: string };
+export type MesajIlani = { anahtar: number; ilan: CozulmusIlan };
+
+/**
+ * Grup mesajlarını tek çağrıda çözümler; her ilan geldiği mesaja bağlanır.
+ * Mesaj başına ayrı istek atmak hem yavaş hem pahalı olduğu için toplu
+ * gönderilir, ancak ham metin eşlemesi mesaj bazında korunur.
+ */
+export async function mesajlariCozumle(
+  mesajlar: MesajGirdisi[]
+): Promise<MesajIlani[]> {
+  const gecerli = mesajlar.filter((m) => m.metin.trim().length >= 12);
+  if (gecerli.length === 0) return [];
+
+  const govde = gecerli
+    .map((m, sira) => `[${sira + 1}]\n${m.metin.trim().slice(0, 1200)}`)
+    .join("\n\n");
+
+  const cikti = await aiJson<MesajIlanCikti>({
+    model: MODEL_HIZLI,
+    sistem: `${SISTEM}
+
+Mesajlar [1], [2] gibi numaralarla ayrılmıştır. Her ilan için mesajNo
+alanına ilanın alındığı mesajın numarasını yaz. Bir mesajda birden fazla
+ilan varsa hepsini ayrı ayrı listele.`,
+    metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMESAJLAR:\n${govde}`,
+    semaAdi: "mesaj_yuk_ilanlari",
+    sema: MESAJ_ILAN_SEMASI,
+    caba: "low",
+    maxCikti: 6000,
+  });
+
+  const sonuc: MesajIlani[] = [];
+  for (const ham of cikti.ilanlar || []) {
+    const kaynak = gecerli[Math.round(ham.mesajNo) - 1];
+    if (!kaynak) continue;
+
+    const ilan = ilaniNormalize(ham);
+    if (!kullanilabilirMi(ilan)) continue;
+    sonuc.push({ anahtar: kaynak.anahtar, ilan });
+  }
+  return sonuc;
 }

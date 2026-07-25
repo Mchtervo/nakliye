@@ -12,6 +12,7 @@
     "db:push": "prisma db push",
     "supabase:kur": "node --env-file=.env scripts/supabase-kur.mjs",
     "telegram:kur": "node --env-file=.env scripts/telegram-kur.mjs",
+    "telegram:oturum": "node --env-file=.env scripts/telegram-oturum.mjs",
     "push:kur": "node scripts/push-kur.mjs"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "telegram": "^2.26.22",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

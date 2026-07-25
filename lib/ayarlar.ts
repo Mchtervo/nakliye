@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import {
+  bolgeCozumle,
+  VARSAYILAN_BOLGELER,
+  type BolgeKodu,
+} from "@/lib/bolgeler";
 
 export const AYAR_ANAHTARLARI = {
   hizliAraTelefon: "hizli_ara_telefon",
@@ -6,9 +11,16 @@ export const AYAR_ANAHTARLARI = {
   aiSehir: "ai_sehir",
   aiRotalar: "ai_rotalar",
   aiMinUcret: "ai_min_ucret",
+  aiBolgeler: "ai_bolgeler",
   telegramChatId: "telegram_chat_id",
   bildirimTelegram: "bildirim_telegram",
   bildirimPush: "bildirim_push",
+  // Telegram kullanıcı hesabıyla grup keşfi / okuma
+  telegramUyeAktif: "telegram_uye_aktif",
+  telegramSorguSira: "telegram_sorgu_sira",
+  telegramKesifZaman: "telegram_kesif_zaman",
+  telegramKatilimGun: "telegram_katilim_gun",
+  telegramKatilimAdet: "telegram_katilim_adet",
 } as const;
 
 export type AyarAnahtari =
@@ -47,9 +59,11 @@ export type AiTercihleri = {
   sehir: string | null;
   rotalar: string[];
   minUcret: number | null; // kuruş
+  bolgeler: BolgeKodu[];
   telegramChatId: string | null;
   telegramAcik: boolean;
   pushAcik: boolean;
+  telegramUyeAcik: boolean;
 };
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
@@ -57,12 +71,15 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.aiSehir,
     AYAR_ANAHTARLARI.aiRotalar,
     AYAR_ANAHTARLARI.aiMinUcret,
+    AYAR_ANAHTARLARI.aiBolgeler,
     AYAR_ANAHTARLARI.telegramChatId,
     AYAR_ANAHTARLARI.bildirimTelegram,
     AYAR_ANAHTARLARI.bildirimPush,
+    AYAR_ANAHTARLARI.telegramUyeAktif,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
+  const bolgeHam = a[AYAR_ANAHTARLARI.aiBolgeler];
 
   return {
     sehir: a[AYAR_ANAHTARLARI.aiSehir] || null,
@@ -71,9 +88,12 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       .map((r) => r.trim())
       .filter(Boolean),
     minUcret: Number.isFinite(minHam) && minHam > 0 ? minHam : null,
+    bolgeler:
+      bolgeHam === undefined ? VARSAYILAN_BOLGELER : bolgeCozumle(bolgeHam),
     telegramChatId: a[AYAR_ANAHTARLARI.telegramChatId] || null,
     // Varsayılan açık: kullanıcı kapatmadıkça bildirim gitsin.
     telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",
     pushAcik: a[AYAR_ANAHTARLARI.bildirimPush] !== "0",
+    telegramUyeAcik: a[AYAR_ANAHTARLARI.telegramUyeAktif] !== "0",
   };
 }

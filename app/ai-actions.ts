@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AYAR_ANAHTARLARI, ayarYaz } from "@/lib/ayarlar";
+import { bolgeCozumle } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
 import { tlKurusaCevir } from "@/lib/para";
 import { kaynaklariTara } from "@/lib/kaynaklar/tarama";
@@ -90,9 +91,11 @@ export async function kaynakEkle(
 export async function kaynakDurumDegistir(id: number): Promise<void> {
   const kaynak = await prisma.ilanKaynagi.findUnique({ where: { id } });
   if (!kaynak) return;
+
+  const acik = !kaynak.aktif;
   await prisma.ilanKaynagi.update({
     where: { id },
-    data: { aktif: !kaynak.aktif },
+    data: { aktif: acik, durum: acik ? "AKTIF" : "PASIF" },
   });
   revalidatePath("/ayarlar");
 }
@@ -125,9 +128,14 @@ export async function aiTercihKaydet(
     return { hata: "Alt ücret sınırı geçersiz." };
   }
 
+  const bolgeler = bolgeCozumle(
+    formData.getAll("bolgeler").map(String).join(",")
+  ).join(",");
+
   await ayarYaz(AYAR_ANAHTARLARI.aiSehir, sehir || "");
   await ayarYaz(AYAR_ANAHTARLARI.aiRotalar, rotalar);
   await ayarYaz(AYAR_ANAHTARLARI.aiMinUcret, String(minUcret ?? 0));
+  await ayarYaz(AYAR_ANAHTARLARI.aiBolgeler, bolgeler);
   await ayarYaz(
     AYAR_ANAHTARLARI.bildirimTelegram,
     formData.get("bildirimTelegram") === "1" ? "1" : "0"
@@ -135,6 +143,10 @@ export async function aiTercihKaydet(
   await ayarYaz(
     AYAR_ANAHTARLARI.bildirimPush,
     formData.get("bildirimPush") === "1" ? "1" : "0"
+  );
+  await ayarYaz(
+    AYAR_ANAHTARLARI.telegramUyeAktif,
+    formData.get("telegramUye") === "1" ? "1" : "0"
   );
 
   revalidatePath("/ayarlar");
