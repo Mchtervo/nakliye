@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export default function FisYukle({
   baslik = "Fatura / fiş fotoğrafı",
   aciklama = "Muhasebeciye göndermek için çek veya galeriden seç.",
   vurgulu = false,
+  onDosya,
+  altBilgi,
 }: {
   baslik?: string;
   aciklama?: string;
   vurgulu?: boolean;
+  /** Dosya seçildiğinde/kaldırıldığında haber verir (OCR için). */
+  onDosya?: (dosya: File | null) => void;
+  /** Önizlemenin altında gösterilecek ek içerik (OCR durumu gibi). */
+  altBilgi?: ReactNode;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [onizleme, setOnizleme] = useState<string | null>(null);
@@ -26,10 +32,12 @@ export default function FisYukle({
     if (!dosya) {
       setOnizleme(null);
       setDosyaAdi(null);
+      onDosya?.(null);
       return;
     }
     setDosyaAdi(dosya.name);
     setOnizleme(URL.createObjectURL(dosya));
+    onDosya?.(dosya);
   }
 
   function temizle() {
@@ -37,6 +45,7 @@ export default function FisYukle({
     if (onizleme) URL.revokeObjectURL(onizleme);
     setOnizleme(null);
     setDosyaAdi(null);
+    onDosya?.(null);
   }
 
   return (
@@ -108,6 +117,8 @@ export default function FisYukle({
           </div>
         </div>
       )}
+
+      {altBilgi}
     </div>
   );
 }

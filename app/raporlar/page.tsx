@@ -167,15 +167,25 @@ export default async function RaporlarSayfasi({
           <div className="text-xs text-fog">KDV hariç</div>
         </div>
         <div className="kart p-4 reveal reveal-d4">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-fog">KDV farkı</div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            Ödenecek KDV
+          </div>
           <div className="mt-1 font-display text-xl font-extrabold text-amber">
             {tlYaz(toplananKdv - odenenKdv)}
           </div>
           <div className="text-xs text-fog">
-            +{tlYaz(toplananKdv)} / −{tlYaz(odenenKdv)}
+            Hesaplanan {tlYaz(toplananKdv)} − indirilecek {tlYaz(odenenKdv)}
           </div>
         </div>
       </div>
+
+      <p className="text-xs leading-relaxed text-fog reveal">
+        <span className="font-semibold text-paper">Hesaplanan KDV</span> = yük
+        faturalarındaki KDV (devlete borç).{" "}
+        <span className="font-semibold text-paper">İndirilecek KDV</span> = yakıt,
+        bakım, demirbaş vb. faturalardaki KDV (borçtan düşülür). Fark ≈ ödeyeceğin
+        KDV.
+      </p>
 
       <div className="kart space-y-3 p-4 reveal reveal-d2">
         <h2 className="font-display text-lg font-bold text-paper">Gelir vs Gider</h2>

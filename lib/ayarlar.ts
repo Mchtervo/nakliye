@@ -1,0 +1,79 @@
+import { prisma } from "@/lib/prisma";
+
+export const AYAR_ANAHTARLARI = {
+  hizliAraTelefon: "hizli_ara_telefon",
+  muhasebeciTelefon: "muhasebeci_telefon",
+  aiSehir: "ai_sehir",
+  aiRotalar: "ai_rotalar",
+  aiMinUcret: "ai_min_ucret",
+  telegramChatId: "telegram_chat_id",
+  bildirimTelegram: "bildirim_telegram",
+  bildirimPush: "bildirim_push",
+} as const;
+
+export type AyarAnahtari =
+  (typeof AYAR_ANAHTARLARI)[keyof typeof AYAR_ANAHTARLARI];
+
+export async function ayarOku(anahtar: AyarAnahtari): Promise<string | null> {
+  const kayit = await prisma.ayar.findUnique({ where: { anahtar } });
+  return kayit?.deger ?? null;
+}
+
+export async function ayarlariOku(
+  anahtarlar: AyarAnahtari[]
+): Promise<Record<string, string>> {
+  const kayitlar = await prisma.ayar.findMany({
+    where: { anahtar: { in: anahtarlar } },
+  });
+  return Object.fromEntries(kayitlar.map((k) => [k.anahtar, k.deger]));
+}
+
+export async function ayarYaz(
+  anahtar: AyarAnahtari,
+  deger: string
+): Promise<void> {
+  await prisma.ayar.upsert({
+    where: { anahtar },
+    create: { anahtar, deger },
+    update: { deger },
+  });
+}
+
+export async function ayarSil(anahtar: AyarAnahtari): Promise<void> {
+  await prisma.ayar.delete({ where: { anahtar } }).catch(() => null);
+}
+
+export type AiTercihleri = {
+  sehir: string | null;
+  rotalar: string[];
+  minUcret: number | null; // kuruş
+  telegramChatId: string | null;
+  telegramAcik: boolean;
+  pushAcik: boolean;
+};
+
+export async function aiTercihleriOku(): Promise<AiTercihleri> {
+  const a = await ayarlariOku([
+    AYAR_ANAHTARLARI.aiSehir,
+    AYAR_ANAHTARLARI.aiRotalar,
+    AYAR_ANAHTARLARI.aiMinUcret,
+    AYAR_ANAHTARLARI.telegramChatId,
+    AYAR_ANAHTARLARI.bildirimTelegram,
+    AYAR_ANAHTARLARI.bildirimPush,
+  ]);
+
+  const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
+
+  return {
+    sehir: a[AYAR_ANAHTARLARI.aiSehir] || null,
+    rotalar: (a[AYAR_ANAHTARLARI.aiRotalar] || "")
+      .split(",")
+      .map((r) => r.trim())
+      .filter(Boolean),
+    minUcret: Number.isFinite(minHam) && minHam > 0 ? minHam : null,
+    telegramChatId: a[AYAR_ANAHTARLARI.telegramChatId] || null,
+    // Varsayılan açık: kullanıcı kapatmadıkça bildirim gitsin.
+    telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",
+    pushAcik: a[AYAR_ANAHTARLARI.bildirimPush] !== "0",
+  };
+}

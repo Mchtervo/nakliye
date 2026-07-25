@@ -50,7 +50,7 @@ export default async function PanelSayfasi() {
   const ayBasi = new Date(simdi.getFullYear(), simdi.getMonth(), 1);
   const sonrakiAyBasi = new Date(simdi.getFullYear(), simdi.getMonth() + 1, 1);
 
-  const [yukler, giderler, bekleyenYukler, hizliAraAyar, muhasebeciAyar] =
+  const [yukler, giderler, bekleyenYukler, hizliAraAyar, muhasebeciAyar, kasaHareketler] =
     await Promise.all([
       prisma.yuk.findMany({
         where: { tarih: { gte: ayBasi, lt: sonrakiAyBasi } },
@@ -64,7 +64,13 @@ export default async function PanelSayfasi() {
       }),
       prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
       prisma.ayar.findUnique({ where: { anahtar: "muhasebeci_telefon" } }),
+      prisma.kasaHareket.findMany({ select: { tip: true, tutar: true } }),
     ]);
+
+  const kasaBakiye = kasaHareketler.reduce(
+    (t, h) => (h.tip === "GIRIS" ? t + h.tutar : t - h.tutar),
+    0
+  );
 
   const hizliAraTel = hizliAraAyar?.deger || "";
   const muhasebeciTel = muhasebeciAyar?.deger || "";
@@ -218,23 +224,30 @@ export default async function PanelSayfasi() {
           delay="reveal-d2"
         />
         <Metrik
-          baslik="Toplanan KDV"
+          baslik="Hesaplanan KDV"
           deger={tlYaz(toplananKdv)}
-          alt="Faturalardaki KDV"
+          alt="Yük faturaları · devlete borç"
           delay="reveal-d3"
         />
         <Metrik
-          baslik="Ödenen KDV"
+          baslik="İndirilecek KDV"
           deger={tlYaz(odenenKdv)}
-          alt="Giderlerdeki KDV"
+          alt="Yakıt, bakım, demirbaş fatura KDV'si"
           delay="reveal-d4"
         />
         <Metrik
-          baslik="KDV farkı"
+          baslik="Ödenecek KDV"
           deger={tlYaz(kdvFarki)}
-          alt="Yaklaşık vergi yükü"
-          ton="amber"
+          alt="Hesaplanan − indirilecek (yaklaşık)"
+          ton={kdvFarki > 0 ? "amber" : "ok"}
           delay="reveal-d5"
+        />
+        <Metrik
+          baslik="Kasada"
+          deger={tlYaz(kasaBakiye)}
+          alt="Nakit bakiye · manuel giriş/çıkış"
+          ton={kasaBakiye >= 0 ? "teal" : "ember"}
+          delay="reveal-d6"
         />
         <Metrik
           baslik="Toplam alacak"
@@ -248,6 +261,15 @@ export default async function PanelSayfasi() {
           delay="reveal-d6"
         />
       </div>
+
+      <p className="text-center text-xs text-fog/90 reveal">
+        Yakıt vb. KDV dahil tutar → içindeki KDV{" "}
+        <span className="text-paper">indirilecek KDV</span> olur; devletten geri
+        alınmaz, yük KDV borcundan düşülür.{" "}
+        <Link href="/kasa" className="font-semibold text-amber hover:underline">
+          Kasayı aç →
+        </Link>
+      </p>
 
       {firmaAlacaklari.length > 0 && (
         <section className="kart space-y-3 p-4 sm:p-5 reveal">
@@ -291,31 +313,49 @@ export default async function PanelSayfasi() {
         </section>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
+          {
+            href: "/kasa",
+            baslik: "Kasa",
+            alt: "Eldeki para · giriş / çıkış",
+            ikon: "01",
+          },
           {
             href: "/firmalar",
             baslik: "Firmalar / Cari",
             alt: "Kim ne kadar ödedi / kaldı",
-            ikon: "01",
+            ikon: "02",
+          },
+          {
+            href: "/kdv",
+            baslik: "KDV Merkezi",
+            alt: "Bu ay ne kadar KDV ödeyeceksin",
+            ikon: "03",
+          },
+          {
+            href: "/ai",
+            baslik: "AI Merkezi",
+            alt: "Yük bulucu, dönüş yükü, analiz",
+            ikon: "04",
           },
           {
             href: "/raporlar",
             baslik: "Raporlar",
             alt: "Aylık özet ve dağılım",
-            ikon: "02",
+            ikon: "05",
           },
           {
             href: "/muhasebeci",
             baslik: "Muhasebeciye gönder",
             alt: "Fişleri toplu paylaş",
-            ikon: "03",
+            ikon: "06",
           },
         ].map((k, i) => (
           <Link
             key={k.href}
             href={k.href}
-            className={`kart group p-5 reveal reveal-d${i + 1}`}
+            className={`kart group p-5 reveal reveal-d${Math.min(i + 1, 6)}`}
           >
             <div className="flex items-start justify-between">
               <span className="font-display text-2xl font-bold text-amber/40 transition-colors group-hover:text-amber">

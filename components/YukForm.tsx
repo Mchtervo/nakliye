@@ -16,27 +16,44 @@ export type YukFormBaslangic = {
   kdvDahilMi: boolean;
 };
 
+/** AI ilanından gelen ön dolgu (yeni yük eklerken). */
+export type YukFormHazirlik = {
+  nereden?: string;
+  nereye?: string;
+  firmaAdi?: string;
+  tutarYazi?: string;
+  aciklama?: string;
+};
+
 export default function YukForm({
   firmalar,
   bugunTarih,
   baslangic,
+  hazir,
 }: {
   firmalar: { id: number; ad: string }[];
   bugunTarih: string;
   baslangic?: YukFormBaslangic;
+  hazir?: YukFormHazirlik;
 }) {
   const duzenle = Boolean(baslangic);
   const [durum, aksiyon, bekliyor] = useActionState<FormSonuc, FormData>(
     duzenle ? yukGuncelle : yukEkle,
     null
   );
-  const [firmaSecim, setFirmaSecim] = useState(
-    baslangic
-      ? String(baslangic.firmaId)
-      : firmalar.length === 0
-        ? "yeni"
-        : ""
-  );
+
+  const eslesenFirma = hazir?.firmaAdi
+    ? firmalar.find(
+        (f) => f.ad.toLocaleLowerCase("tr") === hazir.firmaAdi?.toLocaleLowerCase("tr")
+      )
+    : undefined;
+
+  const [firmaSecim, setFirmaSecim] = useState(() => {
+    if (baslangic) return String(baslangic.firmaId);
+    if (eslesenFirma) return String(eslesenFirma.id);
+    if (hazir?.firmaAdi || firmalar.length === 0) return "yeni";
+    return "";
+  });
 
   return (
     <form action={aksiyon} className="space-y-4">
@@ -91,6 +108,7 @@ export default function YukForm({
             type="text"
             required
             placeholder="Örnek: ABC Lojistik"
+            defaultValue={eslesenFirma ? "" : hazir?.firmaAdi || ""}
             className="alan"
           />
         </div>
@@ -107,7 +125,7 @@ export default function YukForm({
             type="text"
             required
             placeholder="Örnek: Mersin"
-            defaultValue={baslangic?.nereden}
+            defaultValue={baslangic?.nereden || hazir?.nereden || ""}
             className="alan"
           />
         </div>
@@ -121,7 +139,7 @@ export default function YukForm({
             type="text"
             required
             placeholder="Örnek: İstanbul"
-            defaultValue={baslangic?.nereye}
+            defaultValue={baslangic?.nereye || hazir?.nereye || ""}
             className="alan"
           />
         </div>
@@ -129,9 +147,11 @@ export default function YukForm({
 
       <TutarKdvGirisi
         etiket="Taşıma ücreti"
-        baslangicTutar={baslangic?.tutarYazi || ""}
+        baslangicTutar={baslangic?.tutarYazi || hazir?.tutarYazi || ""}
         baslangicKdvli={baslangic?.kdvli}
         baslangicKdvDahilMi={baslangic?.kdvDahilMi ?? true}
+        kdvEtiketi="Hesaplanan KDV"
+        kdvNotu="Müşteri faturasındaki KDV — devlet borcu sayılır."
       />
 
       <div>
@@ -143,7 +163,7 @@ export default function YukForm({
           name="aciklama"
           type="text"
           placeholder="Örnek: 24 ton demir"
-          defaultValue={baslangic?.aciklama || ""}
+          defaultValue={baslangic?.aciklama || hazir?.aciklama || ""}
           className="alan"
         />
       </div>

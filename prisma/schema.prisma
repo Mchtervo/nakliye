@@ -67,3 +67,136 @@ model Ayar {
   anahtar String @id
   deger   String
 }
+
+// Kasa: nakit / eldeki para hareketleri (manuel giriş-çıkış)
+model KasaHareket {
+  id        Int      @id @default(autoincrement())
+  tarih     DateTime
+  tip       String // GIRIS | CIKIS
+  tutar     Int // kuruş (her zaman pozitif; yön tip'te)
+  aciklama  String?
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// AI modülleri. Mevcut tablolara dokunmaz; hepsi bağımsız çalışır.
+// ---------------------------------------------------------------------------
+
+/// Yük ilanlarının toplandığı kaynak (Telegram grubu, web sayfası, AI araması)
+model IlanKaynagi {
+  id          Int        @id @default(autoincrement())
+  tur         String // TELEGRAM | WEB | AI_ARAMA
+  ad          String
+  hedef       String // chatId | URL | arama sorgusu
+  aktif       Boolean    @default(true)
+  sonTarama   DateTime?
+  sonHata     String?
+  bulunanAdet Int        @default(0)
+  createdAt   DateTime   @default(now())
+  ilanlar     YukIlani[]
+
+  @@unique([tur, hedef])
+}
+
+/// AI'nin çözümlediği yük ilanı
+model YukIlani {
+  id            Int          @id @default(autoincrement())
+  kaynakId      Int?
+  kaynak        IlanKaynagi? @relation(fields: [kaynakId], references: [id], onDelete: SetNull)
+  hamMetin      String
+  firmaAdi      String?
+  telefon       String?
+  nereden       String?
+  nereye        String?
+  cikisIl       String?
+  varisIl       String?
+  yuklemeTarihi DateTime?
+  ucret         Int? // kuruş
+  aracTipi      String?
+  yukTipi       String?
+  guvenSkoru    Int          @default(0) // 0-100
+  durum         String       @default("YENI") // YENI | ILGILENIYOR | ELENDI | YUKE_DONDU
+  dedupHash     String       @unique
+  donusTalebiId Int?
+  donusTalebi   DonusTalebi? @relation(fields: [donusTalebiId], references: [id], onDelete: SetNull)
+  bildirildi    Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+
+  @@index([durum, createdAt])
+  @@index([cikisIl, varisIl])
+}
+
+/// Bir yük oluşturulduğunda otomatik açılan dönüş yükü araması
+model DonusTalebi {
+  id          Int        @id @default(autoincrement())
+  yukId       Int?
+  cikis       String // dönüşün başlangıcı (orijinal yükün varışı)
+  varis       String // dönüşün hedefi (orijinal yükün çıkışı)
+  cikisIl     String
+  varisIl     String
+  aktif       Boolean    @default(true)
+  sonKontrol  DateTime?
+  eslesmeAdet Int        @default(0)
+  createdAt   DateTime   @default(now())
+  ilanlar     YukIlani[]
+
+  @@index([aktif])
+}
+
+/// AI'nin bulduğu potansiyel müşteri
+model AdayFirma {
+  id        Int      @id @default(autoincrement())
+  ad        String
+  sehir     String?
+  ilce      String?
+  adres     String?
+  telefon   String?
+  web       String?
+  sektor    String?
+  kaynak    String? // arama sorgusu / site
+  neden     String? // AI'nin niye önerdiği
+  skor      Int      @default(0) // 0-100
+  durum     String   @default("YENI") // YENI | ARANDI | MUSTERI | ELENDI
+  notlar    String?
+  createdAt DateTime @default(now())
+
+  @@unique([ad, sehir])
+  @@index([durum, skor])
+}
+
+/// Günlük AI analiz raporu
+model AiAnaliz {
+  id        Int      @id @default(autoincrement())
+  tarih     DateTime
+  tur       String   @default("GUNLUK")
+  baslik    String
+  metin     String
+  veriJson  String? // hesaplanan metrikler (JSON)
+  createdAt DateTime @default(now())
+
+  @@unique([tarih, tur])
+}
+
+/// Gönderilen bildirimlerin kaydı (tekrarı önlemek ve hata takibi için)
+model Bildirim {
+  id        Int      @id @default(autoincrement())
+  kanal     String // TELEGRAM | PUSH
+  hedef     String
+  baslik    String
+  metin     String
+  durum     String   @default("BEKLIYOR") // BEKLIYOR | GONDERILDI | HATA
+  hata      String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Web Push aboneliği (tarayıcı bildirimleri)
+model PushAbone {
+  id        Int      @id @default(autoincrement())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  cihaz     String?
+  createdAt DateTime @default(now())
+}

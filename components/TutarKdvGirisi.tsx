@@ -9,12 +9,18 @@ export default function TutarKdvGirisi({
   baslangicTutar = "",
   baslangicKdvli,
   baslangicKdvDahilMi = true,
+  kdvEtiketi,
+  kdvNotu,
 }: {
   etiket?: string;
   varsayilanKdvli?: boolean;
   baslangicTutar?: string;
   baslangicKdvli?: boolean;
   baslangicKdvDahilMi?: boolean;
+  /** KDV sütun başlığı (ör. İndirilecek KDV) */
+  kdvEtiketi?: string;
+  /** Kısa açıklama satırı */
+  kdvNotu?: string;
 }) {
   const [tutar, setTutar] = useState(baslangicTutar);
   const [kdvli, setKdvli] = useState(
@@ -114,7 +120,7 @@ export default function TutarKdvGirisi({
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wider text-fog">
-                KDV
+                {kdvEtiketi || "KDV"}
               </div>
               <div className="mt-1 font-display text-sm font-bold text-amber sm:text-base">
                 {tlYaz(hesap.kdvTutar)}
@@ -129,6 +135,11 @@ export default function TutarKdvGirisi({
               </div>
             </div>
           </div>
+          {kdvNotu && (
+            <p className="mt-2 text-center text-[11px] leading-snug text-fog">
+              {kdvNotu}
+            </p>
+          )}
         </div>
       )}
     </div>

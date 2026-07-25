@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { kdvHesapla, tlKurusaCevir, tlYaz } from "@/lib/para";
 import { GIDER_KATEGORILERI } from "@/lib/sabitler";
 import { fisKaydet, fisSil } from "@/lib/fis";
+import { donusTalebiOlustur } from "@/lib/donus";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -67,7 +68,7 @@ export async function yukEkle(
   const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
   const odendiMi = formData.get("odendiMi") === "1";
 
-  await prisma.yuk.create({
+  const yeniYuk = await prisma.yuk.create({
     data: {
       tarih,
       firmaId: firmaSonuc.id,
@@ -86,10 +87,14 @@ export async function yukEkle(
     },
   });
 
+  // Boş dönmemek için ters yönde dönüş yükü araması açılır.
+  await donusTalebiOlustur(yeniYuk.id, nereden, nereye).catch(() => null);
+
   revalidatePath("/");
   revalidatePath("/yukler");
   revalidatePath("/firmalar");
   revalidatePath("/raporlar");
+  revalidatePath("/ai/donus");
   redirect("/yukler");
 }
 
@@ -469,4 +474,42 @@ export async function fisleriGonderildiIsaretle(idler: number[]): Promise<void> 
   });
   revalidatePath("/giderler");
   revalidatePath("/muhasebeci");
+}
+
+export async function kasaHareketEkle(
+  _oncekiDurum: FormSonuc,
+  formData: FormData
+): Promise<FormSonuc> {
+  const tarih = tarihOku(formData.get("tarih"));
+  if (!tarih) return { hata: "Geçerli bir tarih seçin." };
+
+  const tip = metinOku(formData.get("tip"));
+  if (tip !== "GIRIS" && tip !== "CIKIS") {
+    return { hata: "Giriş veya çıkış seçin." };
+  }
+
+  const tutarKurus = tlKurusaCevir(metinOku(formData.get("tutar")));
+  if (tutarKurus === null || tutarKurus <= 0) {
+    return { hata: "Geçerli bir tutar girin." };
+  }
+
+  await prisma.kasaHareket.create({
+    data: {
+      tarih,
+      tip,
+      tutar: tutarKurus,
+      aciklama: metinOku(formData.get("aciklama")) || null,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/kasa");
+  redirect("/kasa");
+}
+
+export async function kasaHareketSil(id: number): Promise<void> {
+  if (!Number.isInteger(id) || id <= 0) return;
+  await prisma.kasaHareket.delete({ where: { id } }).catch(() => null);
+  revalidatePath("/");
+  revalidatePath("/kasa");
 }

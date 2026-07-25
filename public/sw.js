@@ -52,3 +52,43 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+/* Yeni yük bildirimi */
+self.addEventListener("push", (event) => {
+  let veri = { baslik: "Nakliye Defteri", metin: "Yeni bildirim", url: "/" };
+  try {
+    if (event.data) veri = { ...veri, ...event.data.json() };
+  } catch {
+    if (event.data) veri.metin = event.data.text();
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(veri.baslik, {
+      body: veri.metin,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: veri.url,
+      data: { url: veri.url },
+      vibrate: [80, 40, 80],
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const hedef = event.notification.data?.url || "/";
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((pencereler) => {
+        for (const pencere of pencereler) {
+          if ("focus" in pencere) {
+            pencere.navigate?.(hedef);
+            return pencere.focus();
+          }
+        }
+        return self.clients.openWindow(hedef);
+      })
+  );
+});

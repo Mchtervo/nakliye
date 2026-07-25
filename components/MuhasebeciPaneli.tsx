@@ -35,11 +35,16 @@ function mobilMi(): boolean {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
-async function zipIndir(ids: number[], dosyaAdi: string): Promise<void> {
+/** Fiş görselleri + giderler.xlsx + ozet.html tek ZIP olarak iner. */
+async function zipIndir(
+  ids: number[],
+  dosyaAdi: string,
+  ay?: string
+): Promise<void> {
   const zipYanit = await fetch("/api/fis-zip", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids }),
+    body: JSON.stringify({ ids, ay }),
   });
   if (!zipYanit.ok) {
     const j = await zipYanit.json().catch(() => null);
@@ -86,6 +91,7 @@ export default function MuhasebeciPaneli({
   >(muhasebeciNumaraKaydet, null);
 
   const [telefon, setTelefon] = useState(baslangicTelefon);
+  const [eposta, setEposta] = useState("");
   const [secilen, setSecilen] = useState<number[]>(() =>
     fisler.filter((f) => !f.gonderildi).map((f) => f.id)
   );
@@ -159,7 +165,8 @@ export default function MuhasebeciPaneli({
         // iOS / share desteklemiyorsa: ZIP indir + WhatsApp sohbetini aç
         await zipIndir(
           seciliFisler.map((f) => f.id),
-          `fisler-${seciliAy}.zip`
+          `muhasebe-${seciliAy}.zip`,
+          seciliAy
         );
         const waMetin = encodeURIComponent(
           `${metin}\nAz önce indirilen ZIP'i bu sohbete ekliyorum.`
@@ -188,12 +195,9 @@ export default function MuhasebeciPaneli({
       try {
         const metin = `${ayEtiket} fişleri (${seciliFisler.length} adet) — Nakliye Defteri`;
         const tel = telefonTemizle(telefon);
-        const zipAdi = `fisler-${seciliAy}.zip`;
+        const zipAdi = `muhasebe-${seciliAy}.zip`;
 
-        await zipIndir(
-          seciliFisler.map((f) => f.id),
-          zipAdi
-        );
+        await zipIndir(seciliFisler.map((f) => f.id), zipAdi, seciliAy);
 
         // WhatsApp Web sohbetini aç (tarayıcıda açıksa / Desktop varsa oraya düşer)
         const waMetin = encodeURIComponent(
@@ -223,11 +227,52 @@ export default function MuhasebeciPaneli({
       try {
         await zipIndir(
           seciliFisler.map((f) => f.id),
-          `fisler-${seciliAy}.zip`
+          `muhasebe-${seciliAy}.zip`,
+          seciliAy
         );
-        setMesaj("ZIP indirildi. WhatsApp Web/Desktop'ta sohbete sürükleyip bırakabilirsin.");
+        setMesaj(
+          "Paket indirildi: fiş görselleri + giderler.xlsx + ozet.html. WhatsApp Web/Desktop'ta sohbete sürükleyip bırakabilirsin."
+        );
       } catch (e) {
         setHata(e instanceof Error ? e.message : "İndirme başarısız.");
+      }
+    });
+  }
+
+  /** E-posta: paket indirilir, posta programı hazır metinle açılır. */
+  async function epostaGonder() {
+    setMesaj(null);
+    setHata(null);
+    if (seciliFisler.length === 0) {
+      setHata("Gönderilecek fiş seçilmedi.");
+      return;
+    }
+
+    baslat(async () => {
+      try {
+        const zipAdi = `muhasebe-${seciliAy}.zip`;
+        await zipIndir(seciliFisler.map((f) => f.id), zipAdi, seciliAy);
+
+        const konu = encodeURIComponent(`${ayEtiket} muhasebe evrakı`);
+        const govde = encodeURIComponent(
+          [
+            "Merhaba,",
+            "",
+            `${ayEtiket} dönemine ait ${seciliFisler.length} fiş, gider dökümü (giderler.xlsx) ve özet (ozet.html) ekte.`,
+            "",
+            `Ek: ${zipAdi}`,
+            "",
+            "İyi çalışmalar.",
+          ].join("\n")
+        );
+        window.location.href = `mailto:${eposta.trim()}?subject=${konu}&body=${govde}`;
+
+        await fisleriGonderildiIsaretle(seciliFisler.map((f) => f.id));
+        setMesaj(
+          `${zipAdi} indirildi ve e-posta taslağı açıldı. Dosyayı ataşman olarak ekleyip gönder.`
+        );
+      } catch (e) {
+        setHata(e instanceof Error ? e.message : "E-posta hazırlanamadı.");
       }
     });
   }
@@ -414,6 +459,35 @@ export default function MuhasebeciPaneli({
           >
             Sadece ZIP indir
           </button>
+        </div>
+
+        <div className="space-y-2 border-t border-white/10 pt-2">
+          <label htmlFor="eposta" className="etiket !text-fog">
+            E-posta ile gönder
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              id="eposta"
+              type="email"
+              inputMode="email"
+              placeholder="muhasebeci@ornek.com"
+              value={eposta}
+              onChange={(e) => setEposta(e.target.value)}
+              className="alan"
+            />
+            <button
+              type="button"
+              disabled={bekliyor || seciliFisler.length === 0 || !eposta.trim()}
+              onClick={epostaGonder}
+              className="btn btn-ghost shrink-0 !text-sm"
+            >
+              Paketi hazırla
+            </button>
+          </div>
+          <p className="text-xs leading-relaxed text-fog">
+            Paket iner (fişler + giderler.xlsx + ozet.html) ve posta programı hazır
+            metinle açılır; dosyayı ek olarak eklemen yeterli.
+          </p>
         </div>
       </div>
     </div>
