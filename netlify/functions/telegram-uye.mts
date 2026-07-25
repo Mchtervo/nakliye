@@ -1,6 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { Api, TelegramClient, utils } from "telegram";
-import { StringSession } from "telegram/sessions";
+// Klasör içe aktarımı ESM'de çalışmıyor; dosyayı doğrudan göstermek gerekiyor.
+import { StringSession } from "telegram/sessions/index.js";
 
 /**
  * Kullanıcının kendi Telegram hesabıyla çalışır.
