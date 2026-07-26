@@ -3,6 +3,7 @@ import { aiTercihleriOku } from "@/lib/ayarlar";
 import { tlYaz } from "@/lib/para";
 import { htmlKacis, telegramGonder, telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { pushGonder, pushKullanilabilir } from "@/lib/bildirim/push";
+import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 export type BildirimSonucu = {
@@ -48,12 +49,14 @@ export async function yukIlanlariniBildir(
   ilanlar: KaydedilenIlan[]
 ): Promise<BildirimSonucu> {
   const sonuc: BildirimSonucu = { telegram: 0, push: 0, hatalar: [] };
-  if (ilanlar.length === 0) return sonuc;
+  // Sert kapı: şüpheli (<50) asla bildirim / Telegram cevabına düşmez.
+  const guvenli = ilanlar.filter((i) => i.guvenSkoru >= SUPHE_SINIRI);
+  if (guvenli.length === 0) return sonuc;
 
   const tercih = await aiTercihleriOku();
   const kok = siteAdresi();
 
-  for (const ilan of ilanlar.slice(0, 10)) {
+  for (const ilan of guvenli.slice(0, 10)) {
     const donusMu = Boolean(ilan.donusTalebiId);
     const baslik = donusMu ? "Dönüş yükü bulundu" : "Yeni yük bulundu";
 
@@ -95,7 +98,7 @@ export async function yukIlanlariniBildir(
   }
 
   await prisma.yukIlani.updateMany({
-    where: { id: { in: ilanlar.map((i) => i.id) } },
+    where: { id: { in: guvenli.map((i) => i.id) } },
     data: { bildirildi: true },
   });
 

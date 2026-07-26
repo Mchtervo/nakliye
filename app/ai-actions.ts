@@ -105,6 +105,18 @@ export async function kaynakDurumDegistir(id: number): Promise<void> {
   revalidatePath("/ayarlar");
 }
 
+/** ADAY grubu elle takibe al (üyelik senkronu kaçırdıysa). */
+export async function kaynakTakibeAl(id: number): Promise<void> {
+  if (!Number.isInteger(id) || id <= 0) return;
+  await prisma.ilanKaynagi
+    .update({
+      where: { id },
+      data: { aktif: true, durum: "AKTIF", sonHata: null },
+    })
+    .catch(() => null);
+  revalidatePath("/ayarlar");
+}
+
 export async function kaynakSil(id: number): Promise<void> {
   await prisma.ilanKaynagi.delete({ where: { id } }).catch(() => null);
   revalidatePath("/ayarlar");

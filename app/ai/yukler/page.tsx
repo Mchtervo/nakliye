@@ -32,18 +32,17 @@ export default async function AiYuklerSayfasi({
 
   const tercih = await aiTercihleriOku();
 
-  // "Yeni" sekmesi aracına ve bölgene uymayanı göstermez; "Hepsi" filtresiz,
-  // "Şüpheli" ise güven skoru düşük olanları ayrı tutar.
+  // Şüpheli (<50) SADECE Şüpheli sekmesinde. Ana liste / Hepsi / Dönüş'e girmez.
   const filtre =
-    sekme === "HEPSI"
-      ? {}
-      : sekme === "DONUS"
-        ? { donusTalebiId: { not: null } }
-        : sekme === "SUPHELI"
-          ? { guvenSkoru: { lt: SUPHE_SINIRI } }
+    sekme === "SUPHELI"
+      ? { guvenSkoru: { lt: SUPHE_SINIRI } }
+      : sekme === "HEPSI"
+        ? { guvenSkoru: { gte: SUPHE_SINIRI } }
+        : sekme === "DONUS"
+          ? { donusTalebiId: { not: null }, guvenSkoru: { gte: SUPHE_SINIRI } }
           : sekme === "YENI"
             ? { durum: "YENI", ...tercihKosulu(tercih) }
-            : { durum: sekme };
+            : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
 
   const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi] =
     await Promise.all([

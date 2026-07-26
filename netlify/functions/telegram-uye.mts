@@ -28,6 +28,8 @@ type OkumaGorevi = {
 type KesifGorevi = {
   aktif: boolean;
   sorgular: string[];
+  /** ADAY kalmış, username'i olan gruplar — üyelik yeniden doğrulanır. */
+  adayKontrol: { chatId: string; kullaniciAdi: string; baslik: string }[];
 };
 
 type Aday = {
@@ -164,13 +166,49 @@ async function gruplariOku(
   );
 }
 
+/**
+ * Dialog listesi kesildiyse ADAY'da kalan üyelikler kaçmasın diye
+ * username ile entity çekip left!==true ise üye say.
+ */
+async function adayUyelikleriniDogrula(
+  istemci: TelegramClient,
+  adaylar: { chatId: string; kullaniciAdi: string; baslik: string }[],
+  bitis: number
+): Promise<Aday[]> {
+  const bulunan: Aday[] = [];
+  for (const a of adaylar.slice(0, 40)) {
+    if (Date.now() > bitis) break;
+    if (!a.kullaniciAdi) continue;
+    try {
+      const varlik = await istemci.getEntity(a.kullaniciAdi);
+      if (!(varlik instanceof Api.Channel)) continue;
+      if (varlik.left === true) continue;
+      bulunan.push({
+        chatId: utils.getPeerId(varlik),
+        baslik: varlik.title || a.baslik,
+        kullaniciAdi: varlik.username || a.kullaniciAdi,
+        uyeSayisi: varlik.participantsCount ?? null,
+        uye: true,
+      });
+    } catch (hata) {
+      console.warn(
+        "[telegram-uye] aday üyelik",
+        a.kullaniciAdi,
+        hata instanceof Error ? hata.message : hata
+      );
+    }
+  }
+  return bulunan;
+}
+
 async function kesfet(
   istemci: TelegramClient,
   sorgular: string[],
   mevcutSohbetler: Api.TypeChat[],
-  bitis: number
+  bitis: number,
+  ekstraUyeler: Aday[] = []
 ) {
-  const adaylar: Aday[] = [];
+  const adaylar: Aday[] = [...ekstraUyeler];
 
   // 1) Üye olunan gruplar: uygun olanlar takibe alınır, elle katılınan
   //    aday gruplar burada otomatik takibe geçer.
@@ -242,19 +280,38 @@ export default async function handler(): Promise<Response> {
     });
     await istemci.connect();
 
-    // Grup kimliklerini çözebilmek için sohbet listesi bir kez çekilir.
-    const sohbetler = await istemci.getDialogs({ limit: 200 });
+    // Sohbet listesi: 200 yetmeyebiliyor (eski üyelikler listede geride kalır).
+    // 1000'e çıkar + ADAY username ile üyelik doğrulaması (aşağıda).
+    const sohbetler = await istemci.getDialogs({ limit: 1000 });
     const gruplar = sohbetler
       .filter((d) => d.isGroup || d.isChannel)
       .map((d) => d.entity)
       .filter((e): e is Api.TypeChat => Boolean(e));
+    console.log(
+      "[telegram-uye] dialog",
+      sohbetler.length,
+      "grup/kanal",
+      gruplar.length
+    );
 
     const okuma = await gruplariOku(istemci, gorev, bitis);
     if (okuma) console.log("[telegram-uye] okuma", JSON.stringify(okuma));
 
     // Üyelik senkronu her koşuda: elle katıldığın grup 5 dakikada devreye girer.
     if (Date.now() < bitis) {
-      const sonuc = await kesfet(istemci, kesif.sorgular, gruplar, bitis);
+      // ADAY'da kalmış ama aslında üye olunanları (dialog kesildiyse) yakala.
+      const adayUyeler = await adayUyelikleriniDogrula(
+        istemci,
+        kesif.adayKontrol || [],
+        bitis
+      );
+      const sonuc = await kesfet(
+        istemci,
+        kesif.sorgular,
+        gruplar,
+        bitis,
+        adayUyeler
+      );
       if (sonuc) console.log("[telegram-uye] keşif", JSON.stringify(sonuc));
     }
 

@@ -1,4 +1,6 @@
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
+import { aiTercihleriOku } from "@/lib/ayarlar";
+import { ilgilileriSuz } from "@/lib/kaynaklar/filtre";
 import {
   telegramGuncellemeIsle,
   type TelegramGuncelleme,
@@ -35,7 +37,11 @@ export async function POST(request: Request) {
   try {
     const sonuc = await telegramGuncellemeIsle(guncelleme);
     if (sonuc.yeniIlanlar.length > 0) {
-      await yukIlanlariniBildir(sonuc.yeniIlanlar);
+      const tercih = await aiTercihleriOku();
+      const bildirilecek = ilgilileriSuz(sonuc.yeniIlanlar, tercih);
+      if (bildirilecek.length > 0) {
+        await yukIlanlariniBildir(bildirilecek);
+      }
     }
   } catch (hata) {
     console.error("[telegram-webhook]", hata);

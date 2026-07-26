@@ -24,6 +24,7 @@ import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { ilBul } from "@/lib/iller";
 import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
 import { ilgilileriSuz } from "@/lib/kaynaklar/filtre";
+import { grupOkumaArtir, grupOkumaToplu } from "@/lib/kaynaklar/grupOkumaSayac";
 import {
   elemeSebebi,
   metinHashUret,
@@ -142,13 +143,19 @@ export async function mesajlariKuyrugaAl(
     rapor.grup += 1;
     rapor.alinan += grup.mesajlar.length;
 
+    const grupElenen: Record<string, number> = {};
+    const eleGrup = (sebep: string, n = 1) => {
+      ele(sebep, n);
+      grupElenen[sebep] = (grupElenen[sebep] ?? 0) + n;
+    };
+
     const adaylar: { mesajId: number | null; metin: string; hash: string }[] =
       [];
 
     for (const m of grup.mesajlar.slice(0, 200)) {
       const sebep = elemeSebebi(m.metin, hedefIller);
       if (sebep) {
-        ele(sebep);
+        eleGrup(sebep);
         continue;
       }
 
@@ -166,13 +173,13 @@ export async function mesajlariKuyrugaAl(
       rapor.satirAtlanan += secim.atlanan;
 
       if (!secim.metin) {
-        ele("SATIR_TEKRAR");
+        eleGrup("SATIR_TEKRAR");
         continue;
       }
 
       const hash = metinHashUret(secim.metin);
       if (adaylar.some((a) => a.hash === hash)) {
-        ele("TEKRAR");
+        eleGrup("TEKRAR");
         continue;
       }
 
@@ -190,6 +197,7 @@ export async function mesajlariKuyrugaAl(
       }
     }
 
+    let kuyrukEklenen = 0;
     if (adaylar.length > 0) {
       const sonuc = await prisma.hamMesaj.createMany({
         data: adaylar.map((a) => ({
@@ -200,7 +208,17 @@ export async function mesajlariKuyrugaAl(
         })),
         skipDuplicates: true,
       });
+      kuyrukEklenen = sonuc.count;
       rapor.kuyruga += sonuc.count;
+    }
+
+    // Grup bazlı teşhis: çekilen vs elenen ayrımı.
+    if (grup.mesajlar.length > 0 || Object.keys(grupElenen).length > 0) {
+      await grupOkumaArtir(kaynak.id, {
+        cekilen: grup.mesajlar.length,
+        kuyruk: kuyrukEklenen,
+        elenen: grupElenen,
+      });
     }
 
     // Okunamayan grupta da sonTarama ilerletilir; aksi hâlde sıranın
@@ -568,14 +586,64 @@ export type GrupDurumu = {
   aktif: boolean;
   sonTarama: Date | null;
   sonHata: string | null;
+  sonMesajId: number | null;
   ilkOkumaYapildi: boolean;
   /** Son 24 saatte kuyruğa alınan mesaj. */
   mesaj24s: number;
+  /** Bugün Telegram'dan çekilen (ön filtre öncesi). */
+  cekilenBugun: number;
+  /** Bugün ön filtreyle elenen (sebep → adet). */
+  elenenBugun: Record<string, number>;
   /** Kuyrukta bekleyen (henüz AI görmemiş) mesaj. */
   bekleyen: number;
   /** Gerçek ilan sayısı — sayaç değil, tablodan sayılır. */
   ilanAdedi: number;
+  /** Tek cümlelik teşhis. */
+  teshis: string;
 };
+
+function grupTeshisi(g: {
+  durum: string;
+  aktif: boolean;
+  sonHata: string | null;
+  sonMesajId: number | null;
+  cekilenBugun: number;
+  mesaj24s: number;
+  bekleyen: number;
+  ilanAdedi: number;
+  elenenBugun: Record<string, number>;
+}): string {
+  if (g.durum === "ADAY") return "Aday — üye olunca / Takibe al";
+  if (!g.aktif) return "Pasif";
+  if (g.sonHata) return `Okuma hatası: ${g.sonHata.slice(0, 80)}`;
+  if (!g.sonMesajId) return "İlk okuma hiç yapılmadı";
+
+  const elenenToplam = Object.values(g.elenenBugun).reduce((a, b) => a + b, 0);
+  const elenenOzet = Object.entries(g.elenenBugun)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([k, v]) => `${k}:${v}`)
+    .join(" ");
+
+  if (g.cekilenBugun === 0 && g.mesaj24s === 0) {
+    return "Çekilen 0 — grup sessiz veya sonMesajId yeni mesaj bırakmıyor";
+  }
+  if (g.cekilenBugun > 0 && elenenToplam > 0 && g.mesaj24s === 0) {
+    return `Çekilen ${g.cekilenBugun}, hepsi ön filtrede (${elenenOzet})`;
+  }
+  if (g.bekleyen > 0) {
+    return aiKapaliMi()
+      ? `Çekilen var, ${g.bekleyen} kuyrukta — AI_KAPALI, ilan üretilmiyor`
+      : `Çekilen var, ${g.bekleyen} kuyrukta AI bekliyor`;
+  }
+  if (g.ilanAdedi === 0 && (g.mesaj24s > 0 || g.cekilenBugun > 0)) {
+    return elenenOzet
+      ? `Çekildi, ilan 0 — eleme: ${elenenOzet}`
+      : "Çekildi/işlendi, ilan çıkmadı";
+  }
+  if (g.ilanAdedi > 0) return "OK";
+  return "Veri yok";
+}
 
 /**
  * Grupların gerçekten okunup okunmadığını gösterir. "0 ilan" tek başına
@@ -590,7 +658,8 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
   if (gruplar.length === 0) return [];
 
   const dun = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [sonGun, bekleyen, ilanlar] = await Promise.all([
+  const ids = gruplar.map((g) => g.id);
+  const [sonGun, bekleyen, ilanlar, okumaMap] = await Promise.all([
     prisma.hamMesaj.groupBy({
       by: ["kaynakId"],
       where: { createdAt: { gte: dun } },
@@ -605,6 +674,7 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
       by: ["kaynakId"],
       _count: { _all: true },
     }),
+    grupOkumaToplu(ids),
   ]);
 
   const say = (
@@ -612,20 +682,43 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
     id: number
   ) => liste.find((x) => x.kaynakId === id)?._count._all ?? 0;
 
-  return gruplar.map((g) => ({
-    id: g.id,
-    ad: g.ad,
-    kullaniciAdi: g.kullaniciAdi,
-    uyeSayisi: g.uyeSayisi,
-    durum: g.durum,
-    aktif: g.aktif,
-    sonTarama: g.sonTarama,
-    sonHata: g.sonHata,
-    ilkOkumaYapildi: g.sonMesajId !== null,
-    mesaj24s: say(sonGun, g.id),
-    bekleyen: say(bekleyen, g.id),
-    ilanAdedi: say(ilanlar, g.id),
-  }));
+  return gruplar.map((g) => {
+    const okuma = okumaMap.get(g.id);
+    const mesaj24s = say(sonGun, g.id);
+    const bek = say(bekleyen, g.id);
+    const ilanAdedi = say(ilanlar, g.id);
+    const cekilenBugun = okuma?.cekilen ?? 0;
+    const elenenBugun = okuma?.elenen ?? {};
+    const baz = {
+      durum: g.durum,
+      aktif: g.aktif,
+      sonHata: g.sonHata,
+      sonMesajId: g.sonMesajId,
+      cekilenBugun,
+      mesaj24s,
+      bekleyen: bek,
+      ilanAdedi,
+      elenenBugun,
+    };
+    return {
+      id: g.id,
+      ad: g.ad,
+      kullaniciAdi: g.kullaniciAdi,
+      uyeSayisi: g.uyeSayisi,
+      durum: g.durum,
+      aktif: g.aktif,
+      sonTarama: g.sonTarama,
+      sonHata: g.sonHata,
+      sonMesajId: g.sonMesajId,
+      ilkOkumaYapildi: g.sonMesajId !== null,
+      mesaj24s,
+      cekilenBugun,
+      elenenBugun,
+      bekleyen: bek,
+      ilanAdedi,
+      teshis: grupTeshisi(baz),
+    };
+  });
 }
 
 /** İşlenmiş kuyruk kayıtlarını ve eski satır hash'lerini temizler. */
@@ -650,7 +743,29 @@ export async function kuyrugaBakim(gunSayisi = 3): Promise<number> {
 export type KesifGorevi = {
   aktif: boolean;
   sorgular: string[];
+  /** Dialog kesilirse ADAY üyeliklerini username ile yeniden doğrula. */
+  adayKontrol: { chatId: string; kullaniciAdi: string; baslik: string }[];
 };
+
+async function adayKontrolListesi(): Promise<KesifGorevi["adayKontrol"]> {
+  const adaylar = await prisma.ilanKaynagi.findMany({
+    where: {
+      tur: TELEGRAM_UYE,
+      durum: "ADAY",
+      kullaniciAdi: { not: null },
+    },
+    orderBy: { uyeSayisi: "desc" },
+    take: 40,
+    select: { hedef: true, kullaniciAdi: true, ad: true },
+  });
+  return adaylar
+    .filter((a) => a.kullaniciAdi)
+    .map((a) => ({
+      chatId: a.hedef,
+      kullaniciAdi: a.kullaniciAdi as string,
+      baslik: a.ad,
+    }));
+}
 
 /**
  * Her turda sorgu listesinden sıradaki birkaç tanesi denenir.
@@ -660,13 +775,17 @@ export type KesifGorevi = {
  */
 export async function kesifGoreviUret(): Promise<KesifGorevi> {
   const tercih = await aiTercihleriOku();
-  if (!tercih.telegramUyeAcik) return { aktif: false, sorgular: [] };
+  const adayKontrol = await adayKontrolListesi();
+  if (!tercih.telegramUyeAcik) {
+    return { aktif: false, sorgular: [], adayKontrol: [] };
+  }
 
   const sonKesif = Date.parse(
     (await ayarOku(AYAR_ANAHTARLARI.telegramKesifZaman)) || ""
   );
   if (Number.isFinite(sonKesif) && Date.now() - sonKesif < KESIF_ARALIGI_MS) {
-    return { aktif: true, sorgular: [] };
+    // Arama kapalı; üyelik senkronu + ADAY doğrulama devam.
+    return { aktif: true, sorgular: [], adayKontrol };
   }
   await ayarYaz(AYAR_ANAHTARLARI.telegramKesifZaman, new Date().toISOString());
 
@@ -684,7 +803,7 @@ export async function kesifGoreviUret(): Promise<KesifGorevi> {
     String((sira + sorgular.length) % tumSorgular.length)
   );
 
-  return { aktif: true, sorgular };
+  return { aktif: true, sorgular, adayKontrol };
 }
 
 export type BulunanGrup = {
@@ -727,13 +846,15 @@ export async function adaylariDegerlendir(
   const gorulen = new Set<string>();
 
   // Tek sorguda mevcut kayıtlar: aday listesi yüzlerce satır olabiliyor.
-  const kayitli = new Map(
-    (
-      await prisma.ilanKaynagi.findMany({
-        where: { tur: TELEGRAM_UYE },
-        select: { id: true, hedef: true, durum: true },
-      })
-    ).map((k) => [k.hedef, k])
+  const tumKayitlar = await prisma.ilanKaynagi.findMany({
+    where: { tur: TELEGRAM_UYE },
+    select: { id: true, hedef: true, durum: true, kullaniciAdi: true },
+  });
+  const kayitli = new Map(tumKayitlar.map((k) => [k.hedef, k]));
+  const kayitliKullanici = new Map(
+    tumKayitlar
+      .filter((k) => k.kullaniciAdi)
+      .map((k) => [k.kullaniciAdi!.toLowerCase(), k])
   );
 
   for (const grup of bulunanlar) {
@@ -743,14 +864,23 @@ export async function adaylariDegerlendir(
     gorulen.add(chatId);
 
     const uye = grup.uye === true;
-    const mevcut = kayitli.get(chatId);
+    const ku = (grup.kullaniciAdi || "").trim().toLowerCase();
+    // chatId veya @username ile eşle (dialog/entity id farkı olmasın).
+    const mevcut = kayitli.get(chatId) ?? (ku ? kayitliKullanici.get(ku) : undefined);
 
     if (mevcut) {
       // Aday listesindeki bir gruba elle katılınmış: takibe al.
       if (uye && mevcut.durum === "ADAY") {
         await prisma.ilanKaynagi.update({
           where: { id: mevcut.id },
-          data: { aktif: true, durum: "AKTIF", sonHata: null },
+          data: {
+            aktif: true,
+            durum: "AKTIF",
+            sonHata: null,
+            hedef: chatId,
+            ad: baslik.slice(0, 120),
+            kullaniciAdi: grup.kullaniciAdi || undefined,
+          },
         });
         rapor.terfi += 1;
       }

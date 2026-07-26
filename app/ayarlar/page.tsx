@@ -19,7 +19,12 @@ import {
   telegramUyeKullanilabilir,
 } from "@/lib/kaynaklar/telegramUye";
 import { gecenSure } from "@/lib/ilanGorunum";
-import { kaynakDurumDegistir, kaynakSil } from "@/app/ai-actions";
+import {
+  kaynakDurumDegistir,
+  kaynakSil,
+  kaynakTakibeAl,
+} from "@/app/ai-actions";
+import { elemeSayaclariOku } from "@/lib/kaynaklar/elemeSayac";
 import { aiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
 import AiMaliyetPaneli from "@/components/AiMaliyetPaneli";
 
@@ -47,7 +52,7 @@ function DurumRozeti({ tamam, ad }: { tamam: boolean; ad: string }) {
 export default async function AyarlarSayfasi() {
   const ay = bugunAy();
 
-  const [hizliAra, tercih, tumKaynaklar, bekleyenMesaj, gruplar, maliyet] =
+  const [hizliAra, tercih, tumKaynaklar, bekleyenMesaj, gruplar, maliyet, eleme] =
     await Promise.all([
       prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
       aiTercihleriOku(),
@@ -55,6 +60,7 @@ export default async function AyarlarSayfasi() {
       prisma.hamMesaj.count({ where: { islendi: false } }),
       grupDurumlari(),
       aiMaliyetOzeti(),
+      elemeSayaclariOku(),
     ]);
 
   const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
@@ -169,6 +175,16 @@ export default async function AyarlarSayfasi() {
           </div>
         )}
 
+        {Object.keys(eleme).length > 0 && (
+          <p className="rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-xs text-fog">
+            Bugün ön filtre:{" "}
+            {Object.entries(eleme)
+              .sort((a, b) => b[1] - a[1])
+              .map(([k, v]) => `${k}=${v}`)
+              .join(" · ")}
+          </p>
+        )}
+
         {gruplar.length > 0 && (
           <div className="space-y-1.5">
             {siraliGruplar.slice(0, 40).map((g) => (
@@ -193,16 +209,27 @@ export default async function AyarlarSayfasi() {
                             g.sonTarama
                               ? `son okuma: ${gecenSure(g.sonTarama)}`
                               : "son okuma: hiç",
-                            `çekilen (24s): ${g.mesaj24s}`,
+                            `çekilen bugün: ${g.cekilenBugun}`,
+                            `kuyruk (24s): ${g.mesaj24s}`,
                             g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
                             `${g.ilanAdedi} ilan`,
-                            g.ilkOkumaYapildi ? null : "ilk okuma bekliyor",
                           ]
                             .filter(Boolean)
                             .join(" · ")}
                     </div>
+                    <div className="mt-0.5 text-[11px] text-amber/90">
+                      {g.teshis}
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    {g.durum === "ADAY" && (
+                      <AksiyonButonu
+                        calistir={kaynakTakibeAl.bind(null, g.id)}
+                        etiket="Takibe al"
+                        bekleyenEtiket="..."
+                        sinif="rounded-lg border border-ok/30 px-2.5 py-1.5 text-xs font-semibold text-ok hover:bg-ok/10"
+                      />
+                    )}
                     {g.durum === "ADAY" && g.kullaniciAdi && (
                       <a
                         href={`https://t.me/${g.kullaniciAdi}`}
@@ -222,9 +249,13 @@ export default async function AyarlarSayfasi() {
                     />
                   </div>
                 </div>
-                {g.sonHata && (
-                  <p className="mt-1.5 rounded-lg border border-ember/25 bg-ember/10 px-2 py-1 text-xs text-ember">
-                    {g.sonHata.slice(0, 140)}
+                {(g.sonHata || Object.keys(g.elenenBugun).length > 0) && (
+                  <p className="mt-1.5 rounded-lg border border-white/10 bg-white/4 px-2 py-1 text-xs text-fog">
+                    {g.sonHata
+                      ? g.sonHata.slice(0, 140)
+                      : `Eleme: ${Object.entries(g.elenenBugun)
+                          .map(([k, v]) => `${k}=${v}`)
+                          .join(" · ")}`}
                   </p>
                 )}
               </div>

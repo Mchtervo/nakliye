@@ -4,6 +4,7 @@ import { kurustanGiris, tarihYaz, tlYaz } from "@/lib/para";
 import { donusTalebiKapat, simdiTara } from "@/app/ai-actions";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import IlanAksiyonlari from "@/components/IlanAksiyonlari";
+import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,10 @@ export default async function DonusYukuSayfasi() {
     take: 30,
     include: {
       ilanlar: {
-        where: { durum: { in: ["YENI", "ILGILENIYOR"] } },
+        where: {
+          durum: { in: ["YENI", "ILGILENIYOR"] },
+          guvenSkoru: { gte: SUPHE_SINIRI },
+        },
         orderBy: { createdAt: "desc" },
         take: 5,
       },
