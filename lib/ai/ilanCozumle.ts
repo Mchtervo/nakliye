@@ -201,7 +201,8 @@ async function tekParcaCozumle(
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(parca, 12000)}`,
     semaAdi: "yuk_ilanlari",
     sema: ILAN_LISTESI_SEMASI,
-    caba: "minimal",
+    // nano: minimal yok — none en ucuz geçerli effort
+    caba: "none",
     maxCikti: AI_MAX_CIKTI,
     kaynak,
   });
@@ -333,7 +334,7 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMESAJLAR:\n${govde}`,
     semaAdi: "mesaj_yuk_ilanlari",
     sema: MESAJ_ILAN_SEMASI,
-    caba: "minimal",
+    caba: "none",
     maxCikti: AI_MAX_CIKTI,
     kaynak,
   });

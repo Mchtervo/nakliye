@@ -43,7 +43,20 @@ export function aiKullanilabilir(): boolean {
 
 export type AiGorsel = { url: string };
 
-export type AiCabasi = "none" | "minimal" | "low" | "medium" | "high";
+export type AiCabasi = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+/** Modelin kabul ettiği reasoning.effort değerine indirger. */
+function reasoningEffort(model: string, caba?: AiCabasi): string {
+  let effort: string = caba || "none";
+  // gpt-5.4-nano/mini: minimal yok (none|low|medium|high|xhigh)
+  if (
+    effort === "minimal" &&
+    /gpt-5\.4-(nano|mini)|-nano\b/i.test(model)
+  ) {
+    effort = "none";
+  }
+  return effort;
+}
 
 type OrtakSecenek = {
   sistem: string;
@@ -355,10 +368,11 @@ async function istekAt(
 
 function govdeKur(secenek: OrtakSecenek): Record<string, unknown> {
   const maxCikti = secenek.maxCikti ?? AI_MAX_CIKTI;
+  const model = secenek.model || MODEL_HIZLI;
   const govde: Record<string, unknown> = {
-    model: secenek.model || MODEL_HIZLI,
+    model,
     input: girdiKur(secenek),
-    reasoning: { effort: secenek.caba || "minimal" },
+    reasoning: { effort: reasoningEffort(model, secenek.caba) },
     max_output_tokens: maxCikti,
   };
   if (secenek.webArama) govde.tools = [{ type: "web_search" }];
@@ -477,11 +491,12 @@ export async function aiAracli(secenek: {
   }));
 
   for (let tur = 0; tur < maxTur; tur++) {
+    const model = secenek.model || MODEL_HIZLI;
     const govde: Record<string, unknown> = {
-      model: secenek.model || MODEL_HIZLI,
+      model,
       input,
       tools,
-      reasoning: { effort: secenek.caba || "minimal" },
+      reasoning: { effort: reasoningEffort(model, secenek.caba) },
       max_output_tokens: secenek.maxCikti ?? AI_MAX_CIKTI,
     };
 
