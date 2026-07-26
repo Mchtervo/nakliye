@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { aiKapaliMi } from "@/lib/ai/istemci";
 import { cronAnahtariGecerliMi, cronAnahtariVarMi } from "@/lib/cronGuvenlik";
 import { bilgiBildir } from "@/lib/bildirim/gonder";
 import { gunlukAnaliziUret } from "@/lib/ai/gunlukAnaliz";
@@ -15,6 +16,11 @@ export async function POST(request: Request) {
   }
   if (!cronAnahtariGecerliMi(request)) {
     return Response.json({ hata: "Yetkisiz." }, { status: 401 });
+  }
+  if (aiKapaliMi()) {
+    return Response.json({
+      hata: "AI_KAPALI=true — günlük analiz atlandı.",
+    });
   }
 
   try {

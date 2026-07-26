@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { aiButceKesiminiAc, type AiSonuc } from "@/app/ai-actions";
+import {
+  aiButceKesiminiAc,
+  aiTestIzniVer,
+  type AiSonuc,
+} from "@/app/ai-actions";
 import type { AiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
 
 type TestDurumApi = {
@@ -63,7 +67,7 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
   async function testiBaslat() {
     if (
       !window.confirm(
-        "10 mesaj işlenecek (1–3 dk). Sayfa açık kalsın; bitince sonuç burada görünür. Devam?"
+        "AI_KAPALI kapalı kalır. Önce «1 test izni» vermediysen çalışmaz. 10 mesaj, 1–6 dk. Devam?"
       )
     ) {
       return;
@@ -223,6 +227,18 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
       )}
 
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={testBekliyor}
+          onClick={() => {
+            baslat(async () => {
+              setSonuc(await aiTestIzniVer());
+            });
+          }}
+          className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm disabled:opacity-60"
+        >
+          1 test izni ver
+        </button>
         <button
           type="button"
           disabled={testBekliyor}

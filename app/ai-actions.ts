@@ -11,10 +11,21 @@ import { kaynaklariTara } from "@/lib/kaynaklar/tarama";
 import { butceKesiminiAc } from "@/lib/ai/butce";
 import { adayFirmalariBul } from "@/lib/ai/firmaBul";
 import { gunlukAnaliziUret } from "@/lib/ai/gunlukAnaliz";
+import { testIzniDurum, testIzniVer } from "@/lib/ai/testIzin";
 import { aiTestOnMesajCalistir } from "@/lib/ai/testOnMesaj";
 import type { KaynakTuru } from "@/lib/kaynaklar/tip";
 
 export type AiSonuc = { hata: string } | { bilgi: string } | null;
+
+/** AI_KAPALI iken 1 adet 10'luk test hakkı (30 dk). */
+export async function aiTestIzniVer(): Promise<AiSonuc> {
+  const { bitisMs } = await testIzniVer(30);
+  const durum = await testIzniDurum();
+  revalidatePath("/ayarlar");
+  return {
+    bilgi: `1 test izni verildi (kalan ${durum.dakikaKalan} dk, bitiş ${new Date(bitisMs).toLocaleTimeString("tr-TR")}). Şimdi «10 mesaj işle»ye bas. İzin test bitince sıfırlanır.`,
+  };
+}
 
 function metinOku(deger: FormDataEntryValue | null): string {
   return typeof deger === "string" ? deger.trim() : "";

@@ -38,7 +38,11 @@ export async function kaynaklariTara(limit = 2): Promise<TaramaRaporu> {
   };
 
   if (!aiKullanilabilir()) {
-    rapor.hatalar.push("OPENAI_API_KEY tanımlı değil.");
+    rapor.hatalar.push(
+      process.env.AI_KAPALI
+        ? "AI_KAPALI=true — tarama AI çağrısı yok."
+        : "OPENAI_API_KEY tanımlı değil."
+    );
     rapor.sureMs = Date.now() - basla;
     return rapor;
   }

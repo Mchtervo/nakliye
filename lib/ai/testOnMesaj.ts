@@ -276,6 +276,15 @@ export async function aiTestArkaPlandaBaslat(): Promise<
     return { ok: false, hata: "Test zaten çalışıyor — bitmesini bekle." };
   }
 
+  const { testIzniDurum } = await import("@/lib/ai/testIzin");
+  const izin = await testIzniDurum();
+  if (!izin.varMi) {
+    return {
+      ok: false,
+      hata: "Tek seferlik test izni yok. Önce «1 test izni ver», sonra testi başlat.",
+    };
+  }
+
   const baslangicMs = Date.now();
   await testAyarYaz(
     TEST_DURUM_ANAHTAR,

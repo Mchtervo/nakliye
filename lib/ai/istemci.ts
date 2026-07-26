@@ -18,23 +18,40 @@ export class AiHatasi extends Error {
   }
 }
 
-/** Test modu tek tur için kill switch'i yok sayar; cron'lar etkilenmez. */
+/**
+ * Sadece tek kullanımlık test izni tüketildikten sonra true.
+ * Cron / bot / normal kuyruk bunu asla açamaz.
+ */
 let testBypass = false;
 
+/**
+ * Kill switch (env). Bypass ile yumuşatılmaz — UI ve cron hep gerçeği görür.
+ * OpenAI kapısı istekAt içinde: aiKapaliMi() && !testBypass.
+ */
+export function aiKapaliMi(): boolean {
+  const v = (process.env.AI_KAPALI || "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "evet" || v === "yes";
+}
+
+/**
+ * Tek seferlik izin yoksa çalışmaz. İzin test başında tüketilir, bitince silinir.
+ */
 export async function aiTestBypassIle<T>(islem: () => Promise<T>): Promise<T> {
+  const { testIzniniTuket, testIzniniSifirla } = await import("@/lib/ai/testIzin");
+  const izin = await testIzniniTuket();
+  if (!izin) {
+    throw new AiHatasi(
+      "Tek seferlik test izni yok. Ayarlar'dan «1 test izni ver» de, sonra testi başlat.",
+      "TEST_IZIN_YOK"
+    );
+  }
   testBypass = true;
   try {
     return await islem();
   } finally {
     testBypass = false;
+    await testIzniniSifirla();
   }
-}
-
-/** Kill switch: AI_KAPALI=true iken hiçbir OpenAI çağrısı yapılmaz. */
-export function aiKapaliMi(): boolean {
-  if (testBypass) return false;
-  const v = (process.env.AI_KAPALI || "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "evet" || v === "yes";
 }
 
 export function aiKullanilabilir(): boolean {
@@ -178,9 +195,10 @@ async function istekAt(
   zamanAsimiMs: number,
   kaynak: string
 ): Promise<OpenAiYanit> {
-  if (aiKapaliMi()) {
+  // Sert kapı: env kapalıysa sadece tüketilmiş tek-sefer test bypass geçer.
+  if (aiKapaliMi() && !testBypass) {
     throw new AiHatasi(
-      "AI kapalı (AI_KAPALI=true). Yeni anahtar vermeden önce açma.",
+      "AI kapalı (AI_KAPALI=true). OpenAI çağrısı yok — test için tek seferlik izin gerekir.",
       "AI_KAPALI"
     );
   }
