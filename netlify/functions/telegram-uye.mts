@@ -382,6 +382,5 @@ export default async function handler(): Promise<Response> {
   }
 }
 
-export const config: Config = {
-  schedule: "*/5 * * * *",
-};
+// VPS GramJS daemon + crontab'a taşındı — Netlify schedule kapalı.
+export const config: Config = {};

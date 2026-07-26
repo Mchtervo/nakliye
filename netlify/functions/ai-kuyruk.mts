@@ -42,6 +42,5 @@ export default async function handler(): Promise<Response> {
   return new Response("ok", { status: 200 });
 }
 
-export const config: Config = {
-  schedule: "*/5 * * * *",
-};
+// VPS crontab'a taşındı — schedule kapalı (çift iş / çift kayıt olmasın).
+export const config: Config = {};

@@ -463,7 +463,31 @@ Kesinti: build sırasında eski process ayakta; restart ~2–10 sn (Next + daemo
 | `.env` offsite | `deploy/yedek-env.md` — openssl şifreli tar, VPS dışına `scp` |
 
 ## AŞAMA 9 — GEÇİŞ VE GERİ DÖNÜŞ
-Geçici adres: `https://72.61.101.239.nip.io`. İleride kendi domain'e geçilirse yeni certbot + nginx `server_name` güncellenir. Netlify cron kapatma sırası aynı.
+
+**Canlı adres:** `https://72.61.101.239.nip.io`  
+**Eski:** `https://musical-seahorse-b58027.netlify.app`
+
+### Sıra
+1. VPS doğrulandı (site + daemon + cron) ✅
+2. Netlify scheduled functions’ı durdur (aşağıda)
+3. Netlify sitesini **1 hafta silme** — geri dönüş için dursun; istersen “Disable project”
+4. İleride kendi domain: DNS A → VPS + `certbot --nginx -d ...` (redmedya’ya dokunma)
+
+### Netlify cron’u nasıl kapatılır
+- Kod: `netlify/functions/*` içindeki `schedule` kaldırıldı → bir kez Netlify’a deploy et **veya**
+- UI: Project → **Disable project** (build/function tüketimini de keser)
+- Env: Netlify’da `AI_KAPALI=true` kalsın (yanlışlıkla tetiklenirse OpenAI yanmasın)
+
+### Sorular
+
+**İkisi bir süre birlikte çalışırsa çift kayıt olur mu?**  
+Evet risk var. `dedupHash` aynı rota+telefon için ikinci kaydı engeller; ama HamMesaj kuyruğu / eleme sayaçları / Telegram bildirimleri çiftlenebilir. **Netlify cron’u kapatmadan ikisini birlikte bırakma.**
+
+**VPS bozulursa Netlify’ı tekrar açabilir miyim?**  
+Evet. Enable project (veya son deploy duruyorsa) + Netlify env’de `SITE_URL` eski Netlify URL + gerekirse function `schedule`’ları geri ekle + deploy. Süre: genelde **15–60 dk** (env kontrol + redeploy + webhook). Daemon/VPS oturumu Netlify’da yoktu; Netlify yine 5 dk polling’e döner.
+
+**`TELEGRAM_SESSION` VPS’e geçince Netlify ne olur?**  
+Aynı StringSession iki yerde aynı anda kullanılırsa Telegram birini düşürebilir / flood riski. Netlify cron kapalıysa session orada **uyumaz** — sorun yok. Netlify’daki env değerini silmek zorunlu değil; güvenlik için sonra silebilirsin. Yeni oturum ürettiysen Netlify’daki eski session zaten geçersiz olabilir.
 
 ---
 
