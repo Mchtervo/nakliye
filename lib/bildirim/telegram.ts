@@ -18,10 +18,22 @@ export function htmlKacis(metin: string): string {
 
 export type TelegramSonuc = { basarili: boolean; hata: string | null };
 
+/** URL veya callback_data inline buton. */
+export type InlineButon =
+  | { metin: string; url: string; callback?: never }
+  | { metin: string; callback: string; url?: never };
+
+function inlineSatir(butonlar: InlineButon[]) {
+  return butonlar.map((b) => {
+    if ("url" in b && b.url) return { text: b.metin, url: b.url };
+    return { text: b.metin, callback_data: (b.callback || "").slice(0, 64) };
+  });
+}
+
 export async function telegramGonder(
   chatId: string,
   metin: string,
-  butonlar?: { metin: string; url: string }[]
+  butonlar?: InlineButon[]
 ): Promise<TelegramSonuc> {
   if (!telegramKullanilabilir()) {
     return { basarili: false, hata: "TELEGRAM_BOT_TOKEN tanımlı değil." };
@@ -35,8 +47,9 @@ export async function telegramGonder(
   };
 
   if (butonlar?.length) {
+    // Telegram satırda ~3 buton rahat; WhatsApp/Takip/Elendi tek satır.
     govde.reply_markup = {
-      inline_keyboard: [butonlar.map((b) => ({ text: b.metin, url: b.url }))],
+      inline_keyboard: [inlineSatir(butonlar)],
     };
   }
 
@@ -51,6 +64,40 @@ export async function telegramGonder(
 
     if (cevap.ok) return { basarili: true, hata: null };
 
+    const detay = await cevap.text().catch(() => "");
+    return {
+      basarili: false,
+      hata: `Telegram ${cevap.status}: ${detay.slice(0, 200)}`,
+    };
+  } catch (hata) {
+    return {
+      basarili: false,
+      hata: hata instanceof Error ? hata.message : "Telegram bağlantı hatası",
+    };
+  }
+}
+
+export async function telegramCallbackCevapla(
+  callbackQueryId: string,
+  metin?: string
+): Promise<TelegramSonuc> {
+  if (!telegramKullanilabilir()) {
+    return { basarili: false, hata: "TELEGRAM_BOT_TOKEN tanımlı değil." };
+  }
+
+  try {
+    const cevap = await fetch(apiUrl("answerCallbackQuery"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text: metin?.slice(0, 200),
+        show_alert: false,
+      }),
+      signal: AbortSignal.timeout(10000),
+      cache: "no-store",
+    });
+    if (cevap.ok) return { basarili: true, hata: null };
     const detay = await cevap.text().catch(() => "");
     return {
       basarili: false,
@@ -79,7 +126,7 @@ export async function webhookKur(
       body: JSON.stringify({
         url: webhookUrl,
         secret_token: gizliAnahtar,
-        allowed_updates: ["message", "channel_post"],
+        allowed_updates: ["message", "channel_post", "callback_query"],
         drop_pending_updates: true,
       }),
       signal: AbortSignal.timeout(10000),

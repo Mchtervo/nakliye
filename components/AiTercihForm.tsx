@@ -13,6 +13,7 @@ export default function AiTercihForm({
   aracTipleri,
   maxTonaj,
   anaUs,
+  ekIller,
   telegramAcik,
   pushAcik,
   telegramUyeAcik,
@@ -24,6 +25,7 @@ export default function AiTercihForm({
   aracTipleri: AracTipiKodu[];
   maxTonaj: string;
   anaUs: string;
+  ekIller: string;
   telegramAcik: boolean;
   pushAcik: boolean;
   telegramUyeAcik: boolean;
@@ -59,8 +61,8 @@ export default function AiTercihForm({
             ))}
           </div>
           <p className="mt-1 text-xs text-fog">
-            Seçilen tipe uymayan ilanlar listede gösterilmez. Araç tipi
-            yazmayan ilanlar elenmez.
+            Tenteli / kapalı kasa seçiliyse frigo, damper, lowbed, açık dorse
+            vb. elenir. Tipi yazmayan ilanlar geçer; kartta sarı uyarı çıkar.
           </p>
         </div>
 
@@ -167,8 +169,25 @@ export default function AiTercihForm({
           ))}
         </div>
         <p className="mt-1 text-xs text-fog">
-          Grup araması ve bildirimler bu bölgelere göre yapılır. Hiçbirini
+          En az bir uç bu bölgelere (veya komşu illere) değsin. Hiçbirini
           seçmezsen Türkiye geneli taranır.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="ekIller" className="etiket">
+          Ek iller (bölgeye ek)
+        </label>
+        <input
+          id="ekIller"
+          name="ekIller"
+          type="text"
+          placeholder="Örnek: Afyonkarahisar, Manisa"
+          defaultValue={ekIller}
+          className="alan"
+        />
+        <p className="mt-1 text-xs text-fog">
+          Kod değiştirmeden kapsam genişlet. Virgülle ayır.
         </p>
       </div>
 

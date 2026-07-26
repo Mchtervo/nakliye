@@ -22,28 +22,46 @@ export function aracTipiAdi(kod: string | null): string | null {
 }
 
 /**
- * İlanlarda araç tipi serbest metin: "Tenteli Frigo tır", "13.60 sal dorse",
- * "sınırsız damper"... Filtre kurabilmek için sabit koda indirgenir.
- * "Tır" tek başına kasa tipi söylemez, kod üretmez.
+ * Tip → kabul kelimeleri (FAZ 3). Eşleşme sadelestir sonrası yapılır.
+ * Tenteli / kapalı kasa varsayılan araç; diğerleri red tarafına düşer.
  */
-const ANAHTARLAR: { kod: AracTipiKodu; kelimeler: string[] }[] = [
-  { kod: "FRIGO", kelimeler: ["frigo", "frigorifik", "sogutuculu", "termo"] },
-  { kod: "TENTELI", kelimeler: ["tenteli", "tente", "perdeli", "brandali"] },
-  { kod: "DAMPER", kelimeler: ["damper", "damperli", "kaya tipi"] },
-  {
-    kod: "KAPALI_KASA",
-    kelimeler: ["kapali kasa", "kapali", "panelvan", "panel van", "box"],
-  },
-  { kod: "LOWBED", kelimeler: ["lowbed", "low bed", "lowbet", "havuzlu"] },
-  {
-    kod: "SAL_DORSE",
-    kelimeler: ["sal dorse", "sal", "acik dorse", "platform", "flatbed"],
-  },
-  {
-    kod: "KAMYON",
-    kelimeler: ["kamyonet", "kamyon", "kirkayak", "10 teker", "6 teker"],
-  },
-];
+const TIP_KELIMELER: Record<AracTipiKodu, string[]> = {
+  TENTELI: [
+    "tenteli", "tente", "tenteli kasa", "branda", "brandali",
+    "perdeli", "perde", "surgulu perde",
+  ],
+  KAPALI_KASA: ["kapali kasa", "kapali", "panelvan", "panel van", "box"],
+  FRIGO: ["frigo", "frigorifik", "sogutuculu", "sogutmali", "termo"],
+  DAMPER: ["damper", "damperli", "kaya tipi"],
+  LOWBED: ["lowbed", "low bed", "lowbet", "havuzlu"],
+  SAL_DORSE: [
+    "sal dorse", "acik dorse", "acik kasa", "platform", "flatbed",
+    // "sal" tek başına çok kısa; kelime sınırı ile bakılır
+  ],
+  KAMYON: ["kamyonet", "kirkayak", "10 teker", "6 teker", "kamyon"],
+  DIGER: ["tanker", "silobas", "konteyner", "konteyner sasi", "romork", "havuz"],
+};
+
+/** Kod üretiminde kullanılan düz liste (öncelik: metinde ilk geçen). */
+const ANAHTARLAR: { kod: AracTipiKodu; kelimeler: string[] }[] = (
+  Object.entries(TIP_KELIMELER) as [AracTipiKodu, string[]][]
+).map(([kod, kelimeler]) => ({ kod, kelimeler }));
+
+function kelimeVar(sade: string, kelime: string): boolean {
+  if (kelime.includes(" ")) return sade.includes(kelime);
+  // Tek kelime: sınırlı eşleşme ("sal" → "saldir" olmasın)
+  return new RegExp(`(^|\\s)${kelime}(\\s|$)`).test(sade);
+}
+
+function tipKelimeSkoru(sade: string, kod: AracTipiKodu): number {
+  let skor = 0;
+  for (const k of TIP_KELIMELER[kod]) {
+    if (kelimeVar(sade, k)) skor += k.includes(" ") ? 2 : 1;
+  }
+  // "sal" özel: SAL_DORSE
+  if (kod === "SAL_DORSE" && kelimeVar(sade, "sal")) skor += 1;
+  return skor;
+}
 
 /** Serbest metinden araç tipi kodunu çıkarır; anlaşılmazsa null. */
 export function aracKoduBul(metin: string | null | undefined): AracTipiKodu | null {
@@ -51,7 +69,6 @@ export function aracKoduBul(metin: string | null | undefined): AracTipiKodu | nu
   const sade = sadelestir(metin);
   if (!sade) return null;
 
-  // Metinde ilk geçen tip belirleyicidir: "tenteli frigo" -> tenteli.
   let enIyi: { kod: AracTipiKodu; yer: number } | null = null;
   for (const { kod, kelimeler } of ANAHTARLAR) {
     for (const kelime of kelimeler) {
@@ -60,7 +77,52 @@ export function aracKoduBul(metin: string | null | undefined): AracTipiKodu | nu
       if (!enIyi || yer < enIyi.yer) enIyi = { kod, yer };
     }
   }
+  if (!enIyi && kelimeVar(sade, "sal")) return "SAL_DORSE";
   return enIyi?.kod ?? null;
+}
+
+/**
+ * Seçili araç tiplerine uyuyor mu?
+ * - Tip yazılmamışsa eleme (belirsiz → kartta sarı uyarı).
+ * - Red kelimesi var, kabul yoksa ele.
+ * - Kod seçilenlerin dışındaysa ele.
+ */
+export function aracMetniUyuyorMu(
+  aracTipi: string | null | undefined,
+  aracTipiKod: string | null | undefined,
+  kabulKodlari: AracTipiKodu[]
+): boolean {
+  if (kabulKodlari.length === 0) return true;
+
+  const kod =
+    (aracTipiKod as AracTipiKodu | null) ||
+    aracKoduBul(aracTipi);
+  const sade = sadelestir(aracTipi || "");
+
+  if (!sade && !kod) return true; // belirsiz — geçir
+
+  if (kod && !kabulKodlari.includes(kod)) return false;
+
+  let kabulSkor = 0;
+  for (const k of kabulKodlari) kabulSkor += tipKelimeSkoru(sade, k);
+
+  let redSkor = 0;
+  for (const tip of ARAC_TIPLERI) {
+    if (kabulKodlari.includes(tip.kod)) continue;
+    redSkor += tipKelimeSkoru(sade, tip.kod);
+  }
+
+  if (redSkor > 0 && kabulSkor === 0) return false;
+  return true;
+}
+
+/** Araç tipi belirtilmemiş mi (sarı uyarı için). */
+export function aracBelirsizMi(
+  aracTipi: string | null | undefined,
+  aracTipiKod: string | null | undefined
+): boolean {
+  if (aracTipiKod) return false;
+  return !sadelestir(aracTipi || "");
 }
 
 /** Ayarlardaki çoklu seçimi güvenli koda çevirir. */

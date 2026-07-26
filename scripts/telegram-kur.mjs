@@ -31,7 +31,7 @@ const cevap = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
   body: JSON.stringify({
     url: webhookUrl,
     secret_token: gizli,
-    allowed_updates: ["message", "channel_post"],
+    allowed_updates: ["message", "channel_post", "callback_query"],
     drop_pending_updates: true,
   }),
 });

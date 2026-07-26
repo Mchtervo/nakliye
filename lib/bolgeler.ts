@@ -151,14 +151,24 @@ const BOLGE_KOMSULARI: Record<BolgeKodu, string[]> = {
 };
 
 /**
- * Çözümlemeye değer il kümesi: seçili bölgeler + komşuları.
- * Bölge seçilmemişse 81 il döner.
+ * Çözümlemeye değer il kümesi: seçili bölgeler + komşuları + ek iller.
+ * Bölge ve ek il yoksa 81 il döner.
  */
-export function genisIlKumesi(kodlar: BolgeKodu[]): string[] {
-  if (kodlar.length === 0) return [...ILLER];
-  const iller = new Set(bolgeIlleri(kodlar));
-  for (const kod of kodlar) {
-    for (const il of BOLGE_KOMSULARI[kod] ?? []) iller.add(il);
+export function genisIlKumesi(
+  kodlar: BolgeKodu[],
+  ekIller: string[] = []
+): string[] {
+  if (kodlar.length === 0 && ekIller.length === 0) return [...ILLER];
+  const iller = new Set<string>();
+  if (kodlar.length > 0) {
+    for (const il of bolgeIlleri(kodlar)) iller.add(il);
+    for (const kod of kodlar) {
+      for (const il of BOLGE_KOMSULARI[kod] ?? []) iller.add(il);
+    }
+  }
+  for (const ham of ekIller) {
+    const n = ilBul(ham);
+    if (n) iller.add(n);
   }
   return [...iller];
 }
@@ -173,18 +183,24 @@ export function ilinBolgesi(il: string | null | undefined): BolgeKodu | null {
   return null;
 }
 
-/** İlan seçili bölgelerden birine değiyor mu (çıkış veya varış). */
+/**
+ * İlan seçili bölge / ek illere değiyor mu?
+ * Kural: en az BİR uç kapsamda (Ankara→Antalya ve Antalya→Ankara ikisi de).
+ * Komşu iller genisIlKumesi ile dahildir.
+ */
 export function bolgeyeUyuyorMu(
   kodlar: BolgeKodu[],
   cikisIl: string | null,
-  varisIl: string | null
+  varisIl: string | null,
+  ekIller: string[] = []
 ): boolean {
-  if (kodlar.length === 0) return true;
-  const cikis = ilinBolgesi(cikisIl);
-  const varis = ilinBolgesi(varisIl);
+  if (kodlar.length === 0 && ekIller.length === 0) return true;
+  const kapsam = new Set(genisIlKumesi(kodlar, ekIller));
+  const cikis = ilBul(cikisIl);
+  const varis = ilBul(varisIl);
   return (
-    (cikis !== null && kodlar.includes(cikis)) ||
-    (varis !== null && kodlar.includes(varis))
+    (cikis !== null && kapsam.has(cikis)) ||
+    (varis !== null && kapsam.has(varis))
   );
 }
 

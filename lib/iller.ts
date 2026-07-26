@@ -26,13 +26,15 @@ export const ILLER = [
 const TAKMA_ADLAR: Record<string, string> = {
   // --- İstanbul ---
   ist: "İstanbul", "ist avrupa": "İstanbul", "ist anadolu": "İstanbul",
+  istanbul: "İstanbul", // yazım garantisi
   tuzla: "İstanbul", orhanlı: "İstanbul", tepeören: "İstanbul",
   pendik: "İstanbul", kurtköy: "İstanbul", kartal: "İstanbul",
   maltepe: "İstanbul", ataşehir: "İstanbul", ümraniye: "İstanbul",
   dudullu: "İstanbul", şerifali: "İstanbul", sancaktepe: "İstanbul",
   sultanbeyli: "İstanbul", çekmeköy: "İstanbul", alemdağ: "İstanbul",
   beykoz: "İstanbul", üsküdar: "İstanbul", kadıköy: "İstanbul",
-  kavacık: "İstanbul", hadımköy: "İstanbul", ikitelli: "İstanbul",
+  kavacık: "İstanbul", hadımköy: "İstanbul", hadimkoy: "İstanbul",
+  ikitelli: "İstanbul", ikiteli: "İstanbul", // sık yazım hatası
   esenyurt: "İstanbul", hoşdere: "İstanbul", kıraç: "İstanbul",
   akçaburgaz: "İstanbul", beylikdüzü: "İstanbul", avcılar: "İstanbul",
   ambarlı: "İstanbul", küçükçekmece: "İstanbul", sefaköy: "İstanbul",
@@ -45,28 +47,38 @@ const TAKMA_ADLAR: Record<string, string> = {
   şişli: "İstanbul", beşiktaş: "İstanbul", sarıyer: "İstanbul",
   maslak: "İstanbul", levent: "İstanbul", halkalı: "İstanbul",
   yenibosna: "İstanbul", seyrantepe: "İstanbul", haramidere: "İstanbul",
+  massit: "İstanbul", masit: "İstanbul", // İkitelli Massit
+  oruçreis: "İstanbul", orucreis: "İstanbul", "oruc reis": "İstanbul",
+  "beylikduzu sanayi": "İstanbul", "beylikdüzü sanayi": "İstanbul",
+  "ikitelli sanayi": "İstanbul", "ikitelli osb": "İstanbul",
   // İlanlarda sık geçen kısaltmalar ("G.O.PAŞA", "B.ÇEKMECE").
   "g o paşa": "İstanbul", "b çekmece": "İstanbul", "k çekmece": "İstanbul",
 
   // --- Kocaeli ---
   gebze: "Kocaeli", izmit: "Kocaeli", körfez: "Kocaeli", derince: "Kocaeli",
-  dilovası: "Kocaeli", çayırova: "Kocaeli", darıca: "Kocaeli",
-  gölcük: "Kocaeli", kartepe: "Kocaeli", başiskele: "Kocaeli",
-  kandıra: "Kocaeli", karamürsel: "Kocaeli", yarımca: "Kocaeli",
-  şekerpınar: "Kocaeli", alikahya: "Kocaeli", kullar: "Kocaeli",
+  dilovası: "Kocaeli", dilovasi: "Kocaeli", çayırova: "Kocaeli",
+  darıca: "Kocaeli", gölcük: "Kocaeli", kartepe: "Kocaeli",
+  başiskele: "Kocaeli", kandıra: "Kocaeli", karamürsel: "Kocaeli",
+  yarımca: "Kocaeli", şekerpınar: "Kocaeli", alikahya: "Kocaeli",
+  kullar: "Kocaeli", maşukiye: "Kocaeli", masukiye: "Kocaeli",
+  hereke: "Kocaeli",
 
   // --- Bursa ---
   nilüfer: "Bursa", inegöl: "Bursa", gemlik: "Bursa", mudanya: "Bursa",
   yıldırım: "Bursa", osmangazi: "Bursa", kestel: "Bursa", gürsu: "Bursa",
   karacabey: "Bursa", mustafakemalpaşa: "Bursa", orhangazi: "Bursa",
   iznik: "Bursa", orhaneli: "Bursa", demirtaş: "Bursa", hasanağa: "Bursa",
+  "hasanaga osb": "Bursa", "hasanağa osb": "Bursa",
   kayapa: "Bursa", ovaakça: "Bursa", teknosab: "Bursa", bursaosb: "Bursa",
+  "1 osb": "Bursa", "bursa 1 osb": "Bursa",
 
   // --- Tekirdağ ---
-  çerkezköy: "Tekirdağ", çorlu: "Tekirdağ", kapaklı: "Tekirdağ",
-  ergene: "Tekirdağ", velimeşe: "Tekirdağ", muratlı: "Tekirdağ",
-  malkara: "Tekirdağ", hayrabolu: "Tekirdağ", şarköy: "Tekirdağ",
+  çerkezköy: "Tekirdağ", cerkezkoy: "Tekirdağ", çorlu: "Tekirdağ",
+  kapaklı: "Tekirdağ", ergene: "Tekirdağ", velimeşe: "Tekirdağ",
+  muratlı: "Tekirdağ", malkara: "Tekirdağ", hayrabolu: "Tekirdağ",
+  şarköy: "Tekirdağ",
   "marmara ereğlisi": "Tekirdağ", "marmaraereğlisi": "Tekirdağ",
+  "cerkezkoy osb": "Tekirdağ",
 
   // --- Sakarya ---
   adapazarı: "Sakarya", hendek: "Sakarya", akyazı: "Sakarya",
@@ -93,20 +105,22 @@ const TAKMA_ADLAR: Record<string, string> = {
   ipsala: "Edirne", havsa: "Edirne", enez: "Edirne",
   lüleburgaz: "Kırklareli", babaeski: "Kırklareli", vize: "Kırklareli",
   pınarhisar: "Kırklareli",
-  // Sık yazım: "G.marmara", "trakya"
+  krklareli: "Kırklareli", kirklareli: "Kırklareli",
+  blkesir: "Balıkesir", balikesir: "Balıkesir",
   "guney marmara": "Balıkesir",
 
   // OSB / liman kısaltmaları (ilanlarda sık)
   "as osb": "Ankara", "bsb osb": "Bursa", "kosb": "Kocaeli",
   "gesbas": "Kocaeli", "tosb": "Kocaeli", "iosb": "İstanbul",
   "iosb i̇kitelli": "İstanbul", "hadimkoy osb": "İstanbul",
-  "cerkezkoy osb": "Tekirdağ", "corlu osb": "Tekirdağ",
+  "corlu osb": "Tekirdağ",
   "kayseri osb": "Kayseri", "konya osb": "Konya", "karatay osb": "Konya",
   "aksaray osb": "Aksaray", "kirikkale osb": "Kırıkkale",
   "sivas osb": "Sivas",
 
   // --- Ankara ---
-  ostim: "Ankara", ivedik: "Ankara", siteler: "Ankara", batıkent: "Ankara",
+  ank: "Ankara", ostim: "Ankara", osti: "Ankara", // eksik harf
+  ivedik: "Ankara", siteler: "Ankara", batıkent: "Ankara",
   sincan: "Ankara", etimesgut: "Ankara", yenimahalle: "Ankara",
   keçiören: "Ankara", mamak: "Ankara", altındağ: "Ankara",
   çankaya: "Ankara", pursaklar: "Ankara", polatlı: "Ankara",
@@ -144,6 +158,7 @@ const TAKMA_ADLAR: Record<string, string> = {
   çerkeş: "Çankırı", ilgaz: "Çankırı",
 
   // --- İzmir ---
+  izm: "İzmir", izmir: "İzmir",
   aliağa: "İzmir", nemrut: "İzmir", petkim: "İzmir", torbalı: "İzmir",
   kemalpaşa: "İzmir", menemen: "İzmir", bornova: "İzmir", buca: "İzmir",
   gaziemir: "İzmir", çiğli: "İzmir", karabağlar: "İzmir", konak: "İzmir",
@@ -297,7 +312,13 @@ const TAKMA_ADLAR: Record<string, string> = {
   pertek: "Tunceli", çemişgezek: "Tunceli", mazgirt: "Tunceli",
 };
 
-/** Türkçe karakterleri sadeleştirip küçük harfe indirir. */
+/**
+ * Türkçe normalizasyon:
+ * - Büyük/küçük: OSTİM = ostim
+ * - Karakter: Çerkezköy = Cerkezkoy
+ * - Ayırıcılar: ankara-istanbul, ANKARA/BOLU → boşluk
+ * - Apostrof: Gebze'den → gebzeden
+ */
 export function sadelestir(metin: string): string {
   return metin
     .toLocaleLowerCase("tr-TR")
@@ -307,6 +328,10 @@ export function sadelestir(metin: string): string {
     .replaceAll("ş", "s")
     .replaceAll("ö", "o")
     .replaceAll("ç", "c")
+    // Rota ayırıcıları kelime sınırına
+    .replace(/[\/\\|–—_]+/g, " ")
+    .replace(/[-→➡➜▶️►>]+/g, " ")
+    .replace(/[''`´]/g, "")
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -337,18 +362,36 @@ const EKLER = [
   "dan", "den", "tan", "ten", "ndan", "nden",
   "da", "de", "ta", "te", "nda", "nde",
   "ya", "ye", "na", "ne",
+  "a", "e", // İstanbula, Bursaya (kısa ek; sadece uzun kökte)
 ];
 
-/** Kelime bir yer adının çekimli hâli mi? */
+const EK_KUMESI = new Set(EKLER);
+
+/** Kelime bir yer adının çekimli hâli mi? ("Gebzeden", "Ankaradan") */
 function kokBul(kelime: string): string | null {
   if (TEK_KELIME.has(kelime)) return kelime;
+
+  // 1) Bilinen ek listesi (sondan)
   for (const ek of EKLER) {
     if (!kelime.endsWith(ek)) continue;
     const kok = kelime.slice(0, -ek.length);
-    // Çok kısa kökler ("van" + "da" = "vanda") tesadüfen eşleşiyor.
     if (kok.length >= 4 && TEK_KELIME.has(kok)) return kok;
+    // Kısa ek ("a"/"e") için kök en az 5 harf
+    if ((ek === "a" || ek === "e") && kok.length >= 5 && TEK_KELIME.has(kok)) {
+      return kok;
+    }
   }
-  return null;
+
+  // 2) Önek eşlemesi: en uzun bilinen yer adı + kalan ek gibi görünüyor
+  let enIyi: string | null = null;
+  for (const ad of TEK_KELIME.keys()) {
+    if (ad.length < 4) continue;
+    if (!kelime.startsWith(ad) || kelime.length <= ad.length) continue;
+    const ek = kelime.slice(ad.length);
+    if (!EK_KUMESI.has(ek)) continue;
+    if (!enIyi || ad.length > enIyi.length) enIyi = ad;
+  }
+  return enIyi;
 }
 
 /**
@@ -400,21 +443,42 @@ export function illeriBul(
   const bulunan = new Set<string>();
 
   for (const { kalip, il } of COK_KELIME) {
-    // sadeceIlAdi: "çanakkale" gibi il adıyla birebir kalıplar
     if (secenek.sadeceIlAdi && sadelestir(il) !== kalip) continue;
     if (new RegExp(`(^|\\s)${kalip}(\\s|$)`).test(sade)) bulunan.add(il);
   }
   for (const kelime of sade.split(" ")) {
     const kok = kokBul(kelime);
-    if (!kok) continue;
-    const il = TEK_KELIME.get(kok);
-    if (!il) continue;
-    // sadeceIlAdi: "gebze"→Kocaeli elenir; "kocaeli" kalır
-    if (secenek.sadeceIlAdi && sadelestir(il) !== kok) continue;
-    bulunan.add(il);
+    if (kok) {
+      const il = TEK_KELIME.get(kok);
+      if (il && (!secenek.sadeceIlAdi || sadelestir(il) === kok)) {
+        bulunan.add(il);
+      }
+    }
+    // Bitişik: "ankaraistanbul", "gebzehadimkoy"
+    for (const il of bitisikIller(kelime, secenek.sadeceIlAdi)) {
+      bulunan.add(il);
+    }
   }
 
   return [...bulunan];
+}
+
+/** "ankaraistanbul" gibi bitişik iki yer adı. */
+function bitisikIller(kelime: string, sadeceIlAdi?: boolean): string[] {
+  if (kelime.length < 10) return [];
+  const sonuc: string[] = [];
+  for (const [ad1, il1] of TEK_KELIME) {
+    if (ad1.length < 5 || !kelime.startsWith(ad1)) continue;
+    if (sadeceIlAdi && sadelestir(il1) !== ad1) continue;
+    const kalan = kelime.slice(ad1.length);
+    const kok2 = kokBul(kalan);
+    if (!kok2) continue;
+    const il2 = TEK_KELIME.get(kok2);
+    if (!il2) continue;
+    if (sadeceIlAdi && sadelestir(il2) !== kok2) continue;
+    sonuc.push(il1, il2);
+  }
+  return sonuc;
 }
 
 /** İlçe/semt takma adı sayısı (ölçüm / Ayarlar). */

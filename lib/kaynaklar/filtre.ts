@@ -1,5 +1,6 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
-import { bolgeIlleri, bolgeyeUyuyorMu } from "@/lib/bolgeler";
+import { aracMetniUyuyorMu } from "@/lib/arac";
+import { bolgeyeUyuyorMu, genisIlKumesi } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
@@ -7,22 +8,23 @@ import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 export const SUPHE_SINIRI = 50;
 
 type AracBilgisi = {
+  aracTipi?: string | null;
   aracTipiKod: string | null;
   tonaj: number | null;
 };
 
 /**
- * Araç uyumu. Tipi veya tonajı yazmayan ilan elenmez: ilanların çoğunda
- * bu bilgi yok, elense liste boş kalır.
+ * Araç uyumu (FAZ 3):
+ * - Seçili tipin kabul kelimeleri / kodu
+ * - Red tip kelimeleri (frigo, damper, lowbed…) ele
+ * - Tipi yazmayan ilan elenmez (belirsiz → sarı uyarı)
  */
 export function araciUyuyorMu(
   ilan: AracBilgisi,
   tercih: AiTercihleri
 ): boolean {
   if (
-    tercih.aracTipleri.length > 0 &&
-    ilan.aracTipiKod &&
-    !tercih.aracTipleri.includes(ilan.aracTipiKod as never)
+    !aracMetniUyuyorMu(ilan.aracTipi, ilan.aracTipiKod, tercih.aracTipleri)
   ) {
     return false;
   }
@@ -35,6 +37,7 @@ export function araciUyuyorMu(
 /**
  * Kullanıcıyı gerçekten ilgilendiren ilanları seçer.
  * Dönüş yükü eşleşmesi her zaman ilgilidir.
+ * Bölge: en az bir uç seçili bölge / ek ile değsin.
  */
 export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
   if (ilan.donusTalebiId) return true;
@@ -46,8 +49,23 @@ export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
     return false;
   }
 
+  // Bölge filtresi (komşular + ek iller dahil)
+  if (
+    (tercih.bolgeler.length > 0 || tercih.ekIller.length > 0) &&
+    !bolgeyeUyuyorMu(
+      tercih.bolgeler,
+      ilan.cikisIl,
+      ilan.varisIl,
+      tercih.ekIller
+    )
+  ) {
+    return false;
+  }
+
   const sehir = ilBul(tercih.sehir) ?? tercih.anaUs;
-  if (sehir && ilan.cikisIl === sehir) return true;
+  if (sehir && (ilan.cikisIl === sehir || ilan.varisIl === sehir)) {
+    return true;
+  }
 
   for (const rota of tercih.rotalar) {
     const [a, b] = rota.split(/[->→]+/).map((p) => ilBul(p));
@@ -59,11 +77,12 @@ export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
     }
   }
 
-  // Şehir/rota girilmemişse bölge tercihi belirleyici olur.
-  if (!sehir && tercih.rotalar.length === 0) {
-    return bolgeyeUyuyorMu(tercih.bolgeler, ilan.cikisIl, ilan.varisIl);
-  }
-  return false;
+  // Şehir/rota daraltması yoksa bölge eşleşmesi yeter.
+  if (!sehir && tercih.rotalar.length === 0) return true;
+
+  // Şehir veya rota girilmiş ama bu ilan onlara uymuyor; yine de bölgeye
+  // değiyorsa göster (dönüş yükü mantığı — diğer uç serbest).
+  return tercih.bolgeler.length > 0 || tercih.ekIller.length > 0;
 }
 
 export function ilgilileriSuz(
@@ -94,11 +113,8 @@ export function tercihKosulu(tercih: AiTercihleri) {
     kosullar.push({ OR: [{ tonaj: null }, { tonaj: { lte: tercih.maxTonaj } }] });
   }
 
-  const sehir = ilBul(tercih.sehir) ?? tercih.anaUs;
-  if (sehir) {
-    kosullar.push({ OR: [{ cikisIl: sehir }, { varisIl: sehir }] });
-  } else if (tercih.bolgeler.length > 0) {
-    const iller = bolgeIlleri(tercih.bolgeler);
+  if (tercih.bolgeler.length > 0 || tercih.ekIller.length > 0) {
+    const iller = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
     kosullar.push({
       OR: [{ cikisIl: { in: iller } }, { varisIl: { in: iller } }],
     });

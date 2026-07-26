@@ -79,6 +79,7 @@ export async function donusEslesmeleriniTara(): Promise<KaydedilenIlan[]> {
         ucret: i.ucret,
         fiyatTon: i.fiyatTon,
         tonaj: i.tonaj,
+        aracTipi: i.aracTipi,
         aracTipiKod: i.aracTipiKod,
         guvenSkoru: i.guvenSkoru,
         hamMetin: i.hamMetin,

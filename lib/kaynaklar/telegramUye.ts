@@ -134,7 +134,7 @@ export async function mesajlariKuyrugaAl(
   };
 
   const tercih = await aiTercihleriOku();
-  const hedefIller = new Set(genisIlKumesi(tercih.bolgeler));
+  const hedefIller = new Set(genisIlKumesi(tercih.bolgeler, tercih.ekIller));
 
   // Bu turda görülen satır hash'leri (oturum içi). DB sorgusu mesaj bazında.
   const turIci = new Set<string>();
@@ -504,7 +504,7 @@ export async function kuyrugunuCoz(
   }
 
   const tercih = await aiTercihleriOku();
-  const kapsam = genisIlKumesi(tercih.bolgeler);
+  const kapsam = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
   const bitis = Date.now() + COZUM_BUTCE_MS;
 
   const cozum = await bolerekCozumle(

@@ -2,11 +2,18 @@ import { prisma } from "@/lib/prisma";
 import { ilanlariCozumle } from "@/lib/ai/ilanCozumle";
 import { AYAR_ANAHTARLARI, ayarYaz } from "@/lib/ayarlar";
 import { telegramGonder } from "@/lib/bildirim/telegram";
+import { botCallbackIsle, botSohbetIsle } from "@/lib/bot/sohbet";
 import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 export type TelegramGuncelleme = {
   message?: TelegramMesaj;
   channel_post?: TelegramMesaj;
+  callback_query?: {
+    id?: string;
+    data?: string;
+    from?: { id?: number };
+    message?: { chat?: { id?: number }; message_id?: number };
+  };
 };
 
 type TelegramMesaj = {
@@ -45,6 +52,15 @@ async function kaynagiBulVeyaOlustur(
 export async function telegramGuncellemeIsle(
   guncelleme: TelegramGuncelleme
 ): Promise<WebhookSonucu> {
+  if (guncelleme.callback_query) {
+    const cb = await botCallbackIsle(guncelleme);
+    return {
+      islendi: cb.cevaplandi,
+      yeniIlanlar: [],
+      not: cb.not,
+    };
+  }
+
   const mesaj = guncelleme.message || guncelleme.channel_post;
   if (!mesaj) return bos("Mesaj yok.");
 
@@ -66,50 +82,48 @@ export async function telegramGuncellemeIsle(
         "",
         "Bundan sonra bulunan yükler buraya düşecek.",
         "",
-        "Yapabileceklerin:",
-        "• Beni yük gruplarına ekle, ilanları otomatik okuyayım.",
-        "• Gördüğün bir ilanı bana ilet, hemen çözümleyeyim.",
+        "Doğal Türkçe yazabilirsin (ör. «ankara yük var mı»).",
+        "AI kapalıysa kısa bir bilgi mesajı alırsın.",
       ].join("\n")
     );
     return { islendi: true, yeniIlanlar: [], not: "Bildirim hedefi kaydedildi." };
   }
 
+  // Özel sohbet = doğal dil botu (FAZ 6). Slash komut yok.
+  if (ozelMi) {
+    if (metin.startsWith("/")) return bos("Komut yoksayıldı.");
+    const sohbet = await botSohbetIsle(chatIdMetin, metin);
+    return {
+      islendi: sohbet.cevaplandi,
+      yeniIlanlar: [],
+      not: sohbet.not,
+    };
+  }
+
   if (metin.startsWith("/")) return bos("Komut yoksayıldı.");
 
-  const kaynakId = ozelMi
-    ? null
-    : await kaynagiBulVeyaOlustur(
-        chatIdMetin,
-        mesaj.chat?.title || mesaj.chat?.username || `Telegram ${chatIdMetin}`
-      );
+  const kaynakId = await kaynagiBulVeyaOlustur(
+    chatIdMetin,
+    mesaj.chat?.title || mesaj.chat?.username || `Telegram ${chatIdMetin}`
+  );
 
   let ilanlar;
   try {
     ilanlar = await ilanlariCozumle(metin);
   } catch (hata) {
     const mesajMetni = hata instanceof Error ? hata.message : "Çözümleme hatası";
-    if (kaynakId) {
-      await prisma.ilanKaynagi.update({
-        where: { id: kaynakId },
-        data: { sonHata: mesajMetni, sonTarama: new Date() },
-      });
-    }
+    await prisma.ilanKaynagi.update({
+      where: { id: kaynakId },
+      data: { sonHata: mesajMetni, sonTarama: new Date() },
+    });
     return bos(mesajMetni);
   }
 
   if (ilanlar.length === 0) {
-    if (kaynakId) {
-      await prisma.ilanKaynagi.update({
-        where: { id: kaynakId },
-        data: { sonTarama: new Date(), sonHata: null },
-      });
-    }
-    if (ozelMi) {
-      await telegramGonder(
-        chatIdMetin,
-        "Bu mesajda yük ilanı bulamadım. İlanın tamamını (şehirler, ücret, telefon) gönderirsen çözümlerim."
-      );
-    }
+    await prisma.ilanKaynagi.update({
+      where: { id: kaynakId },
+      data: { sonTarama: new Date(), sonHata: null },
+    });
     return bos("İlan bulunamadı.");
   }
 
@@ -118,25 +132,14 @@ export async function telegramGuncellemeIsle(
     ilanlar.map((ilan) => ({ ilan, hamMetin: metin }))
   );
 
-  if (kaynakId) {
-    await prisma.ilanKaynagi.update({
-      where: { id: kaynakId },
-      data: {
-        sonTarama: new Date(),
-        sonHata: null,
-        bulunanAdet: { increment: yeniIlanlar.length },
-      },
-    });
-  }
-
-  if (ozelMi) {
-    await telegramGonder(
-      chatIdMetin,
-      yeniIlanlar.length > 0
-        ? `${yeniIlanlar.length} ilan kaydedildi. Uygulamada "AI Yükler" ekranında görebilirsin.`
-        : "Bu ilan zaten kayıtlıydı."
-    );
-  }
+  await prisma.ilanKaynagi.update({
+    where: { id: kaynakId },
+    data: {
+      sonTarama: new Date(),
+      sonHata: null,
+      bulunanAdet: { increment: yeniIlanlar.length },
+    },
+  });
 
   return {
     islendi: true,

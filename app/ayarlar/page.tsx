@@ -3,6 +3,7 @@ import { cikisYap } from "@/app/auth-actions";
 import SifreDegistirForm from "@/components/SifreDegistirForm";
 import HizliAraForm from "@/components/HizliAraForm";
 import AiTercihForm from "@/components/AiTercihForm";
+import YenidenIsleButonu from "@/components/YenidenIsleButonu";
 import KaynakForm from "@/components/KaynakForm";
 import PushIzinButonu from "@/components/PushIzinButonu";
 import AksiyonButonu from "@/components/AksiyonButonu";
@@ -120,10 +121,13 @@ export default async function AyarlarSayfasi() {
           aracTipleri={tercih.aracTipleri}
           maxTonaj={tercih.maxTonaj ? String(tercih.maxTonaj) : ""}
           anaUs={tercih.anaUs || ""}
+          ekIller={tercih.ekIller.join(", ")}
           telegramAcik={tercih.telegramAcik}
           pushAcik={tercih.pushAcik}
           telegramUyeAcik={tercih.telegramUyeAcik}
         />
+
+        <YenidenIsleButonu />
 
         <AiMaliyetPaneli ozet={maliyet} />
 

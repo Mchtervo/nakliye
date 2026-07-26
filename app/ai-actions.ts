@@ -165,6 +165,19 @@ export async function aiTercihKaydet(
     return { hata: "Ana üs şehrini tanıyamadım. Örnek: Ankara" };
   }
 
+  const ekIllerHam = metinOku(formData.get("ekIller"));
+  const ekIllerParca = ekIllerHam
+    .split(/[,\n]/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .slice(0, 40);
+  const ekIllerCozulmus: string[] = [];
+  for (const p of ekIllerParca) {
+    const il = ilBul(p);
+    if (!il) return { hata: `Ek ili tanıyamadım: ${p}` };
+    ekIllerCozulmus.push(il);
+  }
+
   await ayarYaz(AYAR_ANAHTARLARI.aiSehir, sehir || "");
   await ayarYaz(AYAR_ANAHTARLARI.aiRotalar, rotalar);
   await ayarYaz(AYAR_ANAHTARLARI.aiMinUcret, String(minUcret ?? 0));
@@ -172,6 +185,10 @@ export async function aiTercihKaydet(
   await ayarYaz(AYAR_ANAHTARLARI.aiAracTipleri, aracTipleri);
   await ayarYaz(AYAR_ANAHTARLARI.aiMaxTonaj, String(maxTonaj || 0));
   await ayarYaz(AYAR_ANAHTARLARI.aiAnaUs, anaUs || "");
+  await ayarYaz(
+    AYAR_ANAHTARLARI.aiEkIller,
+    [...new Set(ekIllerCozulmus)].join(",")
+  );
   await ayarYaz(
     AYAR_ANAHTARLARI.bildirimTelegram,
     formData.get("bildirimTelegram") === "1" ? "1" : "0"
@@ -263,6 +280,35 @@ export async function donusTalebiKapat(id: number): Promise<void> {
     .update({ where: { id }, data: { aktif: false } })
     .catch(() => null);
   revalidatePath("/ai/donus");
+}
+
+/**
+ * Son 7 günlük ham mesajları yeniden kuyruğa alır (bölge/araç ayarı değişince).
+ * AI_KAPALI ise kuyrukta bekler; OpenAI çağrısı yapmaz.
+ */
+export async function eskiHamMesajlariYenidenIsle(): Promise<AiSonuc> {
+  const sinir = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const sonuc = await prisma.hamMesaj.updateMany({
+    where: {
+      createdAt: { gte: sinir },
+      OR: [{ islendi: true }, { denemeSayisi: { gt: 0 } }],
+    },
+    data: { islendi: false, denemeSayisi: 0, hata: null },
+  });
+
+  const bekleyen = await prisma.hamMesaj.count({ where: { islendi: false } });
+  revalidatePath("/ayarlar");
+  revalidatePath("/ai/yukler");
+
+  if (sonuc.count === 0) {
+    return {
+      bilgi: `Yeniden işlenecek ham mesaj yok (son 7 gün). Kuyrukta bekleyen: ${bekleyen}.`,
+    };
+  }
+
+  return {
+    bilgi: `${sonuc.count} ham mesaj yeniden kuyruğa alındı (toplam bekleyen ${bekleyen}). AI açıksa sırayla işlenir; kapalıysa önce test modu veya AI_KAPALI=false.`,
+  };
 }
 
 /**

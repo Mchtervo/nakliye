@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { kurustanGiris, tarihYaz, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
-import { aracTipiAdi } from "@/lib/arac";
+import { aracBelirsizMi, aracTipiAdi } from "@/lib/arac";
 import { fiyatGorunumu, gecenSure } from "@/lib/ilanGorunum";
 import { SUPHE_SINIRI, tercihKosulu } from "@/lib/kaynaklar/filtre";
 import { eskiIlanlariTemizle, simdiTara } from "@/app/ai-actions";
@@ -213,6 +213,11 @@ export default async function AiYuklerSayfasi({
                     {ilan.durum === "YUKE_DONDU" && (
                       <span className="rounded-full border border-ok/40 bg-ok/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ok">
                         Yüke çevrildi
+                      </span>
+                    )}
+                    {aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod) && (
+                      <span className="rounded-full border border-amber/40 bg-amber/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber">
+                        Araç tipi belirsiz
                       </span>
                     )}
                   </div>

@@ -370,6 +370,123 @@ export async function aiMetin(secenek: OrtakSecenek): Promise<string> {
   return metniAyikla(yanit).trim();
 }
 
+export type AiFonksiyonTanim = {
+  type: "function";
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  strict?: boolean;
+};
+
+export type AiFonksiyonCagri = {
+  callId: string;
+  name: string;
+  arguments: string;
+};
+
+type FonksiyonYanit = OpenAiYanit & {
+  output?: {
+    type?: string;
+    id?: string;
+    call_id?: string;
+    name?: string;
+    arguments?: string;
+    content?: YanitParcasi[];
+  }[];
+};
+
+function fonksiyonCagrilariniAyikla(yanit: FonksiyonYanit): AiFonksiyonCagri[] {
+  const liste: AiFonksiyonCagri[] = [];
+  for (const parca of yanit.output ?? []) {
+    if (parca.type !== "function_call") continue;
+    const callId = parca.call_id || parca.id;
+    if (!callId || !parca.name) continue;
+    liste.push({
+      callId,
+      name: parca.name,
+      arguments: parca.arguments || "{}",
+    });
+  }
+  return liste;
+}
+
+/**
+ * Responses API + function calling döngüsü.
+ * AI_KAPALI ise istekAt zaten fırlatır — çağıran önce kontrol etmeli.
+ */
+export async function aiAracli(secenek: {
+  sistem: string;
+  mesajlar: { rol: "user" | "assistant"; metin: string }[];
+  araclar: AiFonksiyonTanim[];
+  araciCalistir: (ad: string, argsJson: string) => Promise<unknown>;
+  model?: string;
+  caba?: AiCabasi;
+  maxCikti?: number;
+  zamanAsimiMs?: number;
+  kaynak?: string;
+  maxTur?: number;
+}): Promise<string> {
+  const maxTur = Math.min(Math.max(secenek.maxTur ?? 4, 1), 6);
+  const input: unknown[] = [
+    { role: "system", content: secenek.sistem },
+    ...secenek.mesajlar.map((m) => ({
+      role: m.rol === "assistant" ? "assistant" : "user",
+      content: m.metin,
+    })),
+  ];
+
+  const tools = secenek.araclar.map((a) => ({
+    type: "function" as const,
+    name: a.name,
+    description: a.description,
+    parameters: a.parameters,
+    strict: a.strict !== false,
+  }));
+
+  for (let tur = 0; tur < maxTur; tur++) {
+    const govde: Record<string, unknown> = {
+      model: secenek.model || MODEL_HIZLI,
+      input,
+      tools,
+      reasoning: { effort: secenek.caba || "low" },
+      max_output_tokens: secenek.maxCikti ?? AI_MAX_CIKTI,
+    };
+
+    const yanit = (await istekAt(
+      govde,
+      secenek.zamanAsimiMs || AI_ZAMAN_ASIMI_MS,
+      secenek.kaynak || "aiAracli"
+    )) as FonksiyonYanit;
+
+    const cagrilar = fonksiyonCagrilariniAyikla(yanit);
+    if (cagrilar.length === 0) {
+      return metniAyikla(yanit).trim();
+    }
+
+    for (const parca of yanit.output ?? []) {
+      if (parca.type === "function_call") input.push(parca);
+    }
+
+    for (const c of cagrilar) {
+      let cikti: unknown;
+      try {
+        cikti = await secenek.araciCalistir(c.name, c.arguments);
+      } catch (e) {
+        cikti = {
+          hata: e instanceof Error ? e.message : "Araç hatası",
+        };
+      }
+      input.push({
+        type: "function_call_output",
+        call_id: c.callId,
+        output: JSON.stringify(cikti).slice(0, 12000),
+      });
+    }
+  }
+
+  throw new AiHatasi("Araç döngüsü üst sınırına ulaşıldı.", "ARAC_DONGU");
+}
+
 export async function aiDene<T>(
   islem: () => Promise<T>
 ): Promise<{ sonuc: T; hata: null } | { sonuc: null; hata: string }> {

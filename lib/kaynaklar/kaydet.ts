@@ -15,6 +15,7 @@ export type KaydedilenIlan = {
   ucret: number | null;
   fiyatTon: number | null;
   tonaj: number | null;
+  aracTipi: string | null;
   aracTipiKod: string | null;
   guvenSkoru: number;
   hamMetin: string;
@@ -121,6 +122,7 @@ export async function ilanlariKaydet(
         ucret: kayit.ucret,
         fiyatTon: kayit.fiyatTon,
         tonaj: kayit.tonaj,
+        aracTipi: kayit.aracTipi,
         aracTipiKod: kayit.aracTipiKod,
         guvenSkoru: kayit.guvenSkoru,
         hamMetin: kayit.hamMetin,
