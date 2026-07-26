@@ -51,11 +51,11 @@ export async function testDurumOku(): Promise<TestDurum> {
   }
 }
 
-/** 3 dk stuck — eski "calisiyor" sayılmaz, yeniden başlatılabilir. */
+/** 10 dk stuck — eski "calisiyor" sayılmaz (çok parçalı test 5+ dk sürebilir). */
 export async function testCalisiyorMu(): Promise<boolean> {
   const d = await testDurumOku();
   if (d.durum !== "calisiyor") return false;
-  return Date.now() - d.baslangicMs < 3 * 60 * 1000;
+  return Date.now() - d.baslangicMs < 10 * 60 * 1000;
 }
 
 /**

@@ -4,17 +4,25 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { aiButceKesiminiAc, type AiSonuc } from "@/app/ai-actions";
 import type { AiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
 
-type TestDurumApi =
-  | { durum: "bos" }
-  | { durum: "calisiyor"; baslangicMs: number }
-  | { durum: "bitti"; sonuc: AiSonuc; bitisMs: number }
-  | { durum: "hata"; sonuc: AiSonuc; bitisMs: number };
+type TestDurumApi = {
+  durum: "bos" | "calisiyor" | "bitti" | "hata";
+  baslangicMs?: number;
+  bitisMs?: number;
+  sonuc?: AiSonuc;
+  sonCagri?: {
+    kaynak: string;
+    snOnce: number;
+    ciktiToken: number;
+    basarili: boolean;
+  } | null;
+};
 
 export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
   const [bekliyor, baslat] = useTransition();
   const [testCalisiyor, setTestCalisiyor] = useState(false);
   const [sonuc, setSonuc] = useState<AiSonuc>(null);
   const [bekleSn, setBekleSn] = useState(0);
+  const [sonCagriYazi, setSonCagriYazi] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function pollDurdur() {
@@ -35,10 +43,16 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
       try {
         const cevap = await fetch("/api/ai/test-on", { cache: "no-store" });
         const veri = (await cevap.json()) as TestDurumApi;
+        if (veri.sonCagri) {
+          setSonCagriYazi(
+            `${veri.sonCagri.kaynak} · ${veri.sonCagri.snOnce}s önce` +
+              (veri.sonCagri.basarili ? "" : " · hata")
+          );
+        }
         if (veri.durum === "bitti" || veri.durum === "hata") {
           pollDurdur();
           setTestCalisiyor(false);
-          setSonuc(veri.sonuc);
+          setSonuc(veri.sonuc ?? { hata: "Sonuç boş." });
         }
       } catch {
         // geçici ağ; poll devam
@@ -241,10 +255,13 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
 
       {testCalisiyor && (
         <p className="text-xs text-amber">
-          Sayfayı kapatma. Normal süre ~1–3 dk.
-          {bekleSn >= 180
-            ? " ⚠ 3 dk geçti — takılmış olabilir; deploy sonrası tekrar dene."
-            : " Bitince özet + kalite burada çıkar."}
+          Sayfayı kapatma. Çok rotalı mesajlar 5’er parçalanınca 2–6 dk sürebilir.
+          {sonCagriYazi ? ` Son çağrı: ${sonCagriYazi}.` : ""}
+          {bekleSn >= 480 && !sonCagriYazi
+            ? " ⚠ 8 dk ve çağrı yok — takılmış; VPS’te `pm2 logs` bak."
+            : bekleSn >= 480
+              ? " Hâlâ çağrı geliyorsa bekle — bitince özet düşer."
+              : ""}
         </p>
       )}
 
