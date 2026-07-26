@@ -241,7 +241,10 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
 
       {testCalisiyor && (
         <p className="text-xs text-amber">
-          Sayfayı kapatma. Test arka planda; bitince özet + kalite burada çıkar.
+          Sayfayı kapatma. Normal süre ~1–3 dk.
+          {bekleSn >= 180
+            ? " ⚠ 3 dk geçti — takılmış olabilir; deploy sonrası tekrar dene."
+            : " Bitince özet + kalite burada çıkar."}
         </p>
       )}
 

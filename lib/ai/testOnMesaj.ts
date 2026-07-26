@@ -51,11 +51,11 @@ export async function testDurumOku(): Promise<TestDurum> {
   }
 }
 
-/** 15 dk stuck koruması — eski "calisiyor" sayılmaz. */
+/** 3 dk stuck — eski "calisiyor" sayılmaz, yeniden başlatılabilir. */
 export async function testCalisiyorMu(): Promise<boolean> {
   const d = await testDurumOku();
   if (d.durum !== "calisiyor") return false;
-  return Date.now() - d.baslangicMs < 15 * 60 * 1000;
+  return Date.now() - d.baslangicMs < 3 * 60 * 1000;
 }
 
 /**
@@ -265,7 +265,10 @@ export async function aiTestOnMesajCalistir(): Promise<AiTestSonuc> {
   }
 }
 
-/** Arka plan işi: durumu Ayar'a yazar. */
+/**
+ * Ayrı Node süreci başlatır (detached).
+ * Next'te response sonrası void promise çoğu zaman ölür → 314s takılı kalır.
+ */
 export async function aiTestArkaPlandaBaslat(): Promise<
   { ok: true } | { ok: false; hata: string }
 > {
@@ -279,30 +282,27 @@ export async function aiTestArkaPlandaBaslat(): Promise<
     JSON.stringify({ durum: "calisiyor", baslangicMs } satisfies TestDurum)
   );
 
-  void (async () => {
-    const sonuc = await aiTestOnMesajCalistir();
-    const bitisMs = Date.now();
-    const durum: TestDurum =
-      "hata" in sonuc
-        ? { durum: "hata", sonuc, bitisMs }
-        : { durum: "bitti", sonuc, bitisMs };
-    await testAyarYaz(TEST_DURUM_ANAHTAR, JSON.stringify(durum));
-    await testAyarYaz(
-      TEST_SONUC_ANAHTAR,
-      "bilgi" in sonuc ? sonuc.bilgi : sonuc.hata
-    );
-  })().catch(async (e) => {
-    const bitisMs = Date.now();
-    const mesaj = e instanceof Error ? e.message : "Test çöktü";
-    await testAyarYaz(
-      TEST_DURUM_ANAHTAR,
-      JSON.stringify({
-        durum: "hata",
-        sonuc: { hata: mesaj },
-        bitisMs,
-      } satisfies TestDurum)
-    );
-  });
+  const { spawn } = await import("node:child_process");
+  const { join } = await import("node:path");
+  const script = join(process.cwd(), "scripts", "ai-test-on.ts");
+  const child = spawn(
+    process.execPath,
+    [
+      "--env-file=.env",
+      "--import",
+      "./scripts/ts-kayit.mjs",
+      "--disable-warning=ExperimentalWarning",
+      "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+      script,
+    ],
+    {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: "ignore",
+      env: process.env,
+    }
+  );
+  child.unref();
 
   return { ok: true };
 }

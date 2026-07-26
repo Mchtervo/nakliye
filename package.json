@@ -15,7 +15,8 @@
     "telegram:oturum": "node --env-file=.env scripts/telegram-oturum.mjs",
     "telegram:daemon": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/telegram-daemon.ts",
     "push:kur": "node scripts/push-kur.mjs",
-    "ts": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON"
+    "ts": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+    "ai:test-on": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-test-on.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
