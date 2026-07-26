@@ -1,0 +1,200 @@
+/**
+ * ADAY gruba otomatik katılım — günde max 4, arası ≥45 dk.
+ * FloodWait → 24 saat kilit. InviteRequestSent → başarı say.
+ * OpenAI yok.
+ */
+import { Api, TelegramClient } from "telegram";
+import { FloodWaitError } from "telegram/errors/index.js";
+import { StringSession } from "telegram/sessions/index.js";
+import { prisma } from "@/lib/prisma";
+import {
+  AYAR_ANAHTARLARI,
+  aiTercihleriOku,
+  ayarOku,
+  ayarYaz,
+} from "@/lib/ayarlar";
+import { yukBasligiMi } from "@/lib/bolgeler";
+import { bugunAnahtar } from "@/lib/kaynaklar/elemeSayac";
+import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+
+const GUNLUK_LIMIT = 4;
+const ARA_MS = 45 * 60 * 1000;
+
+function gunlukOku(ham: string | null): { gun: string; adet: number } {
+  const bugun = bugunAnahtar();
+  if (!ham) return { gun: bugun, adet: 0 };
+  const [gun, adetHam] = ham.split(":");
+  if (gun !== bugun) return { gun: bugun, adet: 0 };
+  const adet = Number(adetHam);
+  return { gun: bugun, adet: Number.isFinite(adet) ? adet : 0 };
+}
+
+async function main() {
+  const tercih = await aiTercihleriOku();
+  if (!tercih.telegramUyeAcik) {
+    console.log("[cron-katil] üye tarama kapalı — atlandı.");
+    return;
+  }
+  const oto = await ayarOku(AYAR_ANAHTARLARI.telegramOtoKatilim);
+  if (oto === "0") {
+    console.log("[cron-katil] otomatik katılım kapalı — atlandı.");
+    return;
+  }
+
+  const flood = Date.parse(
+    (await ayarOku(AYAR_ANAHTARLARI.telegramFloodBitis)) || ""
+  );
+  if (Number.isFinite(flood) && Date.now() < flood) {
+    console.log(
+      `[cron-katil] FloodWait kilitli → ${new Date(flood).toISOString()}`
+    );
+    return;
+  }
+
+  const sayac = gunlukOku(await ayarOku(AYAR_ANAHTARLARI.telegramKatilimGunluk));
+  if (sayac.adet >= GUNLUK_LIMIT) {
+    console.log(`[cron-katil] günlük limit ${sayac.adet}/${GUNLUK_LIMIT}`);
+    return;
+  }
+
+  const son = Date.parse(
+    (await ayarOku(AYAR_ANAHTARLARI.telegramSonKatilim)) || ""
+  );
+  if (Number.isFinite(son) && Date.now() - son < ARA_MS) {
+    const kalan = Math.ceil((ARA_MS - (Date.now() - son)) / 60000);
+    console.log(`[cron-katil] ara: ${kalan} dk daha bekle`);
+    return;
+  }
+
+  const aday = await prisma.ilanKaynagi.findFirst({
+    where: {
+      tur: TELEGRAM_UYE,
+      durum: "ADAY",
+      aktif: true,
+      kullaniciAdi: { not: null },
+      OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: 50 } }],
+    },
+    orderBy: [{ uyeSayisi: "desc" }, { id: "asc" }],
+  });
+  if (!aday?.kullaniciAdi) {
+    console.log("[cron-katil] uygun ADAY yok");
+    return;
+  }
+  if (!yukBasligiMi(aday.ad)) {
+    await prisma.ilanKaynagi.update({
+      where: { id: aday.id },
+      data: {
+        aktif: false,
+        durum: "PASIF",
+        sonHata: "Otomatik katılım: başlık yük grubu değil → PASIF",
+      },
+    });
+    console.log("[cron-katil] başlık elendi → PASIF", aday.ad);
+    return;
+  }
+
+  const apiId = Number(process.env.TELEGRAM_API_ID);
+  const apiHash = process.env.TELEGRAM_API_HASH || "";
+  const oturum = process.env.TELEGRAM_SESSION || "";
+  if (!apiId || !apiHash || !oturum) {
+    throw new Error("TELEGRAM_API_ID/HASH/SESSION eksik");
+  }
+
+  const client = new TelegramClient(new StringSession(oturum), apiId, apiHash, {
+    connectionRetries: 3,
+    autoReconnect: false,
+  });
+  await client.connect();
+
+  const kullanici = aday.kullaniciAdi.replace(/^@/, "");
+  console.log(`[cron-katil] deneme @${kullanici} (${aday.ad})`);
+
+  try {
+    const channel = await client.getInputEntity(kullanici);
+    await client.invoke(new Api.channels.JoinChannel({ channel }));
+
+    await prisma.ilanKaynagi.update({
+      where: { id: aday.id },
+      data: {
+        durum: "AKTIF",
+        aktif: true,
+        sonHata: null,
+        sonTarama: new Date(),
+      },
+    });
+    await ayarYaz(AYAR_ANAHTARLARI.telegramSonKatilim, new Date().toISOString());
+    await ayarYaz(
+      AYAR_ANAHTARLARI.telegramKatilimGunluk,
+      `${sayac.gun}:${sayac.adet + 1}`
+    );
+    console.log(
+      JSON.stringify({
+        ok: true,
+        grup: aday.ad,
+        bugun: `${sayac.adet + 1}/${GUNLUK_LIMIT}`,
+      })
+    );
+  } catch (e) {
+    const mesaj = e instanceof Error ? e.message : String(e);
+
+    if (e instanceof FloodWaitError) {
+      const kilit = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await ayarYaz(AYAR_ANAHTARLARI.telegramFloodBitis, kilit.toISOString());
+      console.error(
+        `[cron-katil] FloodWait ${e.seconds}s → 24s kilit ${kilit.toISOString()}`
+      );
+      throw e;
+    }
+
+    if (/INVITE_REQUEST_SENT|InviteRequestSent/i.test(mesaj)) {
+      await prisma.ilanKaynagi.update({
+        where: { id: aday.id },
+        data: {
+          sonHata: "Katılım isteği gönderildi (onay bekliyor)",
+          sonTarama: new Date(),
+        },
+      });
+      await ayarYaz(
+        AYAR_ANAHTARLARI.telegramSonKatilim,
+        new Date().toISOString()
+      );
+      await ayarYaz(
+        AYAR_ANAHTARLARI.telegramKatilimGunluk,
+        `${sayac.gun}:${sayac.adet + 1}`
+      );
+      console.log(
+        JSON.stringify({
+          ok: true,
+          davetIstegi: true,
+          grup: aday.ad,
+          bugun: `${sayac.adet + 1}/${GUNLUK_LIMIT}`,
+        })
+      );
+      return;
+    }
+
+    if (/USER_ALREADY_PARTICIPANT|already a participant/i.test(mesaj)) {
+      await prisma.ilanKaynagi.update({
+        where: { id: aday.id },
+        data: { durum: "AKTIF", aktif: true, sonHata: null },
+      });
+      console.log("[cron-katil] zaten üye → AKTİF", aday.ad);
+      return;
+    }
+
+    await prisma.ilanKaynagi.update({
+      where: { id: aday.id },
+      data: { sonHata: mesaj.slice(0, 300) },
+    });
+    throw e;
+  } finally {
+    await client.disconnect().catch(() => null);
+  }
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

@@ -18,6 +18,8 @@ export const AYAR_ANAHTARLARI = {
   aiAracTipleri: "ai_arac_tipleri",
   aiMaxTonaj: "ai_max_tonaj",
   aiAnaUs: "ai_ana_us",
+  /** Bölgeye ek il (virgüllü) — kod değiştirmeden genişletme */
+  aiEkIller: "ai_ek_iller",
   telegramChatId: "telegram_chat_id",
   bildirimTelegram: "bildirim_telegram",
   bildirimPush: "bildirim_push",
@@ -25,6 +27,13 @@ export const AYAR_ANAHTARLARI = {
   telegramUyeAktif: "telegram_uye_aktif",
   telegramSorguSira: "telegram_sorgu_sira",
   telegramKesifZaman: "telegram_kesif_zaman",
+  /** Otomatik gruba katıl (1/0). Varsayılan açık. */
+  telegramOtoKatilim: "telegram_oto_katilim",
+  /** TR günü sayaç: YYYY-MM-DD:adet */
+  telegramKatilimGunluk: "telegram_katilim_gunluk",
+  telegramSonKatilim: "telegram_son_katilim",
+  /** FloodWait bitiş ISO — dolana kadar katılım yok */
+  telegramFloodBitis: "telegram_flood_bitis",
 } as const;
 
 export type AyarAnahtari =
@@ -67,6 +76,8 @@ export type AiTercihleri = {
   aracTipleri: AracTipiKodu[];
   maxTonaj: number | null;
   anaUs: string | null;
+  /** Bölge checkbox'larına ek, elle yazılan iller */
+  ekIller: string[];
   telegramChatId: string | null;
   telegramAcik: boolean;
   pushAcik: boolean;
@@ -82,6 +93,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.aiAracTipleri,
     AYAR_ANAHTARLARI.aiMaxTonaj,
     AYAR_ANAHTARLARI.aiAnaUs,
+    AYAR_ANAHTARLARI.aiEkIller,
     AYAR_ANAHTARLARI.telegramChatId,
     AYAR_ANAHTARLARI.bildirimTelegram,
     AYAR_ANAHTARLARI.bildirimPush,
@@ -91,6 +103,10 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
   const bolgeHam = a[AYAR_ANAHTARLARI.aiBolgeler];
   const tonajHam = Number(a[AYAR_ANAHTARLARI.aiMaxTonaj]);
+  const ekIller = (a[AYAR_ANAHTARLARI.aiEkIller] || "")
+    .split(/[,\n]/)
+    .map((p) => ilBul(p.trim()))
+    .filter((il): il is string => Boolean(il));
 
   return {
     sehir: a[AYAR_ANAHTARLARI.aiSehir] || null,
@@ -105,6 +121,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     maxTonaj:
       Number.isFinite(tonajHam) && tonajHam > 0 ? Math.round(tonajHam) : null,
     anaUs: ilBul(a[AYAR_ANAHTARLARI.aiAnaUs]),
+    ekIller: [...new Set(ekIller)],
     telegramChatId: a[AYAR_ANAHTARLARI.telegramChatId] || null,
     // Varsayılan açık: kullanıcı kapatmadıkça bildirim gitsin.
     telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",

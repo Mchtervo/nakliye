@@ -1,0 +1,23 @@
+# Yük Avcısı — Europe/Istanbul (crontab'ta CRON_TZ)
+# Kurulum: crontab -u yukavci deploy/crontab.yukavci
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Europe/Istanbul
+YUKAVCI_REPO=/home/yukavci/muhasebbe
+YUKAVCI_LOGDIR=/home/yukavci/logs
+YUKAVCI_LOCKDIR=/home/yukavci/locks
+
+# AI kuyruk — 5 dk (AI_KAPALI ise script atlar)
+*/5 * * * * /home/yukavci/muhasebbe/deploy/cron/ai-kuyruk.sh
+
+# Grup keşfi — günde 1, 08:00
+0 8 * * * /home/yukavci/muhasebbe/deploy/cron/grup-kesif.sh
+
+# Grup katılımı — 45 dk arayla dene; script günde max 4 + 45 dk ara uygular
+*/45 * * * * /home/yukavci/muhasebbe/deploy/cron/grup-katil.sh
+
+# Günlük rapor — 20:00 TR
+0 20 * * * /home/yukavci/muhasebbe/deploy/cron/gunluk-rapor.sh
+
+# Yedek — 03:15 TR
+15 3 * * * /home/yukavci/muhasebbe/deploy/cron/yedek.sh

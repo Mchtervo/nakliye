@@ -426,7 +426,20 @@ diff -q /etc/nginx/sites-available/redmedya /root/nginx-yedek-$(date +%F)-asama3
 Oturum: `cd ~/muhasebbe && npm run telegram:oturum` → `.env` içine `TELEGRAM_SESSION=...`
 
 ## AŞAMA 6 — CRON İŞLERİ
-(önceki plan — TR timezone, flock, log)
+
+**Saat:** `timedatectl set-timezone Europe/Istanbul` + crontab `CRON_TZ=Europe/Istanbul`
+
+| İş | Saat | Script |
+|----|------|--------|
+| AI kuyruk | `*/5` | `deploy/cron/ai-kuyruk.sh` → `scripts/cron-ai-kuyruk.ts` |
+| Grup keşfi | `08:00` | `deploy/cron/grup-kesif.sh` |
+| Grup katılım | `*/45` (max 4/gün, ≥45 dk) | `deploy/cron/grup-katil.sh` |
+| Günlük rapor | `20:00` | `deploy/cron/gunluk-rapor.sh` (OpenAI yok) |
+| Yedek | `03:15` | `deploy/cron/yedek.sh` → `~/backups` 7 gün |
+
+Her iş: ayrı log (`~/logs/<ad>.log`), `flock`, hata → `cron-uyari.ts` (Telegram bot).
+Kurulum: `crontab -u yukavci /home/yukavci/muhasebbe/deploy/crontab.yukavci`
+Netlify scheduled functions VPS'te çalışmaz; kodda kalabilir.
 
 ## AŞAMA 7 — GÜNCELLEME AKIŞI
 (`deploy.sh`: pull + ci + build + `pm2 restart yukavci`)
