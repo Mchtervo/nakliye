@@ -6,8 +6,10 @@ set -euo pipefail
 REPO="${YUKAVCI_REPO:-/home/yukavci/muhasebbe}"
 cd "$REPO"
 
-echo "==> $(date -Is) git pull"
-git pull --ff-only origin main
+echo "==> $(date -Is) git sync (origin/main)"
+# VPS'te chmod vb. lokal kirlenmeyi ez — deploy makinesi sadece remote'u çalıştırır
+git fetch origin main
+git reset --hard origin/main
 
 echo "==> npm ci"
 npm ci
