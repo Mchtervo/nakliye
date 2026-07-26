@@ -33,6 +33,9 @@ Kurallar:
   ("ÇAN'DAN: VAN 2400+, KONYA 850+, MERSİN 1100+"). Her satırı AYRI ilan yap.
   Ortak çıkış yerini hepsine uygula ama bir satırın varışını veya fiyatını
   ASLA başka satıra taşıma. "İlk N rota" diye kesme — hepsini çıkar.
+- ORTAK BAĞLAM: Mesaj başındaki (veya "ortaktır" notunun üstündeki) firma,
+  telefon ve tarih TÜM güzergah ilanlarına kopyalanır. Parça metninde
+  telefon bir kez geçiyorsa listedeki her ilana yaz.
 - FİYAT TÜRÜ: ton mu komple mi ayırt et. "ton", "/ton", "TL/ton" veya
   X+KDV liste formatı ("VAN 2400+", "900+KDV") → TON_BASI. "komple",
   "navlun", "toplam", "araç" ile verilen tek büyük tutar → KOMPLE.

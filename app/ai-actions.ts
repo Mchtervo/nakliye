@@ -13,6 +13,8 @@ import { adayFirmalariBul } from "@/lib/ai/firmaBul";
 import { gunlukAnaliziUret } from "@/lib/ai/gunlukAnaliz";
 import { aiTestBypassIle } from "@/lib/ai/istemci";
 import { mikrodolarYaz } from "@/lib/ai/maliyet";
+import { testKaliteRaporu } from "@/lib/ai/testKalite";
+import { AI_MAX_DENEME } from "@/lib/ai/modeller";
 import { kuyrugunuCoz } from "@/lib/kaynaklar/telegramUye";
 import type { KaynakTuru } from "@/lib/kaynaklar/tip";
 
@@ -390,27 +392,48 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
     }
   }
 
-  // Aynı 10: kayıtlı id → yoksa son işlenen 10 (önceki pahalı test).
+  // Tam 10 mesaj: kayıtlı ≥10 ise onu kullan; eksikse bekleyen + eski ile doldur.
+  // (Önceki turda 5 id kaydı kalmıştı → hep 5/10 işleniyordu.)
   let hedefIdler: number[] = [];
   const kayitli = await testAyarOku(TEST_IDLER_ANAHTAR);
   if (kayitli) {
     try {
-      hedefIdler = (JSON.parse(kayitli) as number[]).filter(
-        (n) => Number.isFinite(n) && n > 0
-      );
+      hedefIdler = (JSON.parse(kayitli) as number[])
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .slice(0, 10);
     } catch {
       hedefIdler = [];
     }
   }
-  if (hedefIdler.length === 0) {
-    const sonIslenen = await prisma.hamMesaj.findMany({
-      where: { islendi: true, denemeSayisi: { gt: 0 } },
-      orderBy: { id: "desc" },
-      take: 10,
+  if (hedefIdler.length < 10) {
+    const eksik = 10 - hedefIdler.length;
+    const bekleyen = await prisma.hamMesaj.findMany({
+      where: {
+        islendi: false,
+        denemeSayisi: { lt: AI_MAX_DENEME },
+        ...(hedefIdler.length
+          ? { id: { notIn: hedefIdler } }
+          : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      take: eksik,
       select: { id: true },
     });
-    hedefIdler = sonIslenen.map((m) => m.id);
+    hedefIdler.push(...bekleyen.map((m) => m.id));
   }
+  if (hedefIdler.length < 10) {
+    const eksik = 10 - hedefIdler.length;
+    const eski = await prisma.hamMesaj.findMany({
+      where: {
+        id: { notIn: hedefIdler.length ? hedefIdler : [-1] },
+      },
+      orderBy: { createdAt: "asc" },
+      take: eksik,
+      select: { id: true },
+    });
+    hedefIdler.push(...eski.map((m) => m.id));
+  }
+  hedefIdler = [...new Set(hedefIdler)].slice(0, 10);
 
   if (hedefIdler.length > 0) {
     await prisma.hamMesaj.updateMany({
@@ -466,12 +489,10 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
       modelOrnek: cagrilar[0]?.model ?? null,
     };
 
-    const idler =
-      rapor.mesajIdler && rapor.mesajIdler.length > 0
-        ? rapor.mesajIdler
-        : hedefIdler;
+    // Her zaman hedef 10'u sakla (kısmi parti kaydı bir sonraki turu küçültmesin).
+    const idler = hedefIdler.length >= 10 ? hedefIdler : rapor.mesajIdler || hedefIdler;
     if (idler.length > 0) {
-      await testAyarYaz(TEST_IDLER_ANAHTAR, JSON.stringify(idler));
+      await testAyarYaz(TEST_IDLER_ANAHTAR, JSON.stringify(idler.slice(0, 10)));
     }
     await testAyarYaz(TEST_OZET_ANAHTAR, JSON.stringify(yeniOzet));
 
@@ -486,7 +507,7 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
       .join("\n");
 
     let karsilastirma = "";
-    if (oncekiOzet) {
+    if (oncekiOzet && oncekiOzet.maliyetMikro > 0) {
       const dMaliyet = yeniOzet.maliyetMikro - oncekiOzet.maliyetMikro;
       const dCikti = yeniOzet.cikti - oncekiOzet.cikti;
       const dReason = yeniOzet.reasoning - oncekiOzet.reasoning;
@@ -495,18 +516,15 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
         `Önce: ${oncekiOzet.cagri} çağrı · in ${oncekiOzet.girdi} / out ${oncekiOzet.cikti} / r ${oncekiOzet.reasoning} · ${mikrodolarYaz(oncekiOzet.maliyetMikro)} · kesilme ${oncekiOzet.kesilen}\n` +
         `Sonra: ${yeniOzet.cagri} çağrı · in ${yeniOzet.girdi} / out ${yeniOzet.cikti} / r ${yeniOzet.reasoning} · ${mikrodolarYaz(yeniOzet.maliyetMikro)} · kesilme ${yeniOzet.kesilen}\n` +
         `Fark: maliyet ${mikrodolarYaz(dMaliyet)} · out ${dCikti >= 0 ? "+" : ""}${dCikti} · reason ${dReason >= 0 ? "+" : ""}${dReason}\n`;
-    } else {
-      karsilastirma =
-        `\n── NOT ──\n` +
-        `İlk kayıtlı test özeti bu tur. Paneldeki önceki pahalı tur (~$0.06 / out~8000) ile elle karşılaştır.\n` +
-        `Bir sonraki tık aynı ${idler.length || 10} mesajı yeniden işler.\n`;
     }
+
+    const kalite = await testKaliteRaporu(idler);
 
     revalidatePath("/ayarlar");
     revalidatePath("/ai/yukler");
 
     const ozet =
-      `İşlenen: ${rapor.islenen}, yeni ilan: ${rapor.yeniIlan}, çağrı: ${cagrilar.length}\n` +
+      `Hedef mesaj: ${hedefIdler.length}, işlenen: ${rapor.islenen}, yeni ilan: ${rapor.yeniIlan}, çağrı: ${cagrilar.length}\n` +
       `Toplam in ${girdi} / out ${cikti} / reason ${reasoning} · ${mikrodolarYaz(maliyet)}\n` +
       `Çağrı ort. out ${ortCikti} · ort. ${mikrodolarYaz(ortMaliyet)} · kesilme ${kesilen}\n` +
       (yuksekCikti > 0
@@ -515,8 +533,12 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
       (ortMaliyet > 2000
         ? `⚠ Çağrı ort. ≥ $0.002 (hedef: altı).\n`
         : `✓ Çağrı ort. < $0.002.\n`) +
+      (rapor.islenen < 10
+        ? `⚠ Tam 10 işlenmedi (${rapor.islenen}/10) — log/deneme kontrol et.\n`
+        : `✓ Tam 10 mesaj işlendi.\n`) +
       (satirlar ? `Çağrılar:\n${satirlar}\n` : "Çağrı yok.\n") +
       karsilastirma +
+      `\n${kalite}\n` +
       "Cron hâlâ AI_KAPALI ile kapalı.";
 
     if (rapor.hata) {

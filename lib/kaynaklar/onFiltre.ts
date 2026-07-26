@@ -123,8 +123,38 @@ export function rotaSatirSayisi(metin: string): number {
 }
 
 /**
- * Komisyoncu listesini AI çağrılarına böler: bağlam (başlık/telefon) +
- * en fazla `maxRota` yeni rota satırı. 30 rotalık mesaj → 6 çağrı.
+ * Firma / telefon / tarih / başlık — her rota parçasına yeniden eklenir.
+ * Girdi ucuz; telefonsuz rota işe yaramaz.
+ */
+export function ortakBaglamSatirlari(metin: string): string[] {
+  const satirlar = satirlaraBol(metin);
+  const baglam: string[] = [];
+  for (const satir of satirlar) {
+    if (rotaSatiriMi(satir)) continue;
+    baglam.push(satir);
+  }
+
+  // Telefondan satır kaçmışsa (emoji satırı vs.) regex ile zorla ekle.
+  const telefonlar = metin.match(
+    /(\+?90|0)\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/g
+  );
+  if (telefonlar) {
+    for (const t of telefonlar) {
+      const sade = t.replace(/\D/g, "").slice(-10);
+      if (!baglam.some((b) => b.replace(/\D/g, "").includes(sade))) {
+        baglam.push(t.trim());
+      }
+    }
+  }
+
+  // En fazla 10 bağlam satırı — başlık + firma + tel + tarih yeter.
+  return baglam.slice(0, 10);
+}
+
+/**
+ * Komisyoncu listesini AI çağrılarına böler: ortak bağlam +
+ * en fazla `maxRota` rota. 30 rotalık mesaj → 6 çağrı; her çağrıda
+ * telefon/firma tekrar gider.
  */
 export function mesajiAiParcalarinaBol(
   metin: string,
@@ -136,20 +166,25 @@ export function mesajiAiParcalarinaBol(
   const satirlar = satirlaraBol(ham);
   if (satirlar.length === 0) return [ham];
 
-  const baglam: string[] = [];
-  const rotalar: string[] = [];
-  for (const satir of satirlar) {
-    if (rotaSatiriMi(satir)) rotalar.push(satir);
-    else baglam.push(satir);
-  }
-
+  const rotalar = satirlar.filter(rotaSatiriMi);
   if (rotalar.length === 0) return [ham];
   if (rotalar.length <= limit) return [ham];
 
-  const baslik = baglam.slice(0, 4);
+  const baslik = ortakBaglamSatirlari(ham);
   const parcalar: string[] = [];
   for (let i = 0; i < rotalar.length; i += limit) {
-    parcalar.push([...baslik, ...rotalar.slice(i, i + limit)].join("\n"));
+    const dilim = rotalar.slice(i, i + limit);
+    parcalar.push(
+      [
+        ...baslik,
+        baslik.length
+          ? "(Yukarıdaki firma/telefon/tarih bu listedeki tüm güzergahlar için ortaktır.)"
+          : null,
+        ...dilim,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
   }
   return parcalar;
 }
@@ -181,16 +216,12 @@ export function yeniSatirlariSec(
     return { metin: metin.trim(), yeniHashler: [], atlanan: 0 };
   }
 
-  const baglam: string[] = [];
   const yeniRotalar: string[] = [];
   const yeniHashler: string[] = [];
   let atlanan = 0;
 
   for (const satir of satirlar) {
-    if (!rotaSatiriMi(satir)) {
-      baglam.push(satir);
-      continue;
-    }
+    if (!rotaSatiriMi(satir)) continue;
     const hash = satirHashUret(satir);
     if (bilinenHashler.has(hash)) {
       atlanan += 1;
@@ -213,8 +244,7 @@ export function yeniSatirlariSec(
     return { metin: "", yeniHashler: [], atlanan };
   }
 
-  // Bağlamı kısalt: ilk 4 satır yeter (firma + çıkış + telefon).
-  const baslik = baglam.slice(0, 4);
+  const baslik = ortakBaglamSatirlari(metin);
   return {
     metin: [...baslik, ...yeniRotalar].join("\n"),
     yeniHashler,
