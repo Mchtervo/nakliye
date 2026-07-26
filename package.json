@@ -13,6 +13,7 @@
     "supabase:kur": "node --env-file=.env scripts/supabase-kur.mjs",
     "telegram:kur": "node --env-file=.env scripts/telegram-kur.mjs",
     "telegram:oturum": "node --env-file=.env scripts/telegram-oturum.mjs",
+    "telegram:daemon": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/telegram-daemon.ts",
     "push:kur": "node scripts/push-kur.mjs",
     "ts": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON"
   },

@@ -1,0 +1,10 @@
+/home/yukavci/logs/telegram-daemon.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su yukavci yukavci
+}
