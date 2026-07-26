@@ -93,16 +93,30 @@ const TAKMA_ADLAR: Record<string, string> = {
   ipsala: "Edirne", havsa: "Edirne", enez: "Edirne",
   lüleburgaz: "Kırklareli", babaeski: "Kırklareli", vize: "Kırklareli",
   pınarhisar: "Kırklareli",
+  // Sık yazım: "G.marmara", "trakya"
+  "guney marmara": "Balıkesir",
+
+  // OSB / liman kısaltmaları (ilanlarda sık)
+  "as osb": "Ankara", "bsb osb": "Bursa", "kosb": "Kocaeli",
+  "gesbas": "Kocaeli", "tosb": "Kocaeli", "iosb": "İstanbul",
+  "iosb i̇kitelli": "İstanbul", "hadimkoy osb": "İstanbul",
+  "cerkezkoy osb": "Tekirdağ", "corlu osb": "Tekirdağ",
+  "kayseri osb": "Kayseri", "konya osb": "Konya", "karatay osb": "Konya",
+  "aksaray osb": "Aksaray", "kirikkale osb": "Kırıkkale",
+  "sivas osb": "Sivas",
 
   // --- Ankara ---
   ostim: "Ankara", ivedik: "Ankara", siteler: "Ankara", batıkent: "Ankara",
   sincan: "Ankara", etimesgut: "Ankara", yenimahalle: "Ankara",
   keçiören: "Ankara", mamak: "Ankara", altındağ: "Ankara",
   çankaya: "Ankara", pursaklar: "Ankara", polatlı: "Ankara",
-  kahramankazan: "Ankara", temelli: "Ankara", malıköy: "Ankara",
-  akyurt: "Ankara", elmadağ: "Ankara", çubuk: "Ankara",
+  kahramankazan: "Ankara", kazan: "Ankara", temelli: "Ankara",
+  malıköy: "Ankara", akyurt: "Ankara", elmadağ: "Ankara", çubuk: "Ankara",
   şereflikoçhisar: "Ankara", beypazarı: "Ankara", nallıhan: "Ankara",
   kızılcahamam: "Ankara", haymana: "Ankara", "başkent osb": "Ankara",
+  şaşmaz: "Ankara", sasmaz: "Ankara", macunköy: "Ankara",
+  "ankara osb": "Ankara", "ostim osb": "Ankara", "ivedik osb": "Ankara",
+  "sincan osb": "Ankara",
 
   // --- İç Anadolu ---
   akşehir: "Konya", ilgın: "Konya", seydişehir: "Konya", çumra: "Konya",
@@ -113,8 +127,10 @@ const TAKMA_ADLAR: Record<string, string> = {
   develi: "Kayseri", yahyalı: "Kayseri", incesu: "Kayseri",
   bünyan: "Kayseri",
   sivrihisar: "Eskişehir", çifteler: "Eskişehir", seyitgazi: "Eskişehir",
-  mihalıççık: "Eskişehir", alpu: "Eskişehir", inönü: "Eskişehir",
-  tepebaşı: "Eskişehir", odunpazarı: "Eskişehir",
+  mihalıççık: "Eskişehir", mihaliccik: "Eskişehir", alpu: "Eskişehir",
+  inönü: "Eskişehir", tepebaşı: "Eskişehir", odunpazarı: "Eskişehir",
+  "eskişehir osb": "Eskişehir", "eskisehir osb": "Eskişehir",
+  çukurhisar: "Eskişehir", beylikova: "Eskişehir",
   şarkışla: "Sivas", suşehri: "Sivas", gemerek: "Sivas", zara: "Sivas",
   yıldızeli: "Sivas", divriği: "Sivas", kangal: "Sivas",
   sorgun: "Yozgat", yerköy: "Yozgat", boğazlıyan: "Yozgat",
@@ -369,8 +385,14 @@ export function ilBul(metin: string | null | undefined): string | null {
   return null;
 }
 
-/** Metinde geçen bütün illeri (ilçe adları dâhil) sırayla döndürür. */
-export function illeriBul(metin: string | null | undefined): string[] {
+/**
+ * Metinde geçen bütün illeri (ilçe adları dâhil) sırayla döndürür.
+ * `sadeceIlAdi: true` → sadece 81 il adı (ilçe tablosu kapalı; ölçüm için).
+ */
+export function illeriBul(
+  metin: string | null | undefined,
+  secenek: { sadeceIlAdi?: boolean } = {}
+): string[] {
   if (!metin) return [];
   const sade = sadelestir(metin);
   if (!sade) return [];
@@ -378,14 +400,26 @@ export function illeriBul(metin: string | null | undefined): string[] {
   const bulunan = new Set<string>();
 
   for (const { kalip, il } of COK_KELIME) {
+    // sadeceIlAdi: "çanakkale" gibi il adıyla birebir kalıplar
+    if (secenek.sadeceIlAdi && sadelestir(il) !== kalip) continue;
     if (new RegExp(`(^|\\s)${kalip}(\\s|$)`).test(sade)) bulunan.add(il);
   }
   for (const kelime of sade.split(" ")) {
     const kok = kokBul(kelime);
-    if (kok) bulunan.add(TEK_KELIME.get(kok) as string);
+    if (!kok) continue;
+    const il = TEK_KELIME.get(kok);
+    if (!il) continue;
+    // sadeceIlAdi: "gebze"→Kocaeli elenir; "kocaeli" kalır
+    if (secenek.sadeceIlAdi && sadelestir(il) !== kok) continue;
+    bulunan.add(il);
   }
 
   return [...bulunan];
+}
+
+/** İlçe/semt takma adı sayısı (ölçüm / Ayarlar). */
+export function takmaAdSayisi(): number {
+  return Object.keys(TAKMA_ADLAR).length;
 }
 
 /** İki konumun aynı ile işaret edip etmediğini söyler. */

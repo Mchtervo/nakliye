@@ -65,17 +65,12 @@ export default async function AyarlarSayfasi() {
 
   const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
   const takipteki = gruplar.filter((g) => g.durum === "AKTIF" && g.aktif);
-  // Adaylar üye sayısına göre: elle katılırken önce büyük gruplar görünsün.
   const adaylar = gruplar
     .filter((g) => g.durum === "ADAY")
     .sort((a, b) => (b.uyeSayisi ?? 0) - (a.uyeSayisi ?? 0));
-  const siraliGruplar = [
-    ...takipteki,
-    ...adaylar,
-    ...gruplar.filter(
-      (g) => g.durum !== "ADAY" && !(g.durum === "AKTIF" && g.aktif)
-    ),
-  ];
+  const takipEdilmiyor = gruplar.filter(
+    (g) => g.durum === "PASIF" || (g.durum === "AKTIF" && !g.aktif)
+  );
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
@@ -164,10 +159,13 @@ export default async function AyarlarSayfasi() {
         ) : (
           <div className="flex flex-wrap gap-2 text-xs font-semibold">
             <span className="rounded-full border border-ok/35 bg-ok/12 px-2.5 py-1 text-ok">
-              {takipteki.length} grup takipte
+              {takipteki.length} takipte
             </span>
             <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-fog">
               {adaylar.length} aday
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-fog">
+              {takipEdilmiyor.length} takip edilmiyor
             </span>
             <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-fog">
               {bekleyenMesaj} mesaj sırada
@@ -185,87 +183,107 @@ export default async function AyarlarSayfasi() {
           </p>
         )}
 
-        {gruplar.length > 0 && (
-          <div className="space-y-1.5">
-            {siraliGruplar.slice(0, 40).map((g) => (
-              <div
-                key={g.id}
-                className="rounded-xl border border-white/10 bg-white/4 px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-paper">
-                      {g.ad}
+        {(
+          [
+            { baslik: "Takipte", liste: takipteki, limit: 25 },
+            { baslik: "Aday", liste: adaylar, limit: 20 },
+            { baslik: "Takip edilmiyor", liste: takipEdilmiyor, limit: 30 },
+          ] as const
+        ).map((bolum) =>
+          bolum.liste.length === 0 ? null : (
+            <div key={bolum.baslik} className="space-y-1.5">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-fog">
+                {bolum.baslik} ({bolum.liste.length})
+              </h3>
+              {bolum.liste.slice(0, bolum.limit).map((g) => (
+                <div
+                  key={g.id}
+                  className="rounded-xl border border-white/10 bg-white/4 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-paper">
+                        {g.ad}
+                        {g.kullaniciAdi ? (
+                          <span className="ml-1 font-normal text-fog">
+                            @{g.kullaniciAdi}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-xs text-fog">
+                        {g.durum === "ADAY"
+                          ? [
+                              "Aday",
+                              g.uyeSayisi ? `${g.uyeSayisi} üye` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : [
+                              g.sonTarama
+                                ? `son okuma: ${gecenSure(g.sonTarama)}`
+                                : "son okuma: hiç",
+                              `çekilen bugün: ${g.cekilenBugun}`,
+                              `kuyruk (24s): ${g.mesaj24s}`,
+                              g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
+                              `${g.ilanAdedi} ilan`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-amber/90">
+                        {g.teshis}
+                      </div>
                     </div>
-                    <div className="text-xs text-fog">
-                      {g.durum === "ADAY"
-                        ? [
-                            "Aday · sen katılınca takibe geçer",
-                            g.uyeSayisi ? `${g.uyeSayisi} üye` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")
-                        : [
-                            g.sonTarama
-                              ? `son okuma: ${gecenSure(g.sonTarama)}`
-                              : "son okuma: hiç",
-                            `çekilen bugün: ${g.cekilenBugun}`,
-                            `kuyruk (24s): ${g.mesaj24s}`,
-                            g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
-                            `${g.ilanAdedi} ilan`,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-amber/90">
-                      {g.teshis}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {g.durum === "ADAY" && (
+                    <div className="flex shrink-0 items-center gap-1">
+                      {(g.durum === "ADAY" ||
+                        g.durum === "PASIF" ||
+                        !g.aktif) && (
+                        <AksiyonButonu
+                          calistir={kaynakTakibeAl.bind(null, g.id)}
+                          etiket="Takibe al"
+                          bekleyenEtiket="..."
+                          sinif="rounded-lg border border-ok/30 px-2.5 py-1.5 text-xs font-semibold text-ok hover:bg-ok/10"
+                        />
+                      )}
+                      {g.kullaniciAdi && (
+                        <a
+                          href={`https://t.me/${g.kullaniciAdi}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-semibold text-paper hover:bg-white/8"
+                        >
+                          Aç
+                        </a>
+                      )}
                       <AksiyonButonu
-                        calistir={kaynakTakibeAl.bind(null, g.id)}
-                        etiket="Takibe al"
+                        calistir={kaynakSil.bind(null, g.id)}
+                        etiket="Sil"
                         bekleyenEtiket="..."
-                        sinif="rounded-lg border border-ok/30 px-2.5 py-1.5 text-xs font-semibold text-ok hover:bg-ok/10"
+                        onay={`${g.ad} listeden çıkarılsın mı?`}
+                        sinif="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ember/90 hover:bg-ember/10"
                       />
-                    )}
-                    {g.durum === "ADAY" && g.kullaniciAdi && (
-                      <a
-                        href={`https://t.me/${g.kullaniciAdi}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-semibold text-paper hover:bg-white/8"
-                      >
-                        Aç
-                      </a>
-                    )}
-                    <AksiyonButonu
-                      calistir={kaynakSil.bind(null, g.id)}
-                      etiket="Sil"
-                      bekleyenEtiket="..."
-                      onay={`${g.ad} listeden çıkarılsın mı?`}
-                      sinif="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ember/90 hover:bg-ember/10"
-                    />
+                    </div>
                   </div>
+                  {(g.sonHata || Object.keys(g.elenenBugun).length > 0) &&
+                    g.durum === "AKTIF" &&
+                    g.aktif && (
+                      <p className="mt-1.5 rounded-lg border border-white/10 bg-white/4 px-2 py-1 text-xs text-fog">
+                        {g.sonHata
+                          ? g.sonHata.slice(0, 140)
+                          : `Eleme: ${Object.entries(g.elenenBugun)
+                              .map(([k, v]) => `${k}=${v}`)
+                              .join(" · ")}`}
+                      </p>
+                    )}
                 </div>
-                {(g.sonHata || Object.keys(g.elenenBugun).length > 0) && (
-                  <p className="mt-1.5 rounded-lg border border-white/10 bg-white/4 px-2 py-1 text-xs text-fog">
-                    {g.sonHata
-                      ? g.sonHata.slice(0, 140)
-                      : `Eleme: ${Object.entries(g.elenenBugun)
-                          .map(([k, v]) => `${k}=${v}`)
-                          .join(" · ")}`}
-                  </p>
-                )}
-              </div>
-            ))}
-            {gruplar.length > 40 && (
-              <p className="text-xs text-fog">
-                …ve {gruplar.length - 40} grup daha.
-              </p>
-            )}
-          </div>
+              ))}
+              {bolum.liste.length > bolum.limit && (
+                <p className="text-xs text-fog">
+                  …ve {bolum.liste.length - bolum.limit} daha.
+                </p>
+              )}
+            </div>
+          )
         )}
       </section>
 

@@ -22,7 +22,12 @@ const BUTCE_MS = 24_000;
 type OkumaGorevi = {
   aktif: boolean;
   ilkOkumaAdedi: number;
-  gruplar: { id: number; chatId: string; sonMesajId: number | null }[];
+  gruplar: {
+    id: number;
+    chatId: string;
+    kullaniciAdi: string | null;
+    sonMesajId: number | null;
+  }[];
 };
 
 type KesifGorevi = {
@@ -116,7 +121,9 @@ function sohbetiAdayaCevir(
 async function gruplariOku(
   istemci: TelegramClient,
   gorev: OkumaGorevi,
-  bitis: number
+  bitis: number,
+  /** peerId → dialog entity (getEntity(chatId) bazen cache'siz patlar). */
+  entityHaritasi: Map<string, Api.TypeChat>
 ) {
   const gonderilecek: {
     id: number;
@@ -129,7 +136,46 @@ async function gruplariOku(
     if (Date.now() > bitis) break;
 
     try {
-      const varlik = await istemci.getEntity(grup.chatId);
+      let varlik: Api.TypeChat | null =
+        entityHaritasi.get(String(grup.chatId)) ?? null;
+
+      // Dialogda yoksa önce @username, sonra chatId.
+      if (!varlik && grup.kullaniciAdi) {
+        try {
+          varlik = (await istemci.getEntity(grup.kullaniciAdi)) as Api.TypeChat;
+        } catch {
+          varlik = null;
+        }
+      }
+      if (!varlik) {
+        try {
+          varlik = (await istemci.getEntity(grup.chatId)) as Api.TypeChat;
+        } catch {
+          varlik = null;
+        }
+      }
+
+      if (!varlik) {
+        gonderilecek.push({
+          id: grup.id,
+          sonMesajId: grup.sonMesajId,
+          mesajlar: [],
+          hata: "Could not find the input entity (dialogda yok)",
+        });
+        continue;
+      }
+
+      // Gruptan çıkılmış kanal.
+      if (varlik instanceof Api.Channel && varlik.left === true) {
+        gonderilecek.push({
+          id: grup.id,
+          sonMesajId: grup.sonMesajId,
+          mesajlar: [],
+          hata: "Gruptan ayrılmış (left=true)",
+        });
+        continue;
+      }
+
       const mesajlar = await istemci.getMessages(varlik, {
         limit: grup.sonMesajId ? 100 : gorev.ilkOkumaAdedi,
         ...(grup.sonMesajId ? { minId: grup.sonMesajId } : {}),
@@ -287,6 +333,14 @@ export default async function handler(): Promise<Response> {
       .filter((d) => d.isGroup || d.isChannel)
       .map((d) => d.entity)
       .filter((e): e is Api.TypeChat => Boolean(e));
+    const entityHaritasi = new Map<string, Api.TypeChat>();
+    for (const e of gruplar) {
+      try {
+        entityHaritasi.set(utils.getPeerId(e), e);
+      } catch {
+        /* yok say */
+      }
+    }
     console.log(
       "[telegram-uye] dialog",
       sohbetler.length,
@@ -294,7 +348,7 @@ export default async function handler(): Promise<Response> {
       gruplar.length
     );
 
-    const okuma = await gruplariOku(istemci, gorev, bitis);
+    const okuma = await gruplariOku(istemci, gorev, bitis, entityHaritasi);
     if (okuma) console.log("[telegram-uye] okuma", JSON.stringify(okuma));
 
     // Üyelik senkronu her koşuda: elle katıldığın grup 5 dakikada devreye girer.

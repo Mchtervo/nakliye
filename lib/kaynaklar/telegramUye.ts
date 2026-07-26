@@ -19,6 +19,7 @@ import {
   genisIlKumesi,
   grubuDegerlendir,
   ilinBolgesi,
+  yukBasligiMi,
 } from "@/lib/bolgeler";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { ilBul } from "@/lib/iller";
@@ -59,7 +60,12 @@ export function telegramUyeKullanilabilir(): boolean {
 export type OkumaGorevi = {
   aktif: boolean;
   ilkOkumaAdedi: number;
-  gruplar: { id: number; chatId: string; sonMesajId: number | null }[];
+  gruplar: {
+    id: number;
+    chatId: string;
+    kullaniciAdi: string | null;
+    sonMesajId: number | null;
+  }[];
 };
 
 export async function okumaGoreviUret(limit = 5): Promise<OkumaGorevi> {
@@ -72,7 +78,7 @@ export async function okumaGoreviUret(limit = 5): Promise<OkumaGorevi> {
     where: { tur: TELEGRAM_UYE, aktif: true, durum: "AKTIF" },
     orderBy: [{ sonTarama: { sort: "asc", nulls: "first" } }, { id: "asc" }],
     take: Math.max(1, Math.min(limit, 15)),
-    select: { id: true, hedef: true, sonMesajId: true },
+    select: { id: true, hedef: true, kullaniciAdi: true, sonMesajId: true },
   });
 
   return {
@@ -81,6 +87,7 @@ export async function okumaGoreviUret(limit = 5): Promise<OkumaGorevi> {
     gruplar: kaynaklar.map((k) => ({
       id: k.id,
       chatId: k.hedef,
+      kullaniciAdi: k.kullaniciAdi,
       sonMesajId: k.sonMesajId,
     })),
   };
@@ -221,14 +228,28 @@ export async function mesajlariKuyrugaAl(
       });
     }
 
-    // Okunamayan grupta da sonTarama ilerletilir; aksi hâlde sıranın
-    // başında takılıp diğer grupların okunmasını engeller.
+    // Entity bulunamayan / gruptan çıkılmış → PASIF (silme).
+    const entityYok =
+      Boolean(grup.hata) &&
+      (/could not find the input entity/i.test(grup.hata || "") ||
+        /PEER_ID_INVALID/i.test(grup.hata || "") ||
+        /CHANNEL_PRIVATE/i.test(grup.hata || "") ||
+        /gruptan ayrıl/i.test(grup.hata || ""));
+
     await prisma.ilanKaynagi.update({
       where: { id: kaynak.id },
       data: {
         sonTarama: new Date(),
-        sonHata: grup.hata ? grup.hata.slice(0, 300) : null,
-        ...(typeof grup.sonMesajId === "number" && grup.sonMesajId > 0
+        sonHata: grup.hata
+          ? (entityYok
+              ? "Takip edilmiyor — Telegram erişimi yok (gruptan çıkılmış veya entity çözülemedi)."
+              : grup.hata
+            ).slice(0, 300)
+          : null,
+        ...(entityYok ? { aktif: false, durum: "PASIF" } : {}),
+        ...(typeof grup.sonMesajId === "number" &&
+        grup.sonMesajId > 0 &&
+        !entityYok
           ? { sonMesajId: grup.sonMesajId }
           : {}),
       },
@@ -614,7 +635,13 @@ function grupTeshisi(g: {
   elenenBugun: Record<string, number>;
 }): string {
   if (g.durum === "ADAY") return "Aday — üye olunca / Takibe al";
-  if (!g.aktif) return "Pasif";
+  if (g.durum === "PASIF" || !g.aktif) {
+    return g.sonHata?.startsWith("Takip edilmiyor")
+      ? g.sonHata
+      : g.sonHata
+        ? `Takip edilmiyor: ${g.sonHata.slice(0, 80)}`
+        : "Takip edilmiyor";
+  }
   if (g.sonHata) return `Okuma hatası: ${g.sonHata.slice(0, 80)}`;
   if (!g.sonMesajId) return "İlk okuma hiç yapılmadı";
 
@@ -869,32 +896,54 @@ export async function adaylariDegerlendir(
     const mevcut = kayitli.get(chatId) ?? (ku ? kayitliKullanici.get(ku) : undefined);
 
     if (mevcut) {
-      // Aday listesindeki bir gruba elle katılınmış: takibe al.
+      // Elle katılınmış ADAY: başlık uygunsa AKTİF, değilse PASIF (silme).
       if (uye && mevcut.durum === "ADAY") {
+        const uygun = yukBasligiMi(baslik);
         await prisma.ilanKaynagi.update({
           where: { id: mevcut.id },
           data: {
-            aktif: true,
-            durum: "AKTIF",
-            sonHata: null,
+            aktif: uygun,
+            durum: uygun ? "AKTIF" : "PASIF",
+            sonHata: uygun
+              ? null
+              : "Takip edilmiyor — başlıkta nakliye terimi yok (elle Takibe al).",
             hedef: chatId,
             ad: baslik.slice(0, 120),
             kullaniciAdi: grup.kullaniciAdi || undefined,
           },
         });
-        rapor.terfi += 1;
+        if (uygun) rapor.terfi += 1;
       }
       continue;
     }
 
-    // Üye olunan grupta başlık filtresi çalıştırılmaz: kullanıcı zaten
-    // bilerek katılmış. Başlığa bakıp elemek ("Grupaj Kargo" içinde
-    // nakliye kelimesi yok diye) gruplarının yarısını görünmez yapıyordu.
-    // Süzme ilan seviyesinde yapılır, grup seviyesinde değil.
-    const karar = uye
-      ? { uygun: true, bolge: ilinBolgesi(ilBul(baslik)) }
-      : grubuDegerlendir(baslik, tercih.bolgeler);
+    // Üye + yük başlığı → AKTİF. Üye ama alakasız → PASIF (listede kalsın).
+    // Üye değil → keşif filtresiyle ADAY veya ele.
+    if (uye) {
+      const uygun = yukBasligiMi(baslik);
+      await prisma.ilanKaynagi.create({
+        data: {
+          tur: TELEGRAM_UYE,
+          hedef: chatId,
+          ad: baslik.slice(0, 120),
+          aktif: uygun,
+          durum: uygun ? "AKTIF" : "PASIF",
+          bolge: ilinBolgesi(ilBul(baslik)),
+          kullaniciAdi: grup.kullaniciAdi || null,
+          uyeSayisi:
+            typeof grup.uyeSayisi === "number" && grup.uyeSayisi > 0
+              ? grup.uyeSayisi
+              : null,
+          sonHata: uygun
+            ? null
+            : "Takip edilmiyor — başlıkta nakliye terimi yok (elle Takibe al).",
+        },
+      });
+      if (uygun) rapor.hazirUyelik += 1;
+      continue;
+    }
 
+    const karar = grubuDegerlendir(baslik, tercih.bolgeler);
     if (!karar.uygun) {
       rapor.elenen += 1;
       continue;
@@ -905,8 +954,8 @@ export async function adaylariDegerlendir(
         tur: TELEGRAM_UYE,
         hedef: chatId,
         ad: baslik.slice(0, 120),
-        aktif: uye,
-        durum: uye ? "AKTIF" : "ADAY",
+        aktif: false,
+        durum: "ADAY",
         bolge: karar.bolge,
         kullaniciAdi: grup.kullaniciAdi || null,
         uyeSayisi:
@@ -915,9 +964,7 @@ export async function adaylariDegerlendir(
             : null,
       },
     });
-
-    if (uye) rapor.hazirUyelik += 1;
-    else rapor.yeniAday += 1;
+    rapor.yeniAday += 1;
   }
 
   return rapor;

@@ -190,10 +190,15 @@ export function bolgeyeUyuyorMu(
 
 // --- Grup keşfi ---------------------------------------------------------
 
-/** Grup başlığında aranan nakliye terimleri. */
+/**
+ * Otomatik AKTİF terfi için başlıkta olması gerekenler.
+ * Galatasaray/Cimbom gibi alakasız üyelikler buradan elenir;
+ * silinmez — PASIF ("Takip edilmiyor") kalır.
+ */
 const YUK_TERIMLERI = [
-  "yuk", "yük", "nakliye", "nakliyat", "tir", "tır", "lojistik", "kamyon",
-  "sevkiyat", "kamyonet", "tasima", "taşıma", "spot yuk", "arac yuk",
+  "yuk", "yük", "nakliye", "nakliyat", "nakliyeci", "tir", "tır",
+  "lojistik", "kamyon", "dorse", "borsa", "tasima", "taşıma",
+  "sevkiyat", "filo", "navlun", "kamyonet", "spot yuk", "arac yuk",
 ];
 
 /**
@@ -204,9 +209,17 @@ const ISTENMEYEN_TERIMLER = [
   "evden eve", "ev tasima", "asansorlu", "oto kurtarma", "cekici hizmet",
   "personel tasima", "ogrenci", "emlak", "kripto", "hisse", "forex",
   "bahis", "iddaa", "sohbet", "arkadas", "ifsa", "film", "dizi", "muzik",
+  "galatasaray", "cimbom", "fenerbahce", "besiktas", "trabzonspor",
 ];
 
-const YUK_SADE = YUK_TERIMLERI.map(sadelestir);
+const YUK_SADE = YUK_TERIMLERI.map((t) => sadelestir(t));
+
+/** Başlık otomatik takibe uygun mu? */
+export function yukBasligiMi(baslik: string): boolean {
+  const sade = sadelestir(baslik);
+  if (!sade) return false;
+  return YUK_SADE.some((terim) => sade.includes(terim));
+}
 
 /**
  * Telegram global aramasında denenecek sorgular.

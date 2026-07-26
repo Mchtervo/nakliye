@@ -105,7 +105,7 @@ export async function kaynakDurumDegistir(id: number): Promise<void> {
   revalidatePath("/ayarlar");
 }
 
-/** ADAY grubu elle takibe al (üyelik senkronu kaçırdıysa). */
+/** ADAY / PASIF grubu elle takibe al. */
 export async function kaynakTakibeAl(id: number): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
   await prisma.ilanKaynagi
