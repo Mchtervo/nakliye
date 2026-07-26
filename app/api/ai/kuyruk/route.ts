@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { aiKapaliMi } from "@/lib/ai/istemci";
 import { cronKontrol } from "@/lib/cronGuvenlik";
 import { kuyrugaBakim, kuyrugunuCoz } from "@/lib/kaynaklar/telegramUye";
 
@@ -12,6 +13,13 @@ export const maxDuration = 60;
 async function calistir(request: Request) {
   const engel = cronKontrol(request);
   if (engel) return engel;
+
+  if (aiKapaliMi()) {
+    return Response.json({
+      hata: "AI_KAPALI=true — kuyruk API atlandı.",
+      islenen: 0,
+    });
+  }
 
   const limit = Number(new URL(request.url).searchParams.get("limit") || 10);
 

@@ -38,12 +38,38 @@ export async function GET() {
 
 /**
  * POST — testi arka planda başlat, hemen 202 dön.
- * Sayfa 60–120 sn timeout'ta düşmesin diye server action kullanılmaz.
+ * ?durdur=1 → takılan testi öldür (panel / curl).
  */
-export async function POST() {
+export async function POST(request: Request) {
+  const url = new URL(request.url);
+  if (url.searchParams.get("durdur") === "1") {
+    const { spawnSync } = await import("node:child_process");
+    spawnSync("npm", ["run", "ai:test-durdur"], {
+      cwd: process.cwd(),
+      env: process.env,
+      encoding: "utf8",
+    });
+    return Response.json({ ok: true, durum: "durduruldu" });
+  }
+
   const baslat = await aiTestArkaPlandaBaslat();
   if (!baslat.ok) {
     return Response.json({ hata: baslat.hata }, { status: 409 });
   }
   return Response.json({ ok: true, durum: "calisiyor" }, { status: 202 });
+}
+
+/** DELETE — takılan testi durdur. */
+export async function DELETE() {
+  const { spawnSync } = await import("node:child_process");
+  const r = spawnSync("npm", ["run", "ai:test-durdur"], {
+    cwd: process.cwd(),
+    env: process.env,
+    encoding: "utf8",
+  });
+  return Response.json({
+    ok: true,
+    stdout: (r.stdout || "").slice(0, 500),
+    stderr: (r.stderr || "").slice(0, 300),
+  });
 }

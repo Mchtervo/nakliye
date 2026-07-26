@@ -16,7 +16,9 @@
     "telegram:daemon": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/telegram-daemon.ts",
     "push:kur": "node scripts/push-kur.mjs",
     "ts": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
-    "ai:test-on": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-test-on.ts"
+    "ai:test-on": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-test-on.ts",
+    "ai:test-durdur": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-test-durdur.ts",
+    "ai:kalite": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-kalite-rapor.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
