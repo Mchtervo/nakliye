@@ -13,7 +13,6 @@ import { adayFirmalariBul } from "@/lib/ai/firmaBul";
 import { gunlukAnaliziUret } from "@/lib/ai/gunlukAnaliz";
 import { aiTestBypassIle } from "@/lib/ai/istemci";
 import { mikrodolarYaz } from "@/lib/ai/maliyet";
-import { testKaliteRaporu } from "@/lib/ai/testKalite";
 import { AI_MAX_DENEME } from "@/lib/ai/modeller";
 import { kuyrugunuCoz } from "@/lib/kaynaklar/telegramUye";
 import type { KaynakTuru } from "@/lib/kaynaklar/tip";
@@ -518,6 +517,7 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
         `Fark: maliyet ${mikrodolarYaz(dMaliyet)} · out ${dCikti >= 0 ? "+" : ""}${dCikti} · reason ${dReason >= 0 ? "+" : ""}${dReason}\n`;
     }
 
+    const { testKaliteRaporu } = await import("@/lib/ai/testKalite");
     const kalite = await testKaliteRaporu(idler);
 
     revalidatePath("/ayarlar");

@@ -1,5 +1,4 @@
-import { baglamCikar } from "@/lib/ai/ilanCozumle";
-import { sadelestir } from "@/lib/iller";
+import { illeriBul, sadelestir } from "@/lib/iller";
 import { prisma } from "@/lib/prisma";
 import {
   ortakBaglamSatirlari,
@@ -68,7 +67,10 @@ export async function testKaliteRaporu(mesajIdler: number[]): Promise<string> {
     const hamTel = Boolean(
       m.metin.match(/(\+?90|0)\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/)
     );
-    const yerBaglam = baglamCikar(m.metin);
+    const yerBaglam = {
+      sade: sadelestir(m.metin),
+      iller: new Set(illeriBul(m.metin)),
+    };
 
     if (rotaN >= 3 || ilanlar.length >= 2) {
       satirlar.push(
