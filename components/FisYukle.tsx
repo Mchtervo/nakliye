@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { gorseliKucult } from "@/lib/gorsel";
+
+/** Input'a sıkıştırılmış dosyayı yazar (form submit de küçük gider). */
+function inputaDosyaKoy(input: HTMLInputElement, dosya: File) {
+  const dt = new DataTransfer();
+  dt.items.add(dosya);
+  input.files = dt.files;
+}
 
 export default function FisYukle({
   baslik = "Fatura / fiş fotoğrafı",
@@ -20,6 +28,8 @@ export default function FisYukle({
   const inputRef = useRef<HTMLInputElement>(null);
   const [onizleme, setOnizleme] = useState<string | null>(null);
   const [dosyaAdi, setDosyaAdi] = useState<string | null>(null);
+  const [hazirlaniyor, setHazirlaniyor] = useState(false);
+  const [hata, setHata] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -27,17 +37,43 @@ export default function FisYukle({
     };
   }, [onizleme]);
 
-  function secildi(dosya: File | undefined) {
+  async function secildi(ham: File | undefined) {
     if (onizleme) URL.revokeObjectURL(onizleme);
-    if (!dosya) {
+    setHata(null);
+
+    if (!ham) {
       setOnizleme(null);
       setDosyaAdi(null);
+      setHazirlaniyor(false);
       onDosya?.(null);
       return;
     }
-    setDosyaAdi(dosya.name);
-    setOnizleme(URL.createObjectURL(dosya));
-    onDosya?.(dosya);
+
+    setHazirlaniyor(true);
+    try {
+      // Büyük telefon fotoğrafı / HEIC sekme çökertmesin: önce küçült.
+      const blob = await gorseliKucult(ham, 1600, 0.8);
+      const dosya = new File(
+        [blob],
+        ham.name.replace(/\.[^.]+$/, "") + ".jpg",
+        { type: "image/jpeg" }
+      );
+
+      if (inputRef.current) inputaDosyaKoy(inputRef.current, dosya);
+
+      setDosyaAdi(dosya.name);
+      setOnizleme(URL.createObjectURL(dosya));
+      onDosya?.(dosya);
+    } catch (e) {
+      console.error("[fis-yukle]", e);
+      setOnizleme(null);
+      setDosyaAdi(null);
+      setHata("Fotoğraf işlenemedi. Daha küçük bir görsel dene veya tekrar çek.");
+      if (inputRef.current) inputRef.current.value = "";
+      onDosya?.(null);
+    } finally {
+      setHazirlaniyor(false);
+    }
   }
 
   function temizle() {
@@ -45,6 +81,7 @@ export default function FisYukle({
     if (onizleme) URL.revokeObjectURL(onizleme);
     setOnizleme(null);
     setDosyaAdi(null);
+    setHata(null);
     onDosya?.(null);
   }
 
@@ -69,10 +106,15 @@ export default function FisYukle({
         accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic"
         capture="environment"
         className="hidden"
-        onChange={(e) => secildi(e.target.files?.[0])}
+        onChange={(e) => void secildi(e.target.files?.[0])}
       />
 
-      {!onizleme ? (
+      {hazirlaniyor ? (
+        <div className="flex items-center gap-2 rounded-xl border border-amber/25 bg-amber/10 px-3 py-5 text-sm font-semibold text-amber">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-amber border-t-transparent" />
+          Fotoğraf küçültülüyor...
+        </div>
+      ) : !onizleme ? (
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -116,6 +158,12 @@ export default function FisYukle({
             </button>
           </div>
         </div>
+      )}
+
+      {hata && (
+        <p className="rounded-lg border border-ember/30 bg-ember/10 px-3 py-2 text-sm text-paper">
+          {hata}
+        </p>
       )}
 
       {altBilgi}

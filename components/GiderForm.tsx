@@ -81,9 +81,12 @@ function OcrRozeti({ durum }: { durum: OcrDurum }) {
 export default function GiderForm({
   bugunTarih,
   baslangic,
+  aiOcr = true,
 }: {
   bugunTarih: string;
   baslangic?: GiderFormBaslangic;
+  /** AI_KAPALI iken false — sadece kayıt, OCR yok. */
+  aiOcr?: boolean;
 }) {
   const duzenle = Boolean(baslangic);
   const [durum, aksiyon, bekliyor] = useActionState<FormSonuc, FormData>(
@@ -107,8 +110,18 @@ export default function GiderForm({
       return;
     }
 
+    // AI kapalıyken OCR çağırma — fotoğraf yine kayda gider.
+    if (!aiOcr) {
+      setOcrDurum({
+        hal: "hata",
+        mesaj: "AI kapalı — tutarı elle gir, fiş yine kaydolur.",
+      });
+      return;
+    }
+
     setOcrDurum({ hal: "okuyor" });
     try {
+      // FisYukle zaten küçülttü; yine de emniyet için.
       const kucuk = await gorseliKucult(dosya);
       const govde = new FormData();
       govde.append("fis", kucuk, "fis.jpg");
@@ -117,10 +130,16 @@ export default function GiderForm({
         method: "POST",
         body: govde,
       });
-      const veri = await cevap.json();
+      const veri = (await cevap.json().catch(() => ({}))) as {
+        hata?: string;
+        sonuc?: OcrYanit;
+      };
 
       if (!cevap.ok) {
-        setOcrDurum({ hal: "hata", mesaj: veri?.hata || "Fiş okunamadı." });
+        setOcrDurum({
+          hal: "hata",
+          mesaj: veri?.hata || "Fiş okunamadı — elle doldur, kayıt çalışır.",
+        });
         return;
       }
 

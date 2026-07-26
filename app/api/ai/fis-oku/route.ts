@@ -1,4 +1,4 @@
-import { aiKullanilabilir } from "@/lib/ai/istemci";
+import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { fisOku } from "@/lib/ai/fisOku";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +7,12 @@ const IZINLI_TURLER = ["image/jpeg", "image/png", "image/webp"];
 const MAX_BOYUT = 6 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  if (aiKapaliMi()) {
+    return Response.json(
+      { hata: "AI kapalı — fişi elle doldur, kayıt yine çalışır." },
+      { status: 503 }
+    );
+  }
   if (!aiKullanilabilir()) {
     return Response.json(
       { hata: "OPENAI_API_KEY tanımlı değil." },
