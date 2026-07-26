@@ -12,7 +12,9 @@ Web arama aracını kullanarak güncel yük/navlun ilanlarını bul.
 Kurallar:
 - Sadece bugün veya son birkaç güne ait, gerçek ve ulaşılabilir ilanları al.
 - Yer adlarını ilanda yazdığı gibi ver; olmayan şehir uydurma.
+- Ham ilanda AÇIKÇA geçmeyen yer adı yazma; emin değilsen null.
 - Telefon ve ücreti ilanda yazıyorsa al, yoksa null bırak.
+- Fiyat ton başı mı komple mi ayırt et (ucretTuru).
 - Bilgi uydurma. Emin olmadığın ilanı listeye ekleme.
 - En fazla 10 ilan döndür.`;
 
@@ -36,34 +38,46 @@ export const aiAramaAdaptoru: KaynakAdaptoru = {
         kaynak: "aiArama",
       });
 
+      // Web aramada orijinal ilan metni yok; yer doğrulaması Telegram
+      // yolundaki kadar sert yapılamaz. İl eşlemesi yine sunucuda.
       const bulunanlar = (cikti.ilanlar || [])
-        .map((i) => ({
-          firmaAdi: i.firmaAdi?.trim() || null,
-          telefon: i.telefon?.replace(/\D/g, "") || null,
-          nereden: i.nereden?.trim() || null,
-          nereye: i.nereye?.trim() || null,
-          cikisIl: ilBul(i.nereden),
-          varisIl: ilBul(i.nereye),
-          yuklemeTarihi: null,
-          ucret:
-            i.ucretTuru !== "TON_BASI" && i.ucretTl && i.ucretTl > 0
-              ? Math.round(i.ucretTl * 100)
-              : null,
-          fiyatTon:
-            i.ucretTuru === "TON_BASI" && i.ucretTl && i.ucretTl > 0
-              ? Math.round(i.ucretTl * 100)
-              : null,
-          fiyatBelirsiz: i.ucretTuru === "BELIRSIZ" && Boolean(i.ucretTl),
-          tonaj:
-            i.tonaj && i.tonaj >= 1 && i.tonaj <= 50
-              ? Math.round(i.tonaj)
-              : null,
-          aracTipi: i.aracTipi?.trim() || null,
-          aracTipiKod: aracKoduBul(i.aracTipi),
-          yukTipi: i.yukTipi?.trim() || null,
-          guvenSkoru: Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0))),
-        }))
-        .filter((i) => i.guvenSkoru >= 50 && i.cikisIl && i.varisIl)
+        .map((i) => {
+          const nereden = i.nereden?.trim() || null;
+          const nereye = i.nereye?.trim() || null;
+          return {
+            firmaAdi: i.firmaAdi?.trim() || null,
+            telefon: i.telefon?.replace(/\D/g, "") || null,
+            nereden,
+            nereye,
+            cikisIl: ilBul(nereden),
+            varisIl: ilBul(nereye),
+            yuklemeTarihi: null,
+            ucret:
+              i.ucretTuru !== "TON_BASI" && i.ucretTl && i.ucretTl > 0
+                ? Math.round(i.ucretTl * 100)
+                : null,
+            fiyatTon:
+              i.ucretTuru === "TON_BASI" && i.ucretTl && i.ucretTl > 0
+                ? Math.round(i.ucretTl * 100)
+                : null,
+            fiyatBelirsiz: i.ucretTuru === "BELIRSIZ" && Boolean(i.ucretTl),
+            tonaj:
+              i.tonaj && i.tonaj >= 1 && i.tonaj <= 50
+                ? Math.round(i.tonaj)
+                : null,
+            aracTipi: i.aracTipi?.trim() || null,
+            aracTipiKod: aracKoduBul(i.aracTipi),
+            yukTipi: i.yukTipi?.trim() || null,
+            guvenSkoru: Math.max(
+              0,
+              Math.min(100, Math.round(i.guvenSkoru ?? 0))
+            ),
+          };
+        })
+        .filter(
+          (i) =>
+            i.guvenSkoru >= 15 && Boolean(i.cikisIl || i.varisIl || i.nereden)
+        )
         .map((ilan) => ({ ilan, hamMetin: ilanOzeti(ilan, kaynak.ad) }));
 
       return { bulunanlar, hata: null };

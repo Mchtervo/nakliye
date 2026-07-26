@@ -23,22 +23,23 @@ export type KaydedilenIlan = {
 
 /**
  * Aynı ilanın farklı kaynaklardan / tekrar tekrar kaydedilmesini önler.
- * Telefon varsa telefon + rota + ücret; yoksa metnin kendisi esas alınır.
  *
- * Rota il değil ham yer adıyla anahtarlanır: aynı komisyoncunun "Çan ->
- * Kızıltepe" ve "Çan -> Mardin" ilanları aynı ile düşüyor, il kullanılırsa
- * ikincisi tekrar sanılıp siliniyor.
+ * Rota her zaman hash'te: telefondan bağımsız. Aksi hâlde aynı mesajdaki
+ * 20 güzergah (telefon yok) tek satıra çöküyordu — ham metin hash'i
+ * hepsinde aynıydı.
+ *
+ * Yer adı il değil ham adla anahtarlanır: "Çan→Kızıltepe" ile
+ * "Çan→Mardin" aynı ile düşse bile ayrı ilandır.
  */
-export function dedupHashUret(ilan: CozulmusIlan, hamMetin: string): string {
-  const cekirdek = ilan.telefon
-    ? [
-        ilan.telefon,
-        sadelestir(ilan.nereden ?? ilan.cikisIl ?? ""),
-        sadelestir(ilan.nereye ?? ilan.varisIl ?? ""),
-        ilan.ucret ?? ilan.fiyatTon ?? "",
-        ilan.yuklemeTarihi?.toISOString().slice(0, 10) ?? "",
-      ].join("|")
-    : sadelestir(hamMetin).slice(0, 400);
+export function dedupHashUret(ilan: CozulmusIlan, _hamMetin: string): string {
+  const cekirdek = [
+    ilan.telefon ?? "",
+    sadelestir(ilan.nereden ?? ilan.cikisIl ?? ""),
+    sadelestir(ilan.nereye ?? ilan.varisIl ?? ""),
+    ilan.ucret ?? ilan.fiyatTon ?? "",
+    ilan.tonaj ?? "",
+    ilan.yuklemeTarihi?.toISOString().slice(0, 10) ?? "",
+  ].join("|");
 
   return createHash("sha256").update(cekirdek).digest("hex").slice(0, 40);
 }

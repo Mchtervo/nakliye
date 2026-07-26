@@ -41,36 +41,30 @@ Hedef: çağrı başı çıktı &lt; 500 token.
 # FAZ 2 — AYRIŞTIRMA HATALARI
 
 ## 2.1 Uydurma yer adları
-Ham metinde geçmeyen şehir başlığa yazılıyor. Örnek: metin "KÜTAHYA TUNÇBİLEK → ESKİŞEHİR MİHALIÇÇIK" diyor, sistem "Kayseri Pınarbaşı → Eskişehir" yazmış.
-
-- Prompt'a sert kural: *"Ham metinde AÇIKÇA geçmeyen hiçbir yer adı yazma. Emin değilsen null bırak. Uydurma."*
-- **Sunucu tarafı doğrulama:** çıkarılan `cikisIl`, `varisIl`, `nereden`, `nereye` ham metinde (veya ilçe→il tablosunda karşılığı olarak) geçiyor mu kontrol et. Geçmiyorsa null'a çek, `guvenSkoru`'nu 40 altına indir.
-- `guvenSkoru < 50` olanlar varsayılan listede görünmesin, "Şüpheli" sekmesinde dursun.
+- [x] Prompt sert kural (ham metinde yoksa null / uydurma yasak)
+- [x] Sunucu doğrulama: `nereden`/`nereye`/`cikisIl`/`varisIl` → yoksa null, skor ≤35
+- [x] `guvenSkoru < 50` → Şüpheli sekme; düşük skorlu artık kayda girer (≥15 + yer)
+- [ ] Canlıda gerçek mesajla doğrula (AI kapalıyken bekliyor)
 
 ## 2.2 Ton başı / komple fiyat karışması
-"900+KDV", "600+KDV" **ton başı** fiyat. Sistem komple navlun sanıyor.
-
-- `YukIlani`'ye iki alan: `fiyatTon` ve `fiyatKomple` (ikisi de kuruş)
-- Prompt: *"Fiyat ton başı mı komple mi ayırt et. 'ton', '/ton', 'TL/ton' veya X+KDV liste formatı → ton başı. 'komple', 'navlun', 'toplam' → komple. Anlaşılmıyorsa ikisini de null, `fiyatBelirsiz: true`."*
-- Ekranda açıkça "₺900/ton" yaz
-- Tonaj biliniyorsa tahmini komple ayrı göster: "~₺21.600 (24 ton × 900)" — gerçek fiyat gibi sunma
+- [x] `fiyatTon` + `ucret` (=komple, kuruş) + `fiyatBelirsiz`
+- [x] Prompt `ucretTuru`: TON_BASI / KOMPLE / BELIRSIZ
+- [x] UI: `₺900/ton`, tahmin `~₺21.600 (24 ton × 900)`
+- [ ] Canlıda "900+KDV" örneğiyle doğrula
 
 ## 2.3 Çok güzergahlı mesajlar
-Bir mesajda 5-30 güzergah olabiliyor. Her biri ayrı ilan, hepsi aynı ham metni referans göstersin. Her güzergahın kendi satırından çıkarıldığından emin ol.
-
-**"İlk N rota" ile kesme yok** — sıralama rastgele, iyi yükümü kaybederim. Bölgeye göre ele (Faz 3).
+- [x] Her güzergah ayrı ilan, aynı `hamMetin`
+- [x] Telefonsuz dedup artık rotaya göre (önce hepsi tek satıra çöküyordu)
+- [x] "İlk N rota" kesme yok
 
 ## 2.4 Sessiz gruplar teşhisi
-7 grup takipte, 6'sında 0 ilan var.
-
-- `sonMesajId` null olduğunda ilk okuma ne yapıyor? Hiç okumuyor mu, okuyup atıyor mu?
-- Her grup için son 24 saatte kaç mesaj çekildiğini raporla
-- Panelde her grubun yanında "son okuma: X dk önce · çekilen mesaj: X" göster
+- [x] `sonMesajId` null → son 20 mesaj okunur (atlamaz)
+- [x] Panel: `son okuma: … · çekilen (24s): N · … ilan`
+- [x] İlk okuma bekleyen gruplar işaretlenir
 
 ## 2.5 Eksik gruplar
-10 gruba katıldım, panelde 7 görünüyor. Eksikler: `@grupajkargo`, `@eskisehirnakliyeciler`, `@guneymarmara` — üçü de hedef bölgede.
-
-Üyelik senkronu grup **başlığına göre filtre uyguluyorsa kaldır.** Zaten üyeysem başlık ne olursa olsun takibe al. Filtreleme ilan seviyesinde yapılır, grup seviyesinde değil.
+- [x] Üye olunan grupta başlık filtresi yok (`adaylariDegerlendir`)
+- [ ] Canlıda `@grupajkargo` vb. senkron sonrası görünüyor mu kontrol et
 
 ---
 

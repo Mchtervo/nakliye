@@ -17,21 +17,21 @@ Verilen metinde kaç tane yük ilanı varsa hepsini çıkar.
 Kurallar:
 - Sadece GERÇEK yük ilanlarını al. Sohbet, selam, "araç arıyorum", reklam,
   ödeme şikayeti gibi mesajlar ilan değildir; onları listeye ekleme.
-- YER ADI EN ÖNEMLİ KURAL: nereden/nereye alanına yer adını METİNDE GEÇTİĞİ
-  GİBİ yaz. Kısaltmayı açma, ilçeyi ile çevirme, yazımı düzeltme. Metinde
-  "İst" yazıyorsa "İst", "Ostim" yazıyorsa "Ostim" yaz. Metinde geçmeyen bir
-  şehir/ilçe adını ASLA yazma; yer belirtilmemişse null bırak. Tahmin yok.
+- YER ADI (SERT): Ham metinde AÇIKÇA geçmeyen hiçbir yer adı yazma.
+  Emin değilsen null bırak. Uydurma. Kısaltmayı açma, ilçeyi ile çevirme,
+  yazımı "düzeltme". Metinde "İst" yazıyorsa "İst", "Ostim" yazıyorsa
+  "Ostim" yaz. Metinde "Kütahya Tunçbilek" varken "Kayseri Pınarbaşı"
+  yazmak yasaktır.
 - "Ankara > Bolu", "Ankara-Bolu", "Ankaradan Boluya" gibi yazımların hepsi
   çıkış ve varış demektir.
 - ÇOK GÜZERGAHLI MESAJ: Bir mesajda birden çok güzergah listelenmiş olabilir
   ("ÇAN'DAN: VAN 2400+, KONYA 850+, MERSİN 1100+"). Her satırı AYRI ilan yap.
   Ortak çıkış yerini hepsine uygula ama bir satırın varışını veya fiyatını
-  ASLA başka satıra taşıma.
-- FİYAT TÜRÜ: ucretTuru alanını doldur. Bir çıkıştan çok sayıda şehir ve
-  yanlarında 500-3000 arası sayılar listelenmişse ("VAN 2400+", "900+KDV")
-  bu TON_BASI fiyattır. "komple", "navlun", "araç" gibi ifadelerle verilen
-  tek ve büyük tutar ("45 bin", "38000 TL komple") KOMPLE'dir. Emin
-  olamıyorsan BELIRSIZ yaz.
+  ASLA başka satıra taşıma. "İlk N rota" diye kesme — hepsini çıkar.
+- FİYAT TÜRÜ: ton mu komple mi ayırt et. "ton", "/ton", "TL/ton" veya
+  X+KDV liste formatı ("VAN 2400+", "900+KDV") → TON_BASI. "komple",
+  "navlun", "toplam", "araç" ile verilen tek büyük tutar → KOMPLE.
+  Anlaşılmıyorsa ucretTl null ve ucretTuru BELIRSIZ.
 - Ücret "8500", "8.500 TL", "8500tl" gibi yazılabilir; sadece sayıyı ver.
   Ücret yazmıyorsa null bırak.
 - tonaj: yükün ton cinsinden ağırlığı ("24 ton" -> 24). "3 TİR", "10 araç"
@@ -131,14 +131,25 @@ function ilaniNormalize(i: HamIlan, baglam: MetinBaglami): CozulmusIlan {
   let nereye = i.nereye?.trim() || null;
   let skor = Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0)));
 
-  // Uydurulan alan silinir ve ilan güvenilmez sayılır; sessizce kaydedilip
-  // gerçek bilgi gibi gösterilmesindense elenmesi iyidir.
+  // Uydurulan alan silinir; skor 40 altına iner → Şüpheli sekmesine düşer.
   if (!yerMetindeVarMi(nereden, baglam)) {
     nereden = null;
     skor = Math.min(skor, 35);
   }
   if (!yerMetindeVarMi(nereye, baglam)) {
     nereye = null;
+    skor = Math.min(skor, 35);
+  }
+
+  // İl sunucuda türetilir; türetilen il de ham metin bağlamında olmalı.
+  let cikisIl = ilBul(nereden);
+  let varisIl = ilBul(nereye);
+  if (cikisIl && !baglam.iller.has(cikisIl) && !yerMetindeVarMi(cikisIl, baglam)) {
+    cikisIl = null;
+    skor = Math.min(skor, 35);
+  }
+  if (varisIl && !baglam.iller.has(varisIl) && !yerMetindeVarMi(varisIl, baglam)) {
+    varisIl = null;
     skor = Math.min(skor, 35);
   }
 
@@ -150,11 +161,10 @@ function ilaniNormalize(i: HamIlan, baglam: MetinBaglami): CozulmusIlan {
     telefon: telefonTemizle(i.telefon),
     nereden,
     nereye,
-    // İl eşlemesi modele bırakılmaz; ham yer adından burada türetilir.
-    cikisIl: ilBul(nereden),
-    varisIl: ilBul(nereye),
+    cikisIl,
+    varisIl,
     yuklemeTarihi: tarihCevir(i.yuklemeTarihi),
-    ucret: tur === "KOMPLE" ? fiyat : null,
+    ucret: tur === "KOMPLE" ? fiyat : null, // fiyatKomple
     fiyatTon: tur === "TON_BASI" ? fiyat : null,
     fiyatBelirsiz: tur === "BELIRSIZ",
     tonaj: tonajTemizle(i.tonaj),
@@ -165,8 +175,14 @@ function ilaniNormalize(i: HamIlan, baglam: MetinBaglami): CozulmusIlan {
   };
 }
 
+/**
+ * Kayda alınacak mı? Düşük güven (<50) Şüpheli'ye gider; tamamen boş /
+ * uydurma temizlenmiş ilanlar atılır. Eski eşik 40, uydurma cezalı
+ * ilanları (skor 35) düşürüyordu — Şüpheli sekmesi boş kalıyordu.
+ */
 function kullanilabilirMi(i: CozulmusIlan): boolean {
-  return i.guvenSkoru >= 40 && Boolean(i.cikisIl || i.varisIl);
+  const yerVar = Boolean(i.cikisIl || i.varisIl || i.nereden || i.nereye);
+  return yerVar && i.guvenSkoru >= 15;
 }
 
 /** Serbest metinden yük ilanlarını çıkarır. */

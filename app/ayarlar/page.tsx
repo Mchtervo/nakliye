@@ -191,11 +191,12 @@ export default async function AyarlarSayfasi() {
                             .join(" · ")
                         : [
                             g.sonTarama
-                              ? `okuma ${gecenSure(g.sonTarama)}`
-                              : "hiç okunmadı",
-                            `24s ${g.mesaj24s} mesaj`,
+                              ? `son okuma: ${gecenSure(g.sonTarama)}`
+                              : "son okuma: hiç",
+                            `çekilen (24s): ${g.mesaj24s}`,
                             g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
                             `${g.ilanAdedi} ilan`,
+                            g.ilkOkumaYapildi ? null : "ilk okuma bekliyor",
                           ]
                             .filter(Boolean)
                             .join(" · ")}
