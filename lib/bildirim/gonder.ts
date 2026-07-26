@@ -31,6 +31,7 @@ function ilanMetni(ilan: KaydedilenIlan, donusMu: boolean): string {
 
   if (ilan.ucret) satirlar.push(`Ücret: <b>${htmlKacis(tlYaz(ilan.ucret))}</b>`);
   if (ilan.firmaAdi) satirlar.push(`Firma: ${htmlKacis(ilan.firmaAdi)}`);
+  if (ilan.ilgiliKisi) satirlar.push(`Kişi: ${htmlKacis(ilan.ilgiliKisi)}`);
   if (ilan.telefon) satirlar.push(`Telefon: <a href="tel:${ilan.telefon}">${ilan.telefon}</a>`);
 
   satirlar.push("", htmlKacis(ilan.hamMetin.slice(0, 400)));

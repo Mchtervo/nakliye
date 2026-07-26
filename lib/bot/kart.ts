@@ -16,6 +16,7 @@ export type KartIlan = {
   fiyatBelirsiz: boolean;
   telefon: string | null;
   firmaAdi: string | null;
+  ilgiliKisi?: string | null;
   guvenSkoru: number;
   createdAt: Date;
   kaynakAd?: string | null;
@@ -42,6 +43,7 @@ export function ilanKarti(ilan: KartIlan): string {
     fiyat.ana ? `💰 ${htmlKacis(fiyat.ana)}` : null,
     ilan.telefon ? `📞 ${htmlKacis(ilan.telefon)}` : null,
     ilan.firmaAdi ? `🏢 ${htmlKacis(ilan.firmaAdi)}` : null,
+    ilan.ilgiliKisi ? `👤 ${htmlKacis(ilan.ilgiliKisi)}` : null,
     `⏱ ${htmlKacis(gecenSure(ilan.createdAt))}${
       ilan.kaynakAd ? ` · ${htmlKacis(ilan.kaynakAd)}` : ""
     } · güven %${ilan.guvenSkoru}`,

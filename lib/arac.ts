@@ -135,3 +135,43 @@ export function aracKodlariCozumle(ham: string | null | undefined): AracTipiKodu
     .filter((p): p is AracTipiKodu => gecerli.has(p));
   return [...new Set(kodlar)];
 }
+
+/**
+ * Yer adı gibi görünen ama araç tipi olan kelimeler.
+ * "Çanakkale→Kırkayak" uydurmasını sunucuda kesmek için.
+ */
+const YER_KARA_EK = [
+  "kirkayak", "kir kayak", "sinirsiz damper", "tir",
+  "dorse", "treyler", "trailer", "cekici", "lorry",
+  "mega", "jumbo", "tent", "frigo", "damper", "lowbed",
+  "silobas", "tanker", "konteyner", "romork",
+];
+
+let yerKaraSet: Set<string> | null = null;
+
+function yerKaraKumesi(): Set<string> {
+  if (yerKaraSet) return yerKaraSet;
+  const s = new Set<string>();
+  for (const kelimeler of Object.values(TIP_KELIMELER)) {
+    for (const k of kelimeler) s.add(k);
+  }
+  s.add("sal");
+  for (const k of YER_KARA_EK) s.add(sadelestir(k));
+  yerKaraSet = s;
+  return s;
+}
+
+/** Bu metin yer adı değil, araç tipi / ekipman mı? */
+export function aracYerAdiMi(yer: string | null | undefined): boolean {
+  const sade = sadelestir(yer || "");
+  if (!sade) return false;
+  const kara = yerKaraKumesi();
+  if (kara.has(sade)) return true;
+  // "sinirsiz damper", "10 teker kirkayak"
+  for (const k of kara) {
+    if (k.length >= 4 && (sade === k || sade.includes(` ${k}`) || sade.includes(`${k} `))) {
+      return true;
+    }
+  }
+  return aracKoduBul(yer) !== null && !sade.includes(" "); // tek kelime araç kodu
+}

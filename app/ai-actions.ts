@@ -17,13 +17,16 @@ import type { KaynakTuru } from "@/lib/kaynaklar/tip";
 
 export type AiSonuc = { hata: string } | { bilgi: string } | null;
 
-/** AI_KAPALI iken 1 adet 10'luk test hakkı (30 dk). */
-export async function aiTestIzniVer(): Promise<AiSonuc> {
-  const { bitisMs } = await testIzniVer(30);
+/** AI_KAPALI iken 1 adet 10'luk test hakkı (30 dk). tavanUsd varsayılan $0.05. */
+export async function aiTestIzniVer(tavanUsd = 0.05): Promise<AiSonuc> {
+  const { bitisMs, tavanUsd: tavan } = await testIzniVer(30, tavanUsd);
   const durum = await testIzniDurum();
   revalidatePath("/ayarlar");
   return {
-    bilgi: `1 test izni verildi (kalan ${durum.dakikaKalan} dk, bitiş ${new Date(bitisMs).toLocaleTimeString("tr-TR")}). Şimdi «10 mesaj işle»ye bas. İzin test bitince sıfırlanır.`,
+    bilgi:
+      `1 test izni verildi (tavan $${tavan.toFixed(2)}, kalan ${durum.dakikaKalan} dk, ` +
+      `bitiş ${new Date(bitisMs).toLocaleTimeString("tr-TR")}). ` +
+      `Şimdi «10 mesaj işle»ye bas. Tavan aşılınca test durur; izin bitince sıfırlanır.`,
   };
 }
 

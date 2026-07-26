@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { aiTestBypassIle } from "@/lib/ai/istemci";
+import { AiHatasi, aiTestBypassIle } from "@/lib/ai/istemci";
 import { mikrodolarYaz } from "@/lib/ai/maliyet";
 import { AI_MAX_DENEME } from "@/lib/ai/modeller";
-import { kuyrugunuCoz } from "@/lib/kaynaklar/telegramUye";
+import { testTurButceMusaitMi, testTurTavanUsd } from "@/lib/ai/testIzin";
+import { kuyrugunuCoz, type KuyrukRaporu } from "@/lib/kaynaklar/telegramUye";
 
 export type AiTestSonuc = { hata: string } | { bilgi: string };
 
@@ -155,14 +156,52 @@ export async function aiTestOnMesajCalistir(): Promise<AiTestSonuc> {
   }
 
   const baslangic = new Date();
-  try {
-    const rapor = await aiTestBypassIle(() =>
-      kuyrugunuCoz(10, {
-        testModu: true,
-        mesajIdler: hedefIdler.length > 0 ? hedefIdler : undefined,
-      })
-    );
+  const hedefToplam = Math.max(hedefIdler.length, 10);
+  let tavanDurdu = false;
+  let tavanUsd = 0.05;
+  let islenen = 0;
+  let yeniIlan = 0;
+  let raporHata: string | null = null;
+  const islenenIdler: number[] = [];
 
+  try {
+    await aiTestBypassIle(async () => {
+      tavanUsd = await testTurTavanUsd();
+      // Mesaj mesaj: tavan aşılınca kalanları hiç başlatma.
+      for (const id of hedefIdler) {
+        if (!(await testTurButceMusaitMi(0))) {
+          tavanDurdu = true;
+          break;
+        }
+        try {
+          const r: KuyrukRaporu = await kuyrugunuCoz(1, {
+            testModu: true,
+            mesajIdler: [id],
+          });
+          islenen += r.islenen;
+          yeniIlan += r.yeniIlan;
+          islenenIdler.push(...(r.mesajIdler ?? [id]));
+          if (r.hata) raporHata = r.hata;
+        } catch (hata) {
+          if (hata instanceof AiHatasi && hata.kod === "TEST_TAVAN") {
+            tavanDurdu = true;
+            break;
+          }
+          throw hata;
+        }
+      }
+    });
+  } catch (hata) {
+    if (hata instanceof AiHatasi && hata.kod === "TEST_TAVAN") {
+      tavanDurdu = true;
+    } else {
+      return {
+        hata: hata instanceof Error ? hata.message : "Test modu başarısız.",
+      };
+    }
+  }
+
+  try {
     const cagrilar = await prisma.aiCagri.findMany({
       where: { zaman: { gte: baslangic } },
       orderBy: { zaman: "asc" },
@@ -201,10 +240,12 @@ export async function aiTestOnMesajCalistir(): Promise<AiTestSonuc> {
       modelOrnek: cagrilar[0]?.model ?? null,
     };
 
-    const idler =
-      hedefIdler.length >= 10
+    const idler: number[] =
+      hedefIdler.length > 0
         ? hedefIdler
-        : rapor.mesajIdler || hedefIdler;
+        : islenenIdler.length > 0
+          ? islenenIdler
+          : [];
     if (idler.length > 0) {
       await testAyarYaz(TEST_IDLER_ANAHTAR, JSON.stringify(idler.slice(0, 10)));
     }
@@ -235,9 +276,14 @@ export async function aiTestOnMesajCalistir(): Promise<AiTestSonuc> {
     const { testKaliteRaporu } = await import("@/lib/ai/testKalite");
     const kalite = await testKaliteRaporu(idler);
 
+    const tavanSatir = tavanDurdu
+      ? `⛔ Tavan nedeniyle durduruldu ($${tavanUsd.toFixed(2)}), ${islenen}/${hedefToplam} mesaj işlendi.\n`
+      : "";
+
     const ozet =
-      `Hedef mesaj: ${hedefIdler.length}, işlenen: ${rapor.islenen}, yeni ilan: ${rapor.yeniIlan}, çağrı: ${cagrilar.length}\n` +
-      `Toplam in ${girdi} / out ${cikti} / reason ${reasoning} · ${mikrodolarYaz(maliyet)}\n` +
+      tavanSatir +
+      `Hedef mesaj: ${hedefIdler.length}, işlenen: ${islenen}, yeni ilan: ${yeniIlan}, çağrı: ${cagrilar.length}\n` +
+      `Tavan: $${tavanUsd.toFixed(2)} · Toplam in ${girdi} / out ${cikti} / reason ${reasoning} · ${mikrodolarYaz(maliyet)}\n` +
       `Çağrı ort. out ${ortCikti} · ort. ${mikrodolarYaz(ortMaliyet)} · kesilme ${kesilen}\n` +
       (yuksekCikti > 0
         ? `⚠ ${yuksekCikti} çağrıda çıktı ≥500 token (hedef: altı).\n`
@@ -245,22 +291,30 @@ export async function aiTestOnMesajCalistir(): Promise<AiTestSonuc> {
       (ortMaliyet > 2000
         ? `⚠ Çağrı ort. ≥ $0.002 (hedef: altı).\n`
         : `✓ Çağrı ort. < $0.002.\n`) +
-      (rapor.islenen < 10
-        ? `⚠ Tam 10 işlenmedi (${rapor.islenen}/10) — log/deneme kontrol et.\n`
-        : `✓ Tam 10 mesaj işlendi.\n`) +
+      (tavanDurdu
+        ? ""
+        : islenen < 10
+          ? `⚠ Tam 10 işlenmedi (${islenen}/10) — log/deneme kontrol et.\n`
+          : `✓ Tam 10 mesaj işlendi.\n`) +
       (satirlar ? `Çağrılar:\n${satirlar}\n` : "Çağrı yok.\n") +
       karsilastirma +
       `\n${kalite}\n` +
       "Cron hâlâ AI_KAPALI ile kapalı.";
 
-    if (rapor.hata) {
-      return { hata: `${rapor.hata}\n${ozet}` };
+    if (raporHata && !tavanDurdu) {
+      return { hata: `${raporHata}\n${ozet}` };
+    }
+
+    if (tavanDurdu) {
+      return {
+        bilgi: `Test tavan nedeniyle durdu (${islenen}/${hedefToplam} mesaj).\n${ozet}`,
+      };
     }
 
     return { bilgi: `Test bitti (10'luk tur).\n${ozet}` };
   } catch (hata) {
     return {
-      hata: hata instanceof Error ? hata.message : "Test modu başarısız.",
+      hata: hata instanceof Error ? hata.message : "Test özeti yazılamadı.",
     };
   }
 }

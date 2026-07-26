@@ -11,7 +11,15 @@ const metinVeyaBos = { type: ["string", "null"] };
 const sayiVeyaBos = { type: ["number", "null"] };
 
 const ILAN_ALANLARI: Record<string, unknown> = {
-  firmaAdi: { ...metinVeyaBos, description: "İlanı veren firma / kişi" },
+  firmaAdi: {
+    ...metinVeyaBos,
+    description:
+      "Şirket adı (… Lojistik, … Nakliyat, Ltd). Kişi adı yazma — ilgiliKisi'ye yaz.",
+  },
+  ilgiliKisi: {
+    ...metinVeyaBos,
+    description: "İlgili kişi adı (Ulviye, Mehmet). Şirket adı değil. Yoksa null.",
+  },
   telefon: {
     ...metinVeyaBos,
     description: "Sadece rakamlar, mümkünse 05xxxxxxxxx biçiminde",
@@ -19,12 +27,12 @@ const ILAN_ALANLARI: Record<string, unknown> = {
   nereden: {
     ...metinVeyaBos,
     description:
-      "Yükleme yeri, METİNDE GEÇTİĞİ GİBİ. Kısaltmayı açma, ilçeyi ile çevirme. Metinde yoksa null.",
+      "Yükleme yeri (il/ilçe), METİNDE GEÇTİĞİ GİBİ. Araç tipi veya firma adı YAZMA. Yoksa null.",
   },
   nereye: {
     ...metinVeyaBos,
     description:
-      "Boşaltma yeri, METİNDE GEÇTİĞİ GİBİ. Kısaltmayı açma, ilçeyi ile çevirme. Metinde yoksa null.",
+      "Boşaltma yeri (il/ilçe), METİNDE GEÇTİĞİ GİBİ. Kırkayak/damper/firma adı YAZMA. Yoksa null.",
   },
   yuklemeTarihi: {
     ...metinVeyaBos,
@@ -45,7 +53,10 @@ const ILAN_ALANLARI: Record<string, unknown> = {
     description:
       "Yükün ton cinsinden ağırlığı (ör. 24). Araç adedi değildir. Yoksa null.",
   },
-  aracTipi: { ...metinVeyaBos, description: "Tır, kırkayak, tenteli vb." },
+  aracTipi: {
+    ...metinVeyaBos,
+    description: "tenteli, damper, frigo, kırkayak, lowbed vb. — yer adı değil",
+  },
   yukTipi: { ...metinVeyaBos, description: "Taşınacak malın cinsi" },
   guvenSkoru: {
     type: "integer",
@@ -77,6 +88,7 @@ export const ILAN_LISTESI_SEMASI: Record<string, unknown> = {
 export type IlanCikti = {
   ilanlar: {
     firmaAdi: string | null;
+    ilgiliKisi: string | null;
     telefon: string | null;
     nereden: string | null;
     nereye: string | null;

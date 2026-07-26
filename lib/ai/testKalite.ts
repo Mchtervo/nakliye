@@ -135,9 +135,23 @@ export async function testKaliteRaporu(mesajIdler: number[]): Promise<string> {
     }
   }
 
+  // Aynı mesajdan çoklu kopya (dedup regresyon)
+  let kopyaMesaj = 0;
+  for (const m of mesajlar) {
+    const grup = await prisma.yukIlani.groupBy({
+      by: ["cikisIl", "varisIl", "telefon"],
+      where: { hamMetin: m.metin },
+      _count: { id: true },
+    });
+    if (grup.some((g) => g._count.id > 1)) kopyaMesaj += 1;
+  }
+
   satirlar.push(
-    `\nÖzet sayaç: tel✓${telOk} tel_boş(hamda_var)${telBos} tel⚠${telUydurma} · firma✓${firmaOk} firma_boş/uyuşmaz${firmaBos} · yer✓${yerOk} yer⚠${yerUydurma}`
+    `\nÖzet sayaç: tel✓${telOk} tel_boş(hamda_var)${telBos} tel⚠${telUydurma} · firma✓${firmaOk} firma_boş/uyuşmaz${firmaBos} · yer✓${yerOk} yer⚠${yerUydurma} · kopya_mesaj ${kopyaMesaj}`
   );
+  if (kopyaMesaj > 0) {
+    satirlar.push("⚠ Aynı mesajda tekrarlayan rota+tel var — dedup bozulmuş.");
+  }
   if (telBos > 0) {
     satirlar.push(
       "⚠ Hamda telefon var ama bazı ilanlarda boş — bağlam parçaya gitmiyor olabilir."

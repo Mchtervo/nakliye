@@ -66,13 +66,17 @@ export async function butceyiKes(harcamaMikro: number): Promise<void> {
   }
 }
 
-/** Çağrı öncesi: limit aşıldıysa kes ve false dön. */
-export async function butceMusaitMi(): Promise<boolean> {
+/**
+ * Limit kontrolü. tahminiEkMikro > 0 ise çağrı başlamadan önce
+ * (harcama + tahmin) ≥ limit ise kes — faturalanmadan dur.
+ */
+export async function butceMusaitMi(tahminiEkMikro = 0): Promise<boolean> {
   if (await butceKesildiMi()) return false;
 
   const harcama = await bugunHarcamaMikro();
   const limitMikro = Math.round(gunlukButceUsd() * 1_000_000);
-  if (harcama >= limitMikro) {
+  const proje = harcama + Math.max(0, tahminiEkMikro);
+  if (proje >= limitMikro) {
     await butceyiKes(harcama);
     return false;
   }

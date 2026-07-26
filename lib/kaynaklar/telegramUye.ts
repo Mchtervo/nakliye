@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   ilanlariCozumle,
   mesajlariCozumle,
+  type CozumFiltre,
   type CozulmusIlan,
   type MesajIlani,
 } from "@/lib/ai/ilanCozumle";
@@ -13,18 +14,22 @@ import {
   aiTercihleriOku,
   ayarOku,
   ayarYaz,
+  type AiTercihleri,
 } from "@/lib/ayarlar";
 import {
   aramaSorgulariUret,
+  cekirdekIlKumesi,
   genisIlKumesi,
   grubuDegerlendir,
   ilinBolgesi,
   yukBasligiMi,
+  type BolgeKodu,
 } from "@/lib/bolgeler";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
+import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul } from "@/lib/iller";
 import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
-import { ilgilileriSuz } from "@/lib/kaynaklar/filtre";
+import { araciUyuyorMu, ilgilileriSuz } from "@/lib/kaynaklar/filtre";
 import { grupOkumaArtir, grupOkumaToplu } from "@/lib/kaynaklar/grupOkumaSayac";
 import {
   elemeSebebi,
@@ -290,12 +295,47 @@ export type KuyrukRaporu = {
 
 type PartiMesaj = { id: number; metin: string };
 
+const UZAK_VARIS_BOLGE: BolgeKodu[] = ["DOGU_ANADOLU", "GUNEYDOGU"];
+
+/**
+ * Kayıt öncesi: araç tipi + uzak varış (ana üs ~600km karayolu).
+ * Araç belirsiz (kod/metin yok) → geçir; sadece açık uyumsuz elenir.
+ */
+function ilanKaydaUygunMu(
+  ilan: CozulmusIlan,
+  tercih: AiTercihleri,
+  anaUs: string | null,
+  genisSet: Set<string>
+): boolean {
+  if (!araciUyuyorMu(ilan, tercih)) return false;
+  if (!ilan.cikisIl || !ilan.varisIl) return false;
+
+  // Varış geniş kapsamda olmalı (çekirdek + yakın komşu).
+  // Aksi hâlde Çanakkale→Adana gibi "bir uç yeter" kaçakları kalır.
+  if (!genisSet.has(ilan.varisIl)) return false;
+
+  const vb = ilinBolgesi(ilan.varisIl);
+  if (
+    vb &&
+    UZAK_VARIS_BOLGE.includes(vb) &&
+    !tercih.bolgeler.includes(vb)
+  ) {
+    return false;
+  }
+  if (anaUs) {
+    const km = yaklasikKarayoluKm(anaUs, ilan.varisIl);
+    if (km !== null && km > VARIS_UZA_KM) return false;
+  }
+  return true;
+}
+
 /**
  * Tek mesaj — en son çare. Parti ikiye bölüne bölüne buraya iner.
  */
 async function tekMesajCozumle(
   mesaj: PartiMesaj,
-  kapsam: string[]
+  kapsam: string[],
+  filtre: CozumFiltre
 ): Promise<{
   sonuc: MesajIlani[];
   basarili: number[];
@@ -303,7 +343,7 @@ async function tekMesajCozumle(
   cagri: number;
 }> {
   try {
-    const ilanlar = await ilanlariCozumle(mesaj.metin, kapsam);
+    const ilanlar = await ilanlariCozumle(mesaj.metin, kapsam, filtre);
     return {
       sonuc: ilanlar.map((ilan) => ({ anahtar: mesaj.id, ilan })),
       basarili: [mesaj.id],
@@ -311,6 +351,9 @@ async function tekMesajCozumle(
       cagri: 1,
     };
   } catch (hata) {
+    const { aiSertDurdurma } = await import("@/lib/ai/istemci");
+    if (aiSertDurdurma(hata)) throw hata;
+
     const metin = hata instanceof Error ? hata.message : "Çözümlenemedi";
     await prisma.hamMesaj.update({
       where: { id: mesaj.id },
@@ -328,7 +371,8 @@ async function tekMesajCozumle(
 async function bolerekCozumle(
   parti: PartiMesaj[],
   kapsam: string[],
-  bitis: number
+  bitis: number,
+  filtre: CozumFiltre
 ): Promise<{
   sonuc: MesajIlani[];
   basarili: number[];
@@ -344,14 +388,15 @@ async function bolerekCozumle(
   }
 
   if (parti.length === 1) {
-    const tek = await tekMesajCozumle(parti[0], kapsam);
+    const tek = await tekMesajCozumle(parti[0], kapsam, filtre);
     return { ...tek, bolgeElenen: 0 };
   }
 
   try {
     const rapor = await mesajlariCozumle(
       parti.map((m) => ({ anahtar: m.id, metin: m.metin })),
-      kapsam
+      kapsam,
+      filtre
     );
     return {
       sonuc: rapor.ilanlar,
@@ -360,10 +405,24 @@ async function bolerekCozumle(
       bolgeElenen: rapor.bolgeElenen,
       cagri: 1,
     };
-  } catch {
+  } catch (hata) {
+    const { aiSertDurdurma } = await import("@/lib/ai/istemci");
+    // Tavan / günlük bütçe: yarıya bölüp yeniden deneme = daha çok çağrı.
+    if (aiSertDurdurma(hata)) throw hata;
+
     const orta = Math.ceil(parti.length / 2);
-    const sol = await bolerekCozumle(parti.slice(0, orta), kapsam, bitis);
-    const sag = await bolerekCozumle(parti.slice(orta), kapsam, bitis);
+    const sol = await bolerekCozumle(
+      parti.slice(0, orta),
+      kapsam,
+      bitis,
+      filtre
+    );
+    const sag = await bolerekCozumle(
+      parti.slice(orta),
+      kapsam,
+      bitis,
+      filtre
+    );
     return {
       sonuc: [...sol.sonuc, ...sag.sonuc],
       basarili: [...sol.basarili, ...sag.basarili],
@@ -527,12 +586,16 @@ export async function kuyrugunuCoz(
 
   const tercih = await aiTercihleriOku();
   const kapsam = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
+  const cekirdek = cekirdekIlKumesi(tercih.bolgeler, tercih.ekIller);
+  const anaUs = tercih.anaUs || ilBul(tercih.sehir);
+  const filtre: CozumFiltre = { filtreIlleri: cekirdek, anaUs };
   const bitis = Date.now() + COZUM_BUTCE_MS;
 
   const cozum = await bolerekCozumle(
     parti.map((m) => ({ id: m.id, metin: m.metin })),
     kapsam,
-    bitis
+    bitis,
+    filtre
   );
 
   const cozulenler = cozum.sonuc;
@@ -556,13 +619,23 @@ export async function kuyrugunuCoz(
     { ilan: CozulmusIlan; hamMetin: string }[]
   >();
 
+  const genisSet = new Set(kapsam);
+  let aracElenen = 0;
+  let uzakElenen = 0;
   for (const { anahtar, ilan } of cozulenler) {
+    if (!ilanKaydaUygunMu(ilan, tercih, anaUs, genisSet)) {
+      if (!araciUyuyorMu(ilan, tercih)) aracElenen += 1;
+      else uzakElenen += 1;
+      continue;
+    }
     const kaynakId = kaynaklar.get(anahtar) ?? null;
     const hamMetin = metinler.get(anahtar) ?? "";
     const liste = kaynagaGore.get(kaynakId) ?? [];
     liste.push({ ilan, hamMetin });
     kaynagaGore.set(kaynakId, liste);
   }
+  if (aracElenen > 0) await elemeArtir({ ARAC_TIP: aracElenen });
+  if (uzakElenen > 0) await elemeArtir({ BOLGE_ROTA: uzakElenen });
 
   const yeniler: KaydedilenIlan[] = [];
   for (const [kaynakId, bulunanlar] of kaynagaGore) {

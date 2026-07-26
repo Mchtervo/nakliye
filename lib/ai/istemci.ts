@@ -4,7 +4,7 @@ import {
   MODEL_HIZLI,
 } from "@/lib/ai/modeller";
 import { butceMusaitMi } from "@/lib/ai/butce";
-import { maliyetHesapla } from "@/lib/ai/maliyet";
+import { maliyetHesapla, tahminiCagriMikro } from "@/lib/ai/maliyet";
 import { prisma } from "@/lib/prisma";
 
 const API_URL = "https://api.openai.com/v1/responses";
@@ -16,6 +16,17 @@ export class AiHatasi extends Error {
     this.name = "AiHatasi";
     this.kod = kod;
   }
+}
+
+/** Parti bölme / yeniden deneme yapmadan yukarı fırlatılacak hatalar. */
+export function aiSertDurdurma(hata: unknown): boolean {
+  return (
+    hata instanceof AiHatasi &&
+    (hata.kod === "TEST_TAVAN" ||
+      hata.kod === "BUTCE_DOLDU" ||
+      hata.kod === "AI_KAPALI" ||
+      hata.kod === "TEST_IZIN_YOK")
+  );
 }
 
 /**
@@ -203,13 +214,6 @@ async function istekAt(
     );
   }
 
-  if (!(await butceMusaitMi())) {
-    throw new AiHatasi(
-      "Günlük AI bütçesi doldu — otomatik kesildi.",
-      "BUTCE_DOLDU"
-    );
-  }
-
   const anahtar = process.env.OPENAI_API_KEY;
   if (!anahtar) {
     throw new AiHatasi(
@@ -219,6 +223,27 @@ async function istekAt(
   }
 
   const model = String(govde.model || MODEL_HIZLI);
+  const maxCikti = Number(govde.max_output_tokens) || AI_MAX_CIKTI;
+  const tahminMikro = tahminiCagriMikro(model, maxCikti);
+
+  // Günlük limit: çağrı başlamadan önce tahminle kontrol (sonra değil).
+  if (!(await butceMusaitMi(tahminMikro))) {
+    throw new AiHatasi(
+      "Günlük AI bütçesi doldu — otomatik kesildi (çağrı öncesi tahmin).",
+      "BUTCE_DOLDU"
+    );
+  }
+
+  if (testBypass) {
+    const { testTurButceMusaitMi } = await import("@/lib/ai/testIzin");
+    if (!(await testTurButceMusaitMi(tahminMikro))) {
+      throw new AiHatasi(
+        "Test tavanı aşıldı — kalan mesajlar işlenmedi.",
+        "TEST_TAVAN"
+      );
+    }
+  }
+
   let sonGecici: AiHatasi | null = null;
 
   // deneme 0: asıl; 1-2: sadece 429/5xx
@@ -297,6 +322,10 @@ async function istekAt(
         console.warn(
           `[ai] KESILDI kaynak=${kaynak} model=${model} out=${ciktiToken} reason=${kesilme}`
         );
+        if (testBypass) {
+          const { testTurHarcamaEkle } = await import("@/lib/ai/testIzin");
+          await testTurHarcamaEkle(maliyetMikro);
+        }
         await butceMusaitMi();
         throw new AiHatasi(
           `Yanıt max_output_tokens yüzünden kesildi (${kesilme}).`,
@@ -316,7 +345,13 @@ async function istekAt(
         sureMs,
       });
 
-      // Çağrı sonrası bütçe kontrolü (aştıysa bir sonrakini keser + Telegram).
+      if (testBypass) {
+        const { testTurHarcamaEkle } = await import("@/lib/ai/testIzin");
+        await testTurHarcamaEkle(maliyetMikro);
+      }
+
+      // Çağrı sonrası gerçek harcama (Telegram kesmesi için).
+      // Sonraki çağrı başlamadan önce tahminle tekrar kontrol edilir.
       await butceMusaitMi();
 
       return yanit;
@@ -347,6 +382,14 @@ async function istekAt(
         if (hata.kod === "GECICI") {
           sonGecici = hata;
           continue;
+        }
+        // Zaten loglanmış / bütçe hataları — ikinci kez yazma.
+        if (
+          hata.kod === "KESILDI" ||
+          hata.kod === "TEST_TAVAN" ||
+          hata.kod === "BUTCE_DOLDU"
+        ) {
+          throw hata;
         }
         await cagriLogla({
           kaynak,

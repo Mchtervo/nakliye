@@ -46,6 +46,7 @@ export const aiAramaAdaptoru: KaynakAdaptoru = {
           const nereye = i.nereye?.trim() || null;
           return {
             firmaAdi: i.firmaAdi?.trim() || null,
+            ilgiliKisi: i.ilgiliKisi?.trim() || null,
             telefon: i.telefon?.replace(/\D/g, "") || null,
             nereden,
             nereye,

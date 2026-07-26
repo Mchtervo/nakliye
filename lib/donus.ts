@@ -71,6 +71,7 @@ export async function donusEslesmeleriniTara(): Promise<KaydedilenIlan[]> {
       eslesenler.push({
         id: i.id,
         firmaAdi: i.firmaAdi,
+        ilgiliKisi: i.ilgiliKisi,
         telefon: i.telefon,
         nereden: i.nereden,
         nereye: i.nereye,

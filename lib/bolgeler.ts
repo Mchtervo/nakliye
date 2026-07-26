@@ -119,11 +119,13 @@ export function bolgeIlleri(kodlar: BolgeKodu[]): string[] {
  * yandan tüm Türkiye'yi çözümlemek boşuna token yakıyor.
  */
 const BOLGE_KOMSULARI: Record<BolgeKodu, string[]> = {
+  // İzmir komşu kaldı (Bursa/Balıkesir için); uzak Akdeniz yok.
   MARMARA: ["Bolu", "Düzce", "Kütahya", "Manisa", "İzmir", "Eskişehir"],
+  // Adana/Antalya/Mersin/Malatya komşu DEĞİL — "İç Anadolu" seçince
+  // Akdeniz-Doğu yükleri kayda düşmesin.
   IC_ANADOLU: [
-    "Bolu", "Kastamonu", "Karabük", "Çorum", "Amasya", "Tokat", "Ordu",
-    "Giresun", "Erzincan", "Malatya", "Kahramanmaraş", "Adana", "Mersin",
-    "Antalya", "Isparta", "Afyonkarahisar", "Kütahya", "Bilecik", "Bursa",
+    "Bolu", "Kastamonu", "Karabük", "Çorum", "Amasya", "Tokat",
+    "Isparta", "Afyonkarahisar", "Kütahya", "Bilecik", "Bursa",
   ],
   EGE: [
     "Balıkesir", "Bursa", "Bilecik", "Eskişehir", "Konya", "Karaman",
@@ -152,7 +154,7 @@ const BOLGE_KOMSULARI: Record<BolgeKodu, string[]> = {
 
 /**
  * Çözümlemeye değer il kümesi: seçili bölgeler + komşuları + ek iller.
- * Bölge ve ek il yoksa 81 il döner.
+ * Bölge ve ek il yoksa 81 il döner. (AI prompt kapsamı — geniş.)
  */
 export function genisIlKumesi(
   kodlar: BolgeKodu[],
@@ -173,6 +175,24 @@ export function genisIlKumesi(
   return [...iller];
 }
 
+/**
+ * Kayıt / liste filtresi: sadece seçili bölge illeri + ek iller.
+ * Komşular (Adana, İzmir…) buraya GİRMEZ — aksi hâlde "İç Anadolu+Marmara"
+ * seçince Akdeniz/Ege yükleri de kayda düşüyordu.
+ */
+export function cekirdekIlKumesi(
+  kodlar: BolgeKodu[],
+  ekIller: string[] = []
+): string[] {
+  if (kodlar.length === 0 && ekIller.length === 0) return [...ILLER];
+  const iller = new Set<string>(bolgeIlleri(kodlar));
+  for (const ham of ekIller) {
+    const n = ilBul(ham);
+    if (n) iller.add(n);
+  }
+  return [...iller];
+}
+
 /** Bir ilin hangi bölgeye ait olduğunu söyler. */
 export function ilinBolgesi(il: string | null | undefined): BolgeKodu | null {
   const normal = ilBul(il);
@@ -185,8 +205,7 @@ export function ilinBolgesi(il: string | null | undefined): BolgeKodu | null {
 
 /**
  * İlan seçili bölge / ek illere değiyor mu?
- * Kural: en az BİR uç kapsamda (Ankara→Antalya ve Antalya→Ankara ikisi de).
- * Komşu iller genisIlKumesi ile dahildir.
+ * Kural: en az BİR uç çekirdek bölgede (komşu iller sayılmaz).
  */
 export function bolgeyeUyuyorMu(
   kodlar: BolgeKodu[],
@@ -195,7 +214,7 @@ export function bolgeyeUyuyorMu(
   ekIller: string[] = []
 ): boolean {
   if (kodlar.length === 0 && ekIller.length === 0) return true;
-  const kapsam = new Set(genisIlKumesi(kodlar, ekIller));
+  const kapsam = new Set(cekirdekIlKumesi(kodlar, ekIller));
   const cikis = ilBul(cikisIl);
   const varis = ilBul(varisIl);
   return (

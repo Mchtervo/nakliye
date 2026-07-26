@@ -1,6 +1,6 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
 import { aracMetniUyuyorMu } from "@/lib/arac";
-import { bolgeyeUyuyorMu, genisIlKumesi } from "@/lib/bolgeler";
+import { bolgeyeUyuyorMu, cekirdekIlKumesi } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
@@ -102,11 +102,9 @@ export function tercihKosulu(tercih: AiTercihleri) {
   ];
 
   if (tercih.aracTipleri.length > 0) {
+    // Belirsiz (null) artık listede değil — damper/frigo kaçmasın.
     kosullar.push({
-      OR: [
-        { aracTipiKod: null },
-        { aracTipiKod: { in: tercih.aracTipleri as string[] } },
-      ],
+      aracTipiKod: { in: tercih.aracTipleri as string[] },
     });
   }
   if (tercih.maxTonaj) {
@@ -114,7 +112,7 @@ export function tercihKosulu(tercih: AiTercihleri) {
   }
 
   if (tercih.bolgeler.length > 0 || tercih.ekIller.length > 0) {
-    const iller = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
+    const iller = cekirdekIlKumesi(tercih.bolgeler, tercih.ekIller);
     kosullar.push({
       OR: [{ cikisIl: { in: iller } }, { varisIl: { in: iller } }],
     });

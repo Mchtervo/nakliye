@@ -160,6 +160,7 @@ model YukIlani {
   kaynak        IlanKaynagi? @relation(fields: [kaynakId], references: [id], onDelete: SetNull)
   hamMetin      String
   firmaAdi      String?
+  ilgiliKisi    String? // kişi adı (firma değil)
   telefon       String?
   nereden       String?
   nereye        String?

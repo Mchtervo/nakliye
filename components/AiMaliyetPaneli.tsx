@@ -231,8 +231,15 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
           type="button"
           disabled={testBekliyor}
           onClick={() => {
+            const ham = window.prompt("Test tavanı (USD)", "0.05");
+            if (ham === null) return;
+            const tavan = Number(String(ham).replace(",", "."));
+            if (!Number.isFinite(tavan) || tavan <= 0) {
+              setSonuc({ hata: "Geçerli bir tavan gir (ör. 0.05)." });
+              return;
+            }
             baslat(async () => {
-              setSonuc(await aiTestIzniVer());
+              setSonuc(await aiTestIzniVer(tavan));
             });
           }}
           className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm disabled:opacity-60"

@@ -7,7 +7,8 @@ import {
   type IlanCikti,
   type MesajIlanCikti,
 } from "@/lib/ai/semalar";
-import { aracKoduBul, type AracTipiKodu } from "@/lib/arac";
+import { aracKoduBul, aracYerAdiMi, type AracTipiKodu } from "@/lib/arac";
+import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul, illeriBul, sadelestir } from "@/lib/iller";
 import {
   AI_MAX_ROTA_PARCA,
@@ -27,6 +28,9 @@ Kurallar:
   yazımı "düzeltme". Metinde "İst" yazıyorsa "İst", "Ostim" yazıyorsa
   "Ostim" yaz. Metinde "Kütahya Tunçbilek" varken "Kayseri Pınarbaşı"
   yazmak yasaktır.
+- YER ADI DEĞİL: Araç tipi (kırkayak, damper, tenteli, frigo, lowbed,
+  açık kasa, tır, dorse) ve firma/kişi adları varış veya çıkış OLAMAZ.
+  "Çanakkale kırkayak" → nereye=null, aracTipi=kırkayak.
 - "Ankara > Bolu", "Ankara-Bolu", "Ankaradan Boluya" gibi yazımların hepsi
   çıkış ve varış demektir.
 - ÇOK GÜZERGAHLI MESAJ: Bir mesajda birden çok güzergah listelenmiş olabilir
@@ -36,6 +40,9 @@ Kurallar:
 - ORTAK BAĞLAM: Mesaj başındaki (veya "ortaktır" notunun üstündeki) firma,
   telefon ve tarih TÜM güzergah ilanlarına kopyalanır. Parça metninde
   telefon bir kez geçiyorsa listedeki her ilana yaz.
+- FİRMA vs KİŞİ: firmaAdi alanına ŞİRKET adı yaz (… Lojistik, … Nakliyat,
+  Ltd, A.Ş). Kişi adı (Ulviye, Mehmet, Ali Usta) firmaAdi'ye yazma —
+  ilgiliKisi alanına yaz. İkisi de varsa ikisini de doldur.
 - FİYAT TÜRÜ: ton mu komple mi ayırt et. "ton", "/ton", "TL/ton" veya
   X+KDV liste formatı ("VAN 2400+", "900+KDV") → TON_BASI. "komple",
   "navlun", "toplam", "araç" ile verilen tek büyük tutar → KOMPLE.
@@ -44,12 +51,14 @@ Kurallar:
   Ücret yazmıyorsa null bırak.
 - tonaj: yükün ton cinsinden ağırlığı ("24 ton" -> 24). "3 TİR", "10 araç"
   gibi ifadeler ARAÇ ADEDİDİR, tonaj değildir; onları tonaja yazma.
+- aracTipi: metinde geçen araç türünü yaz (damper, tenteli, frigo…).
 - Telefonu sadece rakam olarak ver (05321234567).
 - Uydurma bilgi ekleme; yoksa null bırak.
 - guvenSkoru: metin net bir yük ilanıysa 80-100, şüpheliyse 40-70, zayıfsa 0-39.`;
 
 export type CozulmusIlan = {
   firmaAdi: string | null;
+  ilgiliKisi: string | null;
   telefon: string | null;
   nereden: string | null;
   nereye: string | null;
@@ -134,22 +143,51 @@ function yerMetindeVarMi(yer: string | null, baglam: MetinBaglami): boolean {
   return il !== null && baglam.iller.has(il);
 }
 
-function ilaniNormalize(i: HamIlan, baglam: MetinBaglami): CozulmusIlan {
+/** Yer adı: hamda geçmeli, araç/firma kelimesi olmamalı, il/ilçeye çözülmeli. */
+function yerGecerliMi(yer: string | null, baglam: MetinBaglami): boolean {
+  if (!yer) return true;
+  if (aracYerAdiMi(yer)) return false;
+  if (!yerMetindeVarMi(yer, baglam)) return false;
+  // "Sahınler", "Ulviye" gibi çözülemeyen adlar yer sayılmaz.
+  return ilBul(yer) !== null;
+}
+
+function kisiAdiMi(ad: string | null): boolean {
+  if (!ad) return false;
+  const s = ad.trim();
+  if (!s) return false;
+  const sade = sadelestir(s);
+  // Şirket ipuçları
+  if (
+    /\b(lojistik|nakliyat|nakliye|ltd|lts|a\.?s\.?|as\b|tic|san|trans|transport|kargo)\b/.test(
+      sade
+    )
+  ) {
+    return false;
+  }
+  // Tek kelime / iki kısa kelime → kişi adı adayı
+  const parca = s.split(/\s+/);
+  return parca.length <= 2 && s.length <= 28;
+}
+
+function ilaniNormalize(
+  i: HamIlan,
+  baglam: MetinBaglami,
+  anaUs: string | null = null
+): CozulmusIlan {
   let nereden = i.nereden?.trim() || null;
   let nereye = i.nereye?.trim() || null;
   let skor = Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0)));
 
-  // Uydurulan alan silinir; skor 40 altına iner → Şüpheli sekmesine düşer.
-  if (!yerMetindeVarMi(nereden, baglam)) {
+  if (!yerGecerliMi(nereden, baglam)) {
     nereden = null;
     skor = Math.min(skor, 35);
   }
-  if (!yerMetindeVarMi(nereye, baglam)) {
+  if (!yerGecerliMi(nereye, baglam)) {
     nereye = null;
     skor = Math.min(skor, 35);
   }
 
-  // İl sunucuda türetilir; türetilen il de ham metin bağlamında olmalı.
   let cikisIl = ilBul(nereden);
   let varisIl = ilBul(nereye);
   if (cikisIl && !baglam.iller.has(cikisIl) && !yerMetindeVarMi(cikisIl, baglam)) {
@@ -164,43 +202,78 @@ function ilaniNormalize(i: HamIlan, baglam: MetinBaglami): CozulmusIlan {
   const fiyat = ucretKurusaCevir(i.ucretTl);
   const tur = fiyat === null ? null : i.ucretTuru;
 
+  let firmaAdi = i.firmaAdi?.trim() || null;
+  let ilgiliKisi = i.ilgiliKisi?.trim() || null;
+  // Model kişi adını firmaya yazdıysa ayır.
+  if (firmaAdi && kisiAdiMi(firmaAdi) && !ilgiliKisi) {
+    ilgiliKisi = firmaAdi;
+    firmaAdi = null;
+  }
+
+  const aracTipi = i.aracTipi?.trim() || null;
+  // Önce model alanı. Ham genelini SADECE kısa/tek-yük mesajlarda tara —
+  // komisyoncu listesinde bir satır "damper/kırkayak" diye tüm
+  // belirsiz rotaları araç_uyumsuz yapıyordu.
+  let aracTipiKod = aracKoduBul(aracTipi);
+  if (!aracTipiKod) {
+    const rotaN = (baglam.sade.match(/\b(tir|tır|ton|kdv)\b/g) || []).length;
+    const kisaTekYuk = baglam.sade.length < 500 && rotaN <= 3;
+    if (kisaTekYuk) {
+      aracTipiKod = aracKoduBul(baglam.sade);
+    }
+  }
+
+  // Ana üsse uzak varış → düşük skor (Şüpheli); kayıt katmanı da eleyebilir.
+  if (anaUs && varisIl) {
+    const km = yaklasikKarayoluKm(anaUs, varisIl);
+    if (km !== null && km > VARIS_UZA_KM) {
+      skor = Math.min(skor, 40);
+    }
+  }
+
   return {
-    firmaAdi: i.firmaAdi?.trim() || null,
+    firmaAdi,
+    ilgiliKisi,
     telefon: telefonTemizle(i.telefon),
     nereden,
     nereye,
     cikisIl,
     varisIl,
     yuklemeTarihi: tarihCevir(i.yuklemeTarihi),
-    ucret: tur === "KOMPLE" ? fiyat : null, // fiyatKomple
+    ucret: tur === "KOMPLE" ? fiyat : null,
     fiyatTon: tur === "TON_BASI" ? fiyat : null,
     fiyatBelirsiz: tur === "BELIRSIZ",
     tonaj: tonajTemizle(i.tonaj),
-    aracTipi: i.aracTipi?.trim() || null,
-    aracTipiKod: aracKoduBul(i.aracTipi),
+    aracTipi: aracTipi || (aracTipiKod ? aracTipiKod : null),
+    aracTipiKod,
     yukTipi: i.yukTipi?.trim() || null,
     guvenSkoru: skor,
   };
 }
 
 /**
- * Kayda alınacak mı? Düşük güven (<50) Şüpheli'ye gider; tamamen boş /
- * uydurma temizlenmiş ilanlar atılır. Eski eşik 40, uydurma cezalı
- * ilanları (skor 35) düşürüyordu — Şüpheli sekmesi boş kalıyordu.
+ * Kayda alınacak mı? Her iki uç da bilinen ile çözülmeli.
+ * Tek uçlu (Çanakkale→?) kayıtlar dedup'u deliyor ve çöp üretiyordu.
  */
 function kullanilabilirMi(i: CozulmusIlan): boolean {
-  const yerVar = Boolean(i.cikisIl || i.varisIl || i.nereden || i.nereye);
-  return yerVar && i.guvenSkoru >= 15;
+  return Boolean(i.cikisIl && i.varisIl) && i.guvenSkoru >= 15;
 }
+
+export type CozumFiltre = {
+  /** Kayıt filtresi (çekirdek bölge). Yoksa prompt kapsamı kullanılır. */
+  filtreIlleri?: string[];
+  anaUs?: string | null;
+};
 
 async function tekParcaCozumle(
   parca: string,
-  kapsamIlleri: string[],
-  kaynak: string
+  promptIlleri: string[],
+  kaynak: string,
+  filtre: CozumFiltre = {}
 ): Promise<CozulmusIlan[]> {
   const cikti = await aiJson<IlanCikti>({
     model: MODEL_HIZLI,
-    sistem: `${SISTEM}${kapsamTalimati(kapsamIlleri)}`,
+    sistem: `${SISTEM}${kapsamTalimati(promptIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(parca, 12000)}`,
     semaAdi: "yuk_ilanlari",
     sema: ILAN_LISTESI_SEMASI,
@@ -211,12 +284,12 @@ async function tekParcaCozumle(
   });
 
   const baglam = baglamCikar(parca);
-  const kapsam = new Set(kapsamIlleri);
+  const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
   const sonuc: CozulmusIlan[] = [];
   for (const ham of cikti.ilanlar || []) {
-    const ilan = ilaniNormalize(ham, baglam);
+    const ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null);
     if (!kullanilabilirMi(ilan)) continue;
-    if (kapsamDisiMi(ilan, kapsam)) continue;
+    if (kapsamDisiMi(ilan, filtreSet)) continue;
     sonuc.push(ilan);
   }
   return sonuc;
@@ -225,14 +298,15 @@ async function tekParcaCozumle(
 /** Serbest metinden yük ilanlarını çıkarır. Uzun listeler 5'er rota parçalanır. */
 export async function ilanlariCozumle(
   hamMetin: string,
-  kapsamIlleri: string[] = []
+  kapsamIlleri: string[] = [],
+  filtre: CozumFiltre = {}
 ): Promise<CozulmusIlan[]> {
   const metin = hamMetin.trim();
   if (metin.length < 12) return [];
 
   const parcalar = mesajiAiParcalarinaBol(metin, AI_MAX_ROTA_PARCA);
   if (parcalar.length <= 1) {
-    return tekParcaCozumle(metin, kapsamIlleri, "ilanCozumle.tek");
+    return tekParcaCozumle(metin, kapsamIlleri, "ilanCozumle.tek", filtre);
   }
 
   const sonuc: CozulmusIlan[] = [];
@@ -240,7 +314,8 @@ export async function ilanlariCozumle(
     const dilim = await tekParcaCozumle(
       parcalar[i],
       kapsamIlleri,
-      `ilanCozumle.tek.p${i + 1}`
+      `ilanCozumle.tek.p${i + 1}`,
+      filtre
     );
     sonuc.push(...dilim);
   }
@@ -277,16 +352,19 @@ ${iller.join(", ")}
 (ör. Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul).`;
 }
 
-/** İlan kapsam dışı mı? Sadece iki uç da bilinip ikisi de dışardaysa evet. */
+/**
+ * İlan kapsam dışı mı? En az bir uç çekirdek kümede olmalı.
+ * (Eski kural "iki uç da bilinip ikisi de dışarı" idi — tek uçlu
+ * Adana→? veya komşu-il kaçakları kayda düşüyordu.)
+ */
 function kapsamDisiMi(ilan: CozulmusIlan, iller: Set<string>): boolean {
-  if (iller.size === 0) return false;
+  if (iller.size === 0 || iller.size >= 70) return false;
   const cikis = ilan.cikisIl;
   const varis = ilan.varisIl;
-  if (!cikis && !varis) return false;
+  if (!cikis && !varis) return true;
   if (cikis && iller.has(cikis)) return false;
   if (varis && iller.has(varis)) return false;
-  // Bir uç çözülemediyse kapsam dışı olduğunu kanıtlayamayız, elemeyiz.
-  return Boolean(cikis) && Boolean(varis);
+  return true;
 }
 
 /**
@@ -320,8 +398,9 @@ function rotaPaketleri(mesajlar: MesajGirdisi[]): MesajGirdisi[][] {
 
 async function partiPaketiCozumle(
   paket: MesajGirdisi[],
-  kapsamIlleri: string[],
-  kaynak: string
+  promptIlleri: string[],
+  kaynak: string,
+  filtre: CozumFiltre = {}
 ): Promise<MesajCozumRaporu> {
   const govde = paket
     .map((m, sira) => `[${sira + 1}]\n${guvenliKirp(m.metin.trim(), 1200)}`)
@@ -333,7 +412,7 @@ async function partiPaketiCozumle(
 
 Mesajlar [1], [2] gibi numaralarla ayrılmıştır. Her ilan için mesajNo
 alanına ilanın alındığı mesajın numarasını yaz. Bir mesajda birden fazla
-ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
+ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMESAJLAR:\n${govde}`,
     semaAdi: "mesaj_yuk_ilanlari",
     sema: MESAJ_ILAN_SEMASI,
@@ -343,7 +422,7 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
   });
 
   const baglamlar = paket.map((m) => baglamCikar(m.metin));
-  const kapsam = new Set(kapsamIlleri);
+  const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
   const ilanlar: MesajIlani[] = [];
   let bolgeElenen = 0;
   let modelCikti = 0;
@@ -353,10 +432,10 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
     const kaynakMesaj = paket[sira];
     if (!kaynakMesaj) continue;
 
-    const ilan = ilaniNormalize(ham, baglamlar[sira]);
+    const ilan = ilaniNormalize(ham, baglamlar[sira], filtre.anaUs ?? null);
     if (!kullanilabilirMi(ilan)) continue;
     modelCikti += 1;
-    if (kapsamDisiMi(ilan, kapsam)) {
+    if (kapsamDisiMi(ilan, filtreSet)) {
       bolgeElenen += 1;
       continue;
     }
@@ -373,7 +452,8 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
  */
 export async function mesajlariCozumle(
   mesajlar: MesajGirdisi[],
-  kapsamIlleri: string[] = []
+  kapsamIlleri: string[] = [],
+  filtre: CozumFiltre = {}
 ): Promise<MesajCozumRaporu> {
   const gecerli = mesajlar.filter((m) => m.metin.trim().length >= 12);
   if (gecerli.length === 0) {
@@ -389,7 +469,8 @@ export async function mesajlariCozumle(
     const rapor = await partiPaketiCozumle(
       paketler[i],
       kapsamIlleri,
-      paketler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti"
+      paketler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti",
+      filtre
     );
     ilanlar.push(...rapor.ilanlar);
     bolgeElenen += rapor.bolgeElenen;

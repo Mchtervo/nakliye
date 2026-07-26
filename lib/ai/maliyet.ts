@@ -42,6 +42,22 @@ export function maliyetHesapla(args: {
   return Math.round(usd * 1_000_000);
 }
 
+/**
+ * Çağrı başlamadan önce üst sınır tahmini (mikrodolar).
+ * max_output dolu varsayar — güvenli taraf; gerçek harcama genelde daha düşük.
+ */
+export function tahminiCagriMikro(
+  model: string,
+  maxCikti: number,
+  girdiTahmin = 2500
+): number {
+  return maliyetHesapla({
+    model,
+    girdiToken: Math.max(0, girdiTahmin),
+    ciktiToken: Math.max(0, maxCikti),
+  });
+}
+
 export function mikrodolarYaz(mikro: number): string {
   const usd = mikro / 1_000_000;
   if (usd < 0.01) return `$${usd.toFixed(4)}`;
