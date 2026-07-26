@@ -455,6 +455,13 @@ Kesinti: build sırasında eski process ayakta; restart ~2–10 sn (Next + daemo
 
 ## AŞAMA 8 — YEDEKLEME VE İZLEME
 
+| Ne | Nasıl |
+|----|--------|
+| DB JSON yedek | `cron-yedek` 03:15 → `~/backups/yukavci-*.json` (7 gün) — AŞAMA 6’da kuruldu |
+| Disk %80+ | `deploy/cron/disk.sh` saatte 1 → Telegram |
+| Servis durumu | günlük raporda pm2 + `yukavci-telegram` + disk |
+| `.env` offsite | `deploy/yedek-env.md` — openssl şifreli tar, VPS dışına `scp` |
+
 ## AŞAMA 9 — GEÇİŞ VE GERİ DÖNÜŞ
 Geçici adres: `https://72.61.101.239.nip.io`. İleride kendi domain'e geçilirse yeni certbot + nginx `server_name` güncellenir. Netlify cron kapatma sırası aynı.
 

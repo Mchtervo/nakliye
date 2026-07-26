@@ -21,3 +21,6 @@ YUKAVCI_LOCKDIR=/home/yukavci/locks
 
 # Yedek — 03:15 TR
 15 3 * * * /home/yukavci/muhasebbe/deploy/cron/yedek.sh
+
+# Disk doluluk — saatte 1 (%80+ Telegram uyarısı)
+5 * * * * /home/yukavci/muhasebbe/deploy/cron/disk.sh

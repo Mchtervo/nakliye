@@ -1,6 +1,8 @@
 /**
  * 20:00 TR — OpenAI'siz operasyon özeti → Telegram.
+ * Servis durumları + disk dahil.
  */
+import { execFileSync } from "node:child_process";
 import { prisma } from "@/lib/prisma";
 import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { telegramGonder, htmlKacis } from "@/lib/bildirim/telegram";
@@ -9,6 +11,28 @@ import {
   elemeSayaclariOku,
 } from "@/lib/kaynaklar/elemeSayac";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+
+function guvenliKomut(cmd: string, args: string[]): string {
+  try {
+    return execFileSync(cmd, args, {
+      encoding: "utf8",
+      timeout: 8000,
+    }).trim();
+  } catch {
+    return "bilinmiyor";
+  }
+}
+
+function diskOzet(): string {
+  try {
+    const out = execFileSync("df", ["-P", "/"], { encoding: "utf8" });
+    const satir = out.trim().split("\n").at(-1) || "";
+    const yuzde = String(satir.split(/\s+/)[4] || "?");
+    return yuzde;
+  } catch {
+    return "?";
+  }
+}
 
 async function main() {
   const gun = bugunAnahtar();
@@ -44,6 +68,11 @@ async function main() {
           .map(([k, v]) => `${k}: ${v}`)
           .join(" · ");
 
+  const pm2Pid = guvenliKomut("pm2", ["pid", "yukavci"]).split(/\s+/)[0];
+  const pm2Ok = /^[0-9]+$/.test(pm2Pid) && Number(pm2Pid) > 0;
+  const tg = guvenliKomut("systemctl", ["is-active", "yukavci-telegram"]);
+  const disk = diskOzet();
+
   const metin = [
     `<b>Yük Avcısı — günlük rapor</b> (${htmlKacis(gun)})`,
     `Ham mesaj bugün: ${hamBugun}`,
@@ -53,6 +82,9 @@ async function main() {
     `Katılım sayaç: ${htmlKacis(katilimHam || "0")}`,
     `Ön filtre: ${htmlKacis(elemeSatir)}`,
     `AI_KAPALI: ${process.env.AI_KAPALI || "?"}`,
+    `pm2 yukavci: ${pm2Ok ? `online pid ${pm2Pid}` : "SORUN"}`,
+    `daemon: ${htmlKacis(tg)}`,
+    `disk / : ${htmlKacis(disk)}`,
   ].join("\n");
 
   const chatId = await ayarOku(AYAR_ANAHTARLARI.telegramChatId);
