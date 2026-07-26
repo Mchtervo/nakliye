@@ -15,6 +15,17 @@ export type MaliyetDilimi = {
   maliyetYazi: string;
 };
 
+export type SonCagriOzet = {
+  zamanYazi: string;
+  kaynak: string;
+  model: string;
+  girdiToken: number;
+  ciktiToken: number;
+  reasoningToken: number;
+  maliyetYazi: string;
+  basarili: boolean;
+};
+
 export type AiMaliyetOzeti = {
   killSwitch: boolean;
   butceKesildi: boolean;
@@ -27,6 +38,7 @@ export type AiMaliyetOzeti = {
   zamanAsimiMs: number;
   saatlik: MaliyetDilimi[];
   gunluk: MaliyetDilimi;
+  sonCagrilar: SonCagriOzet[];
 };
 
 function dilimBos(etiket: string): MaliyetDilimi {
@@ -60,7 +72,7 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
   const gunBas = trGunBaslangici();
   const saatBas = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [bugunMikro, butceKesildi, cagrilar] = await Promise.all([
+  const [bugunMikro, butceKesildi, cagrilar, sonHam] = await Promise.all([
     bugunHarcamaMikro(),
     butceKesildiMi(),
     prisma.aiCagri.findMany({
@@ -74,6 +86,20 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
         basarili: true,
       },
       orderBy: { zaman: "asc" },
+    }),
+    prisma.aiCagri.findMany({
+      orderBy: { zaman: "desc" },
+      take: 8,
+      select: {
+        zaman: true,
+        kaynak: true,
+        model: true,
+        girdiToken: true,
+        ciktiToken: true,
+        reasoningToken: true,
+        maliyetMikro: true,
+        basarili: true,
+      },
     }),
   ]);
 
@@ -111,6 +137,26 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
     .map((d) => ({ ...d, maliyetYazi: mikrodolarYaz(d.maliyetMikro) }))
     .slice(-12);
 
+  const zamanFmt = new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const sonCagrilar: SonCagriOzet[] = sonHam.map((c) => ({
+    zamanYazi: zamanFmt.format(c.zaman),
+    kaynak: c.kaynak,
+    model: c.model,
+    girdiToken: c.girdiToken,
+    ciktiToken: c.ciktiToken,
+    reasoningToken: c.reasoningToken,
+    maliyetYazi: mikrodolarYaz(c.maliyetMikro),
+    basarili: c.basarili,
+  }));
+
   return {
     killSwitch: aiKapaliMi(),
     butceKesildi,
@@ -123,5 +169,6 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
     zamanAsimiMs: AI_ZAMAN_ASIMI_MS,
     saatlik,
     gunluk,
+    sonCagrilar,
   };
 }

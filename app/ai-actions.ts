@@ -271,7 +271,10 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
 
     const cagrilar = await prisma.aiCagri.findMany({
       where: { zaman: { gte: baslangic } },
+      orderBy: { zaman: "asc" },
       select: {
+        kaynak: true,
+        model: true,
         maliyetMikro: true,
         girdiToken: true,
         ciktiToken: true,
@@ -283,22 +286,35 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
     const girdi = cagrilar.reduce((t, c) => t + c.girdiToken, 0);
     const cikti = cagrilar.reduce((t, c) => t + c.ciktiToken, 0);
     const reasoning = cagrilar.reduce((t, c) => t + c.reasoningToken, 0);
+    const yuksekCikti = cagrilar.filter((c) => c.ciktiToken >= 500).length;
+
+    const satirlar = cagrilar
+      .map(
+        (c, i) =>
+          `${i + 1}) ${c.kaynak} · ${c.model} · in ${c.girdiToken} / out ${c.ciktiToken}` +
+          (c.reasoningToken > 0 ? ` / reason ${c.reasoningToken}` : "") +
+          ` · ${mikrodolarYaz(c.maliyetMikro)}` +
+          (c.basarili ? "" : " · HATA")
+      )
+      .join("\n");
 
     revalidatePath("/ayarlar");
     revalidatePath("/ai/yukler");
 
+    const ozet =
+      `İşlenen: ${rapor.islenen}, yeni ilan: ${rapor.yeniIlan}, çağrı: ${cagrilar.length}\n` +
+      `Toplam in ${girdi} / out ${cikti} / reason ${reasoning} · ${mikrodolarYaz(maliyet)}\n` +
+      (yuksekCikti > 0
+        ? `⚠ ${yuksekCikti} çağrıda çıktı ≥500 token (hedef: altı).\n`
+        : `✓ Tüm çağrılarda çıktı <500 token.\n`) +
+      (satirlar ? `Çağrılar:\n${satirlar}\n` : "Çağrı yok.\n") +
+      "Cron hâlâ AI_KAPALI ile kapalı.";
+
     if (rapor.hata) {
-      return {
-        hata: `${rapor.hata} | Çağrı: ${cagrilar.length}, maliyet: ${mikrodolarYaz(maliyet)}`,
-      };
+      return { hata: `${rapor.hata}\n${ozet}` };
     }
 
-    return {
-      bilgi:
-        `Test bitti (10'luk tur). İşlenen: ${rapor.islenen}, yeni ilan: ${rapor.yeniIlan}, ` +
-        `çağrı: ${cagrilar.length}, girdi: ${girdi}, çıktı: ${cikti}, reasoning: ${reasoning}, ` +
-        `maliyet: ${mikrodolarYaz(maliyet)}. Cron hâlâ AI_KAPALI ile kapalı.`,
-    };
+    return { bilgi: `Test bitti (10'luk tur).\n${ozet}` };
   } catch (hata) {
     return {
       hata: hata instanceof Error ? hata.message : "Test modu başarısız.",

@@ -104,6 +104,47 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
         </div>
       )}
 
+      {ozet.sonCagrilar.length > 0 ? (
+        <div className="overflow-x-auto">
+          <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-fog">
+            Son çağrılar
+          </div>
+          <table className="w-full text-left text-xs">
+            <thead className="text-fog">
+              <tr>
+                <th className="py-1 pr-2 font-semibold">Zaman</th>
+                <th className="py-1 pr-2 font-semibold">Dosya</th>
+                <th className="py-1 pr-2 font-semibold">Token</th>
+                <th className="py-1 font-semibold">$</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ozet.sonCagrilar.map((c, i) => (
+                <tr
+                  key={`${c.zamanYazi}-${i}`}
+                  className="border-t border-white/6 text-paper"
+                >
+                  <td className="py-1.5 pr-2 whitespace-nowrap">{c.zamanYazi}</td>
+                  <td className="py-1.5 pr-2">
+                    {c.kaynak}
+                    {!c.basarili ? " · hata" : ""}
+                  </td>
+                  <td className="py-1.5 pr-2 text-fog">
+                    {c.girdiToken}/{c.ciktiToken}
+                    {c.reasoningToken > 0 ? ` r${c.reasoningToken}` : ""}
+                  </td>
+                  <td className="py-1.5 font-semibold">{c.maliyetYazi}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-xs text-fog">
+          Henüz AiCagri kaydı yok — kill switch açıkken cron çağrı yapmaz.
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -146,14 +187,14 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
       </div>
 
       {sonuc && "bilgi" in sonuc && (
-        <p className="rounded-xl border border-ok/25 bg-ok/10 px-3 py-2.5 text-sm text-paper">
+        <pre className="whitespace-pre-wrap rounded-xl border border-ok/25 bg-ok/10 px-3 py-2.5 text-xs text-paper">
           {sonuc.bilgi}
-        </p>
+        </pre>
       )}
       {sonuc && "hata" in sonuc && (
-        <p className="rounded-xl border border-warn/30 bg-warn/10 px-3 py-2.5 text-sm text-paper">
+        <pre className="whitespace-pre-wrap rounded-xl border border-warn/30 bg-warn/10 px-3 py-2.5 text-xs text-paper">
           {sonuc.hata}
-        </p>
+        </pre>
       )}
     </div>
   );
