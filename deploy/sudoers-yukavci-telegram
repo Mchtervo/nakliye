@@ -1,0 +1,10 @@
+# Root olarak kur:
+#   sudo cp /home/yukavci/muhasebbe/deploy/sudoers-yukavci-telegram /etc/sudoers.d/yukavci-telegram
+#   sudo chmod 440 /etc/sudoers.d/yukavci-telegram
+#   sudo visudo -cf /etc/sudoers.d/yukavci-telegram
+#
+# Sadece bu servisi restart / status / is-active — başka komut yok.
+
+yukavci ALL=(root) NOPASSWD: /bin/systemctl restart yukavci-telegram
+yukavci ALL=(root) NOPASSWD: /bin/systemctl status yukavci-telegram
+yukavci ALL=(root) NOPASSWD: /bin/systemctl is-active yukavci-telegram

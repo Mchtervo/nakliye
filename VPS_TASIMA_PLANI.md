@@ -442,7 +442,16 @@ Kurulum: `crontab -u yukavci /home/yukavci/muhasebbe/deploy/crontab.yukavci`
 Netlify scheduled functions VPS'te çalışmaz; kodda kalabilir.
 
 ## AŞAMA 7 — GÜNCELLEME AKIŞI
-(`deploy.sh`: pull + ci + build + `pm2 restart yukavci`)
+
+`deploy/deploy.sh` (kullanıcı `yukavci`):
+1. `git pull --ff-only`
+2. `npm ci` → prisma generate/migrate → `npm run build`
+3. `pm2 restart yukavci --update-env`
+4. `sudo systemctl restart yukavci-telegram` (sudoers dar kural)
+5. Doğrulama: pm2 online · systemd active · `curl -sI localhost:3200` → 2xx/3xx; değilse exit 1
+
+Sudoers: `deploy/sudoers-yukavci-telegram` → `/etc/sudoers.d/yukavci-telegram`  
+Kesinti: build sırasında eski process ayakta; restart ~2–10 sn (Next + daemon).
 
 ## AŞAMA 8 — YEDEKLEME VE İZLEME
 
