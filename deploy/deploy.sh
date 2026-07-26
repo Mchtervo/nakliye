@@ -30,11 +30,13 @@ sudo /bin/systemctl restart yukavci-telegram
 echo "==> doğrulama"
 HATA=0
 
-if ! pm2 describe yukavci 2>/dev/null | grep -qiE 'status\s+online'; then
-  echo "HATA: pm2 yukavci online değil"
-  HATA=1
+# pm2 describe tablosu: "status │ online" — arada çizgi karakteri var
+PID="$(pm2 pid yukavci 2>/dev/null | head -1 | tr -d '[:space:]')"
+if [[ "$PID" =~ ^[0-9]+$ ]] && [ "$PID" -gt 0 ]; then
+  echo "pm2 yukavci: online (pid $PID)"
 else
-  echo "pm2 yukavci: online"
+  echo "HATA: pm2 yukavci online değil (pid='${PID:-yok}')"
+  HATA=1
 fi
 
 TG="$(systemctl is-active yukavci-telegram || true)"
