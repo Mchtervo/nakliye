@@ -1,16 +1,79 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import {
-  aiButceKesiminiAc,
-  aiTestOnMesaj,
-  type AiSonuc,
-} from "@/app/ai-actions";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { aiButceKesiminiAc, type AiSonuc } from "@/app/ai-actions";
 import type { AiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
+
+type TestDurumApi =
+  | { durum: "bos" }
+  | { durum: "calisiyor"; baslangicMs: number }
+  | { durum: "bitti"; sonuc: AiSonuc; bitisMs: number }
+  | { durum: "hata"; sonuc: AiSonuc; bitisMs: number };
 
 export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
   const [bekliyor, baslat] = useTransition();
+  const [testCalisiyor, setTestCalisiyor] = useState(false);
   const [sonuc, setSonuc] = useState<AiSonuc>(null);
+  const [bekleSn, setBekleSn] = useState(0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function pollDurdur() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  useEffect(() => () => pollDurdur(), []);
+
+  function pollBaslat() {
+    pollDurdur();
+    const bas = Date.now();
+    setBekleSn(0);
+    pollRef.current = setInterval(async () => {
+      setBekleSn(Math.floor((Date.now() - bas) / 1000));
+      try {
+        const cevap = await fetch("/api/ai/test-on", { cache: "no-store" });
+        const veri = (await cevap.json()) as TestDurumApi;
+        if (veri.durum === "bitti" || veri.durum === "hata") {
+          pollDurdur();
+          setTestCalisiyor(false);
+          setSonuc(veri.sonuc);
+        }
+      } catch {
+        // geçici ağ; poll devam
+      }
+    }, 2000);
+  }
+
+  async function testiBaslat() {
+    if (
+      !window.confirm(
+        "10 mesaj işlenecek (1–3 dk). Sayfa açık kalsın; bitince sonuç burada görünür. Devam?"
+      )
+    ) {
+      return;
+    }
+    setSonuc(null);
+    setTestCalisiyor(true);
+    try {
+      const cevap = await fetch("/api/ai/test-on", { method: "POST" });
+      const veri = (await cevap.json()) as { hata?: string; ok?: boolean };
+      if (!cevap.ok) {
+        setTestCalisiyor(false);
+        setSonuc({ hata: veri.hata || `HTTP ${cevap.status}` });
+        return;
+      }
+      pollBaslat();
+    } catch (e) {
+      setTestCalisiyor(false);
+      setSonuc({
+        hata: e instanceof Error ? e.message : "Test başlatılamadı",
+      });
+    }
+  }
+
+  const testBekliyor = testCalisiyor || bekliyor;
 
   return (
     <div className="space-y-3 border-t border-white/8 pt-3">
@@ -148,29 +211,19 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={bekliyor}
-          onClick={() => {
-            if (
-              !window.confirm(
-                "10 mesaj işlenecek ve duracak. AI_KAPALI cron'ları etkilemez. Devam?"
-              )
-            ) {
-              return;
-            }
-            baslat(async () => {
-              setSonuc(null);
-              setSonuc(await aiTestOnMesaj());
-            });
-          }}
+          disabled={testBekliyor}
+          onClick={() => void testiBaslat()}
           className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm disabled:opacity-60"
         >
-          {bekliyor ? "Test çalışıyor..." : "Test: 10 mesaj işle ve dur"}
+          {testCalisiyor
+            ? `Test çalışıyor... ${bekleSn}s`
+            : "Test: 10 mesaj işle ve dur"}
         </button>
 
         {ozet.butceKesildi && (
           <button
             type="button"
-            disabled={bekliyor}
+            disabled={testBekliyor}
             onClick={() => {
               if (!window.confirm("Bütçe kesmesini kaldırmak istediğine emin misin?")) {
                 return;
@@ -186,13 +239,19 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
         )}
       </div>
 
-      {sonuc && "bilgi" in sonuc && (
-        <pre className="whitespace-pre-wrap rounded-xl border border-ok/25 bg-ok/10 px-3 py-2.5 text-xs text-paper">
+      {testCalisiyor && (
+        <p className="text-xs text-amber">
+          Sayfayı kapatma. Test arka planda; bitince özet + kalite burada çıkar.
+        </p>
+      )}
+
+      {sonuc && "bilgi" in sonuc && sonuc.bilgi && (
+        <pre className="max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded-xl border border-ok/25 bg-ok/10 px-3 py-2.5 text-xs text-paper">
           {sonuc.bilgi}
         </pre>
       )}
-      {sonuc && "hata" in sonuc && (
-        <pre className="whitespace-pre-wrap rounded-xl border border-warn/30 bg-warn/10 px-3 py-2.5 text-xs text-paper">
+      {sonuc && "hata" in sonuc && sonuc.hata && (
+        <pre className="max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded-xl border border-warn/30 bg-warn/10 px-3 py-2.5 text-xs text-paper">
           {sonuc.hata}
         </pre>
       )}
