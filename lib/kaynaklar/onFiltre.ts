@@ -113,6 +113,47 @@ export function rotaSatiriMi(satir: string): boolean {
   return false;
 }
 
+/** Bir AI çağrısına en fazla bu kadar rota satırı gider (FAZ 1 maliyet). */
+export const AI_MAX_ROTA_PARCA = Number(process.env.AI_MAX_ROTA_PARCA || 5);
+
+/** Mesajdaki rota satırı adedi; rota yoksa düz metin = 1 birim. */
+export function rotaSatirSayisi(metin: string): number {
+  const n = satirlaraBol(metin).filter(rotaSatiriMi).length;
+  return n > 0 ? n : 1;
+}
+
+/**
+ * Komisyoncu listesini AI çağrılarına böler: bağlam (başlık/telefon) +
+ * en fazla `maxRota` yeni rota satırı. 30 rotalık mesaj → 6 çağrı.
+ */
+export function mesajiAiParcalarinaBol(
+  metin: string,
+  maxRota = AI_MAX_ROTA_PARCA
+): string[] {
+  const ham = metin.trim();
+  if (!ham) return [];
+  const limit = Math.max(1, Math.floor(maxRota) || 5);
+  const satirlar = satirlaraBol(ham);
+  if (satirlar.length === 0) return [ham];
+
+  const baglam: string[] = [];
+  const rotalar: string[] = [];
+  for (const satir of satirlar) {
+    if (rotaSatiriMi(satir)) rotalar.push(satir);
+    else baglam.push(satir);
+  }
+
+  if (rotalar.length === 0) return [ham];
+  if (rotalar.length <= limit) return [ham];
+
+  const baslik = baglam.slice(0, 4);
+  const parcalar: string[] = [];
+  for (let i = 0; i < rotalar.length; i += limit) {
+    parcalar.push([...baslik, ...rotalar.slice(i, i + limit)].join("\n"));
+  }
+  return parcalar;
+}
+
 /** Mesajdaki rota satırlarının hash listesi (DB sorgusu için). */
 export function rotaHashleri(metin: string): string[] {
   const sonuc: string[] = [];

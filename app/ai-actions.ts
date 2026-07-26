@@ -311,20 +311,121 @@ export async function eskiHamMesajlariYenidenIsle(): Promise<AiSonuc> {
   };
 }
 
+const TEST_IDLER_ANAHTAR = "ai_test_son_idler";
+const TEST_OZET_ANAHTAR = "ai_test_son_ozet";
+
+type TestOzetKayit = {
+  cagri: number;
+  girdi: number;
+  cikti: number;
+  reasoning: number;
+  maliyetMikro: number;
+  kesilen: number;
+  yuksekCikti: number;
+  modelOrnek: string | null;
+};
+
+async function testAyarOku(anahtar: string): Promise<string | null> {
+  const k = await prisma.ayar.findUnique({ where: { anahtar } });
+  return k?.deger ?? null;
+}
+
+async function testAyarYaz(anahtar: string, deger: string): Promise<void> {
+  await prisma.ayar.upsert({
+    where: { anahtar },
+    create: { anahtar, deger },
+    update: { deger },
+  });
+}
+
 /**
  * Test modu: tam 10 mesaj işle ve dur.
  * AI_KAPALI=true iken bile çalışır (cron'lar kapalı kalır).
- * Yeni key ile önce bunu çalıştırıp maliyeti ölç.
+ * Aynı 10 mesajı tekrar işler (karşılaştırma için).
  */
 export async function aiTestOnMesaj(): Promise<AiSonuc> {
   if (!process.env.OPENAI_API_KEY) {
-    return { hata: "OPENAI_API_KEY yok — önce Netlify'a yeni key ekle." };
+    return { hata: "OPENAI_API_KEY yok — VPS .env'ye key ekle." };
+  }
+
+  const oncekiOzetHam = await testAyarOku(TEST_OZET_ANAHTAR);
+  let oncekiOzet: TestOzetKayit | null = null;
+  if (oncekiOzetHam) {
+    try {
+      oncekiOzet = JSON.parse(oncekiOzetHam) as TestOzetKayit;
+    } catch {
+      oncekiOzet = null;
+    }
+  }
+  // Kayıt yoksa paneldeki son ilanCozumle kümesini "önce" kabul et.
+  if (!oncekiOzet) {
+    const son = await prisma.aiCagri.findMany({
+      where: { kaynak: { contains: "ilanCozumle" } },
+      orderBy: { zaman: "desc" },
+      take: 20,
+      select: {
+        zaman: true,
+        girdiToken: true,
+        ciktiToken: true,
+        reasoningToken: true,
+        maliyetMikro: true,
+        hata: true,
+        model: true,
+      },
+    });
+    if (son.length > 0) {
+      const t0 = son[0].zaman.getTime();
+      const kume = son.filter((c) => t0 - c.zaman.getTime() < 180_000);
+      oncekiOzet = {
+        cagri: kume.length,
+        girdi: kume.reduce((t, c) => t + c.girdiToken, 0),
+        cikti: kume.reduce((t, c) => t + c.ciktiToken, 0),
+        reasoning: kume.reduce((t, c) => t + c.reasoningToken, 0),
+        maliyetMikro: kume.reduce((t, c) => t + c.maliyetMikro, 0),
+        kesilen: kume.filter((c) => (c.hata || "").startsWith("KESILDI"))
+          .length,
+        yuksekCikti: kume.filter((c) => c.ciktiToken >= 500).length,
+        modelOrnek: kume[0]?.model ?? null,
+      };
+    }
+  }
+
+  // Aynı 10: kayıtlı id → yoksa son işlenen 10 (önceki pahalı test).
+  let hedefIdler: number[] = [];
+  const kayitli = await testAyarOku(TEST_IDLER_ANAHTAR);
+  if (kayitli) {
+    try {
+      hedefIdler = (JSON.parse(kayitli) as number[]).filter(
+        (n) => Number.isFinite(n) && n > 0
+      );
+    } catch {
+      hedefIdler = [];
+    }
+  }
+  if (hedefIdler.length === 0) {
+    const sonIslenen = await prisma.hamMesaj.findMany({
+      where: { islendi: true, denemeSayisi: { gt: 0 } },
+      orderBy: { id: "desc" },
+      take: 10,
+      select: { id: true },
+    });
+    hedefIdler = sonIslenen.map((m) => m.id);
+  }
+
+  if (hedefIdler.length > 0) {
+    await prisma.hamMesaj.updateMany({
+      where: { id: { in: hedefIdler } },
+      data: { islendi: false, denemeSayisi: 0, hata: null },
+    });
   }
 
   const baslangic = new Date();
   try {
     const rapor = await aiTestBypassIle(() =>
-      kuyrugunuCoz(10, { testModu: true })
+      kuyrugunuCoz(10, {
+        testModu: true,
+        mesajIdler: hedefIdler.length > 0 ? hedefIdler : undefined,
+      })
     );
 
     const cagrilar = await prisma.aiCagri.findMany({
@@ -338,6 +439,7 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
         ciktiToken: true,
         reasoningToken: true,
         basarili: true,
+        hata: true,
       },
     });
     const maliyet = cagrilar.reduce((t, c) => t + c.maliyetMikro, 0);
@@ -345,6 +447,33 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
     const cikti = cagrilar.reduce((t, c) => t + c.ciktiToken, 0);
     const reasoning = cagrilar.reduce((t, c) => t + c.reasoningToken, 0);
     const yuksekCikti = cagrilar.filter((c) => c.ciktiToken >= 500).length;
+    const kesilen = cagrilar.filter((c) =>
+      (c.hata || "").startsWith("KESILDI")
+    ).length;
+    const ortCikti =
+      cagrilar.length > 0 ? Math.round(cikti / cagrilar.length) : 0;
+    const ortMaliyet =
+      cagrilar.length > 0 ? Math.round(maliyet / cagrilar.length) : 0;
+
+    const yeniOzet: TestOzetKayit = {
+      cagri: cagrilar.length,
+      girdi,
+      cikti,
+      reasoning,
+      maliyetMikro: maliyet,
+      kesilen,
+      yuksekCikti,
+      modelOrnek: cagrilar[0]?.model ?? null,
+    };
+
+    const idler =
+      rapor.mesajIdler && rapor.mesajIdler.length > 0
+        ? rapor.mesajIdler
+        : hedefIdler;
+    if (idler.length > 0) {
+      await testAyarYaz(TEST_IDLER_ANAHTAR, JSON.stringify(idler));
+    }
+    await testAyarYaz(TEST_OZET_ANAHTAR, JSON.stringify(yeniOzet));
 
     const satirlar = cagrilar
       .map(
@@ -352,9 +481,26 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
           `${i + 1}) ${c.kaynak} · ${c.model} · in ${c.girdiToken} / out ${c.ciktiToken}` +
           (c.reasoningToken > 0 ? ` / reason ${c.reasoningToken}` : "") +
           ` · ${mikrodolarYaz(c.maliyetMikro)}` +
-          (c.basarili ? "" : " · HATA")
+          (c.basarili ? "" : c.hata ? ` · ${c.hata}` : " · HATA")
       )
       .join("\n");
+
+    let karsilastirma = "";
+    if (oncekiOzet) {
+      const dMaliyet = yeniOzet.maliyetMikro - oncekiOzet.maliyetMikro;
+      const dCikti = yeniOzet.cikti - oncekiOzet.cikti;
+      const dReason = yeniOzet.reasoning - oncekiOzet.reasoning;
+      karsilastirma =
+        `\n── ÖNCE / SONRA ──\n` +
+        `Önce: ${oncekiOzet.cagri} çağrı · in ${oncekiOzet.girdi} / out ${oncekiOzet.cikti} / r ${oncekiOzet.reasoning} · ${mikrodolarYaz(oncekiOzet.maliyetMikro)} · kesilme ${oncekiOzet.kesilen}\n` +
+        `Sonra: ${yeniOzet.cagri} çağrı · in ${yeniOzet.girdi} / out ${yeniOzet.cikti} / r ${yeniOzet.reasoning} · ${mikrodolarYaz(yeniOzet.maliyetMikro)} · kesilme ${yeniOzet.kesilen}\n` +
+        `Fark: maliyet ${mikrodolarYaz(dMaliyet)} · out ${dCikti >= 0 ? "+" : ""}${dCikti} · reason ${dReason >= 0 ? "+" : ""}${dReason}\n`;
+    } else {
+      karsilastirma =
+        `\n── NOT ──\n` +
+        `İlk kayıtlı test özeti bu tur. Paneldeki önceki pahalı tur (~$0.06 / out~8000) ile elle karşılaştır.\n` +
+        `Bir sonraki tık aynı ${idler.length || 10} mesajı yeniden işler.\n`;
+    }
 
     revalidatePath("/ayarlar");
     revalidatePath("/ai/yukler");
@@ -362,10 +508,15 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
     const ozet =
       `İşlenen: ${rapor.islenen}, yeni ilan: ${rapor.yeniIlan}, çağrı: ${cagrilar.length}\n` +
       `Toplam in ${girdi} / out ${cikti} / reason ${reasoning} · ${mikrodolarYaz(maliyet)}\n` +
+      `Çağrı ort. out ${ortCikti} · ort. ${mikrodolarYaz(ortMaliyet)} · kesilme ${kesilen}\n` +
       (yuksekCikti > 0
         ? `⚠ ${yuksekCikti} çağrıda çıktı ≥500 token (hedef: altı).\n`
         : `✓ Tüm çağrılarda çıktı <500 token.\n`) +
+      (ortMaliyet > 2000
+        ? `⚠ Çağrı ort. ≥ $0.002 (hedef: altı).\n`
+        : `✓ Çağrı ort. < $0.002.\n`) +
       (satirlar ? `Çağrılar:\n${satirlar}\n` : "Çağrı yok.\n") +
+      karsilastirma +
       "Cron hâlâ AI_KAPALI ile kapalı.";
 
     if (rapor.hata) {

@@ -284,6 +284,8 @@ export type KuyrukRaporu = {
   geceErtelendi?: boolean;
   bolgeElenen?: number;
   cagriSayisi?: number;
+  /** Bu turda seçilen ham mesaj id'leri (test tekrarı için). */
+  mesajIdler?: number[];
 };
 
 type PartiMesaj = { id: number; metin: string };
@@ -420,6 +422,8 @@ export type KuyrukSecenek = {
    * Cron'lar hâlâ kill switch'e bağlı kalır.
    */
   testModu?: boolean;
+  /** Verilirse partiSec atlanır — aynı 10 mesajı yeniden ölçmek için. */
+  mesajIdler?: number[];
 };
 
 /**
@@ -442,6 +446,7 @@ export async function kuyrugunuCoz(
     hata: null,
     bolgeElenen: 0,
     cagriSayisi: 0,
+    mesajIdler: [],
   };
   const testModu = Boolean(secenek.testModu);
 
@@ -475,8 +480,25 @@ export async function kuyrugunuCoz(
     return rapor;
   }
 
-  const secilen = await partiSec(Math.max(1, Math.min(limit, 25)));
+  const hedefLimit = Math.max(1, Math.min(limit, 25));
+  const secilen =
+    secenek.mesajIdler && secenek.mesajIdler.length > 0
+      ? await prisma.hamMesaj.findMany({
+          where: {
+            id: { in: secenek.mesajIdler },
+            islendi: false,
+            denemeSayisi: { lt: AI_MAX_DENEME },
+          },
+          select: {
+            id: true,
+            metin: true,
+            kaynakId: true,
+            denemeSayisi: true,
+          },
+        })
+      : await partiSec(hedefLimit);
   if (secilen.length === 0) return rapor;
+  rapor.mesajIdler = secilen.map((m) => m.id);
 
   // Her denemede artır; 2'yi geçince kalıcı HATA, AI'ya gönderme.
   const parti: typeof secilen = [];

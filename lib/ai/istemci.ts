@@ -43,7 +43,7 @@ export function aiKullanilabilir(): boolean {
 
 export type AiGorsel = { url: string };
 
-export type AiCabasi = "none" | "low" | "medium" | "high";
+export type AiCabasi = "none" | "minimal" | "low" | "medium" | "high";
 
 type OrtakSecenek = {
   sistem: string;
@@ -93,6 +93,15 @@ type OpenAiYanit = {
     input_tokens_details?: { cached_tokens?: number };
   };
 };
+
+/** Responses API: max_output_tokens yüzünden yarım kalan cevap. */
+function yanitKesildiMi(yanit: OpenAiYanit): string | null {
+  const sebep = yanit.incomplete_details?.reason;
+  if (yanit.status === "incomplete" || sebep) {
+    return sebep || "incomplete";
+  }
+  return null;
+}
 
 function metniAyikla(yanit: OpenAiYanit): string {
   if (typeof yanit.output_text === "string" && yanit.output_text.trim()) {
@@ -240,6 +249,30 @@ async function istekAt(
         reasoningToken,
       });
 
+      const kesilme = yanitKesildiMi(yanit);
+      if (kesilme) {
+        // Parayı ödedik ama JSON yarım — başarı sayma; parti bölünsün.
+        await cagriLogla({
+          kaynak,
+          model,
+          girdiToken,
+          ciktiToken,
+          reasoningToken,
+          maliyetMikro,
+          basarili: false,
+          hata: `KESILDI:${kesilme}`,
+          sureMs,
+        });
+        console.warn(
+          `[ai] KESILDI kaynak=${kaynak} model=${model} out=${ciktiToken} reason=${kesilme}`
+        );
+        await butceMusaitMi();
+        throw new AiHatasi(
+          `Yanıt max_output_tokens yüzünden kesildi (${kesilme}).`,
+          "KESILDI"
+        );
+      }
+
       await cagriLogla({
         kaynak,
         model,
@@ -325,7 +358,7 @@ function govdeKur(secenek: OrtakSecenek): Record<string, unknown> {
   const govde: Record<string, unknown> = {
     model: secenek.model || MODEL_HIZLI,
     input: girdiKur(secenek),
-    reasoning: { effort: secenek.caba || "low" },
+    reasoning: { effort: secenek.caba || "minimal" },
     max_output_tokens: maxCikti,
   };
   if (secenek.webArama) govde.tools = [{ type: "web_search" }];
@@ -448,7 +481,7 @@ export async function aiAracli(secenek: {
       model: secenek.model || MODEL_HIZLI,
       input,
       tools,
-      reasoning: { effort: secenek.caba || "low" },
+      reasoning: { effort: secenek.caba || "minimal" },
       max_output_tokens: secenek.maxCikti ?? AI_MAX_CIKTI,
     };
 

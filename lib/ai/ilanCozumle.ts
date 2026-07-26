@@ -9,6 +9,11 @@ import {
 } from "@/lib/ai/semalar";
 import { aracKoduBul, type AracTipiKodu } from "@/lib/arac";
 import { ilBul, illeriBul, sadelestir } from "@/lib/iller";
+import {
+  AI_MAX_ROTA_PARCA,
+  mesajiAiParcalarinaBol,
+  rotaSatirSayisi,
+} from "@/lib/kaynaklar/onFiltre";
 import { guvenliKirp } from "@/lib/metin";
 
 const SISTEM = `Sen Türkiye'deki nakliye/yük ilanlarını okuyan bir asistansın.
@@ -185,26 +190,23 @@ function kullanilabilirMi(i: CozulmusIlan): boolean {
   return yerVar && i.guvenSkoru >= 15;
 }
 
-/** Serbest metinden yük ilanlarını çıkarır. */
-export async function ilanlariCozumle(
-  hamMetin: string,
-  kapsamIlleri: string[] = []
+async function tekParcaCozumle(
+  parca: string,
+  kapsamIlleri: string[],
+  kaynak: string
 ): Promise<CozulmusIlan[]> {
-  const metin = hamMetin.trim();
-  if (metin.length < 12) return [];
-
   const cikti = await aiJson<IlanCikti>({
     model: MODEL_HIZLI,
     sistem: `${SISTEM}${kapsamTalimati(kapsamIlleri)}`,
-    metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(metin, 12000)}`,
+    metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(parca, 12000)}`,
     semaAdi: "yuk_ilanlari",
     sema: ILAN_LISTESI_SEMASI,
-    caba: "low",
+    caba: "minimal",
     maxCikti: AI_MAX_CIKTI,
-    kaynak: "ilanCozumle.tek",
+    kaynak,
   });
 
-  const baglam = baglamCikar(metin);
+  const baglam = baglamCikar(parca);
   const kapsam = new Set(kapsamIlleri);
   const sonuc: CozulmusIlan[] = [];
   for (const ham of cikti.ilanlar || []) {
@@ -212,6 +214,31 @@ export async function ilanlariCozumle(
     if (!kullanilabilirMi(ilan)) continue;
     if (kapsamDisiMi(ilan, kapsam)) continue;
     sonuc.push(ilan);
+  }
+  return sonuc;
+}
+
+/** Serbest metinden yük ilanlarını çıkarır. Uzun listeler 5'er rota parçalanır. */
+export async function ilanlariCozumle(
+  hamMetin: string,
+  kapsamIlleri: string[] = []
+): Promise<CozulmusIlan[]> {
+  const metin = hamMetin.trim();
+  if (metin.length < 12) return [];
+
+  const parcalar = mesajiAiParcalarinaBol(metin, AI_MAX_ROTA_PARCA);
+  if (parcalar.length <= 1) {
+    return tekParcaCozumle(metin, kapsamIlleri, "ilanCozumle.tek");
+  }
+
+  const sonuc: CozulmusIlan[] = [];
+  for (let i = 0; i < parcalar.length; i++) {
+    const dilim = await tekParcaCozumle(
+      parcalar[i],
+      kapsamIlleri,
+      `ilanCozumle.tek.p${i + 1}`
+    );
+    sonuc.push(...dilim);
   }
   return sonuc;
 }
@@ -259,20 +286,40 @@ function kapsamDisiMi(ilan: CozulmusIlan, iller: Set<string>): boolean {
 }
 
 /**
- * Grup mesajlarını tek çağrıda çözümler; her ilan geldiği mesaja bağlanır.
- * Mesaj başına ayrı istek atmak hem yavaş hem pahalı olduğu için toplu
- * gönderilir, ancak ham metin eşlemesi mesaj bazında korunur.
+ * Chunk'ları çağrı başına en fazla AI_MAX_ROTA_PARCA rota olacak
+ * şekilde paketler (bir çağrıda 30 rota JSON'u yazdırma).
  */
-export async function mesajlariCozumle(
-  mesajlar: MesajGirdisi[],
-  kapsamIlleri: string[] = []
-): Promise<MesajCozumRaporu> {
-  const gecerli = mesajlar.filter((m) => m.metin.trim().length >= 12);
-  if (gecerli.length === 0) {
-    return { ilanlar: [], bolgeElenen: 0, modelCikti: 0 };
+function rotaPaketleri(mesajlar: MesajGirdisi[]): MesajGirdisi[][] {
+  const genis: MesajGirdisi[] = [];
+  for (const m of mesajlar) {
+    for (const p of mesajiAiParcalarinaBol(m.metin, AI_MAX_ROTA_PARCA)) {
+      genis.push({ anahtar: m.anahtar, metin: p });
+    }
   }
 
-  const govde = gecerli
+  const paketler: MesajGirdisi[][] = [];
+  let mevcut: MesajGirdisi[] = [];
+  let rotaToplam = 0;
+  for (const m of genis) {
+    const r = rotaSatirSayisi(m.metin);
+    if (mevcut.length > 0 && rotaToplam + r > AI_MAX_ROTA_PARCA) {
+      paketler.push(mevcut);
+      mevcut = [];
+      rotaToplam = 0;
+    }
+    mevcut.push(m);
+    rotaToplam += r;
+  }
+  if (mevcut.length > 0) paketler.push(mevcut);
+  return paketler;
+}
+
+async function partiPaketiCozumle(
+  paket: MesajGirdisi[],
+  kapsamIlleri: string[],
+  kaynak: string
+): Promise<MesajCozumRaporu> {
+  const govde = paket
     .map((m, sira) => `[${sira + 1}]\n${guvenliKirp(m.metin.trim(), 1200)}`)
     .join("\n\n");
 
@@ -286,25 +333,21 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMESAJLAR:\n${govde}`,
     semaAdi: "mesaj_yuk_ilanlari",
     sema: MESAJ_ILAN_SEMASI,
-    caba: "low",
-    // Reasoning de bu havuzdan yer; 1500 varsayılan (OPENAI_MAX_CIKTI).
+    caba: "minimal",
     maxCikti: AI_MAX_CIKTI,
-    kaynak: "ilanCozumle.parti",
+    kaynak,
   });
 
-  // Doğrulama mesaj bazında yapılır: hem uydurma yeri hem de ilanı yanlış
-  // mesaja bağlama hatasını yakalar.
-  const baglamlar = gecerli.map((m) => baglamCikar(m.metin));
+  const baglamlar = paket.map((m) => baglamCikar(m.metin));
   const kapsam = new Set(kapsamIlleri);
-
   const ilanlar: MesajIlani[] = [];
   let bolgeElenen = 0;
   let modelCikti = 0;
 
   for (const ham of cikti.ilanlar || []) {
     const sira = Math.round(ham.mesajNo) - 1;
-    const kaynak = gecerli[sira];
-    if (!kaynak) continue;
+    const kaynakMesaj = paket[sira];
+    if (!kaynakMesaj) continue;
 
     const ilan = ilaniNormalize(ham, baglamlar[sira]);
     if (!kullanilabilirMi(ilan)) continue;
@@ -313,7 +356,40 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(kapsamIlleri)}`,
       bolgeElenen += 1;
       continue;
     }
-    ilanlar.push({ anahtar: kaynak.anahtar, ilan });
+    ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
+  }
+
+  return { ilanlar, bolgeElenen, modelCikti };
+}
+
+/**
+ * Grup mesajlarını çözümler; her ilan geldiği mesaja bağlanır.
+ * Uzun listeler 5 rota/çağrı paketlerine bölünür — kesilme / yeniden
+ * deneme israfını önlemek için.
+ */
+export async function mesajlariCozumle(
+  mesajlar: MesajGirdisi[],
+  kapsamIlleri: string[] = []
+): Promise<MesajCozumRaporu> {
+  const gecerli = mesajlar.filter((m) => m.metin.trim().length >= 12);
+  if (gecerli.length === 0) {
+    return { ilanlar: [], bolgeElenen: 0, modelCikti: 0 };
+  }
+
+  const paketler = rotaPaketleri(gecerli);
+  const ilanlar: MesajIlani[] = [];
+  let bolgeElenen = 0;
+  let modelCikti = 0;
+
+  for (let i = 0; i < paketler.length; i++) {
+    const rapor = await partiPaketiCozumle(
+      paketler[i],
+      kapsamIlleri,
+      paketler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti"
+    );
+    ilanlar.push(...rapor.ilanlar);
+    bolgeElenen += rapor.bolgeElenen;
+    modelCikti += rapor.modelCikti;
   }
 
   if (bolgeElenen > 0) {

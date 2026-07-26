@@ -46,6 +46,8 @@ async function main() {
     aktifGrup,
     adayGrup,
     katilimHam,
+    aiKesilme,
+    aiCagriBugun,
   ] = await Promise.all([
     elemeSayaclariOku(gun),
     prisma.hamMesaj.count({ where: { createdAt: { gte: bas } } }),
@@ -58,6 +60,10 @@ async function main() {
       where: { tur: TELEGRAM_UYE, durum: "ADAY" },
     }),
     ayarOku(AYAR_ANAHTARLARI.telegramKatilimGunluk),
+    prisma.aiCagri.count({
+      where: { zaman: { gte: bas }, hata: { startsWith: "KESILDI" } },
+    }),
+    prisma.aiCagri.count({ where: { zaman: { gte: bas } } }),
   ]);
 
   const elemeSatir =
@@ -81,6 +87,7 @@ async function main() {
     `Grup AKTİF / ADAY: ${aktifGrup} / ${adayGrup}`,
     `Katılım sayaç: ${htmlKacis(katilimHam || "0")}`,
     `Ön filtre: ${htmlKacis(elemeSatir)}`,
+    `AI çağrı bugün: ${aiCagriBugun} · kesilme: ${aiKesilme}`,
     `AI_KAPALI: ${process.env.AI_KAPALI || "?"}`,
     `pm2 yukavci: ${pm2Ok ? `online pid ${pm2Pid}` : "SORUN"}`,
     `daemon: ${htmlKacis(tg)}`,

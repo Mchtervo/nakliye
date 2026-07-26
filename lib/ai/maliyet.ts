@@ -12,6 +12,10 @@ const FIYATLAR: Record<string, ModelFiyat> = {
   "gpt-5.6-terra": { girdi: 2.5, cikti: 15.0 },
   "gpt-5.6-sol": { girdi: 5.0, cikti: 30.0 },
   "gpt-5.6": { girdi: 5.0, cikti: 30.0 },
+  // Önceki nesil — basit JSON için hâlâ geçerli ve daha ucuz
+  "gpt-5.4-mini": { girdi: 0.75, cikti: 4.5 },
+  "gpt-5.4-nano": { girdi: 0.2, cikti: 1.25 },
+  "gpt-5.4": { girdi: 2.5, cikti: 15.0 },
 };
 
 /** Bilinmeyen modelde terra fiyatı (güvenli taraf). */
