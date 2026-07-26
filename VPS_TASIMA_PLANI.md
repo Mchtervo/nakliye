@@ -248,12 +248,11 @@ systemctl status unattended-upgrades --no-pager
 ### 2.8 — Uygulama dizinleri + izin notları (dosyalar AŞAMA 4'te gelecek)
 
 ```bash
-mkdir -p /home/yukavci/apps /home/yukavci/logs /home/yukavci/backups
-chown -R yukavci:yukavci /home/yukavci/apps /home/yukavci/logs /home/yukavci/backups
+mkdir -p /home/yukavci/logs /home/yukavci/backups
+chown -R yukavci:yukavci /home/yukavci/logs /home/yukavci/backups
 
-# AŞAMA 4'te .env ve session için hatırlatma:
-# chmod 600 /home/yukavci/apps/muhasebbe/.env
-# chmod 600 /home/yukavci/apps/muhasebbe/*.session
+# AŞAMA 4'te .env için hatırlatma (repo: /home/yukavci/muhasebbe):
+# chmod 600 /home/yukavci/muhasebbe/.env
 ```
 
 ---
@@ -401,7 +400,7 @@ diff -q /etc/nginx/sites-available/redmedya /root/nginx-yedek-$(date +%F)-asama3
 
 ## AŞAMA 4 — UYGULAMAYI TAŞI (önizleme — henüz çalıştırma)
 
-1. `yukavci` ile repo klonla → `/home/yukavci/apps/muhasebbe`
+1. `yukavci` ile repo klonla → `/home/yukavci/muhasebbe`
 2. `.env` — `chmod 600`; Netlify değişkenleri + `AI_KAPALI=true`
    - Site URL: `https://72.61.101.239.nip.io` (varsa `SITE_URL` / benzeri)
 3. `npm ci && npm run build`
@@ -424,7 +423,7 @@ diff -q /etc/nginx/sites-available/redmedya /root/nginx-yedek-$(date +%F)-asama3
 - Sağlık: 30 dk aktivite yoksa bot ile `telegram_chat_id`'ye uyarı
 - OpenAI yok; sadece HamMesaj kuyruğu (`AI_KAPALI=true`)
 
-Oturum: `cd ~/apps/muhasebbe && npm run telegram:oturum` → `.env` içine `TELEGRAM_SESSION=...`
+Oturum: `cd ~/muhasebbe && npm run telegram:oturum` → `.env` içine `TELEGRAM_SESSION=...`
 
 ## AŞAMA 6 — CRON İŞLERİ
 (önceki plan — TR timezone, flock, log)

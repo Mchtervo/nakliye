@@ -8,7 +8,7 @@
  */
 import { TelegramClient, utils, Api } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
-import { NewMessage, type NewMessageEvent } from "telegram/events";
+import { NewMessage, type NewMessageEvent } from "telegram/events/index.js";
 import { prisma } from "@/lib/prisma";
 import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { telegramGonder } from "@/lib/bildirim/telegram";

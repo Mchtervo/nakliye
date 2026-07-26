@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=yukavci
 Group=yukavci
-WorkingDirectory=/home/yukavci/apps/muhasebbe
+WorkingDirectory=/home/yukavci/muhasebbe
 Environment=NODE_ENV=production
 # .env npm --env-file ile yüklenir; burada PORT gerekmez
 ExecStart=/usr/bin/npm run telegram:daemon
