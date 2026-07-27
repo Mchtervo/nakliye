@@ -99,33 +99,37 @@ export async function ilanBilgiSor(id: number): Promise<
       const { tdmBilgiSor } = await import("@/lib/kaynaklar/telegramDm");
       const r = await tdmBilgiSor(id);
       if (r.ok) {
-        revalidatePath("/ai/yukler");
-        revalidatePath("/ai/donus");
+        // Client toast'ı silmesin diye revalidatePath burada yok;
+        // durum DB'de güncellenir, sayfa yenilenince görünür.
       }
       return r.ok
-        ? { ok: true, kanal: "telegram", mesaj: r.mesaj }
-        : { ok: false, mesaj: r.mesaj };
+        ? { ok: true, kanal: "telegram", mesaj: r.mesaj || "✅ Gönderildi" }
+        : { ok: false, mesaj: r.mesaj || "Gönderilemedi" };
     }
 
     if (ilan.telefon) {
       const { ilanIletisimMesaji } = await import("@/lib/ai/whatsappMesaj");
       const r = await ilanIletisimMesaji(id);
-      if (!r.waUrl) return { ok: false, mesaj: "WhatsApp linki yok." };
+      if (!r.waUrl) {
+        return {
+          ok: false,
+          mesaj: "Telegram kimliği yok; telefon WhatsApp için geçersiz.",
+        };
+      }
       await prisma.yukIlani
         .update({ where: { id }, data: { durum: "ILETISIME_GECILDI" } })
         .catch(() => null);
-      revalidatePath("/ai/yukler");
-      revalidatePath("/ai/donus");
       return {
         ok: true,
         kanal: "whatsapp",
-        mesaj: "✅ WhatsApp",
+        mesaj: "Telegram kimliği yok, WhatsApp açılıyor",
         waUrl: r.waUrl,
       };
     }
 
-    return { ok: false, mesaj: "Telegram / telefon yok." };
+    return { ok: false, mesaj: "İletişim bilgisi bulunamadı" };
   } catch (e) {
+    console.error("[ilanBilgiSor]", e);
     return {
       ok: false,
       mesaj: e instanceof Error ? e.message : "Bilgi sorulamadı.",
