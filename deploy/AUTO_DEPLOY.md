@@ -38,5 +38,8 @@ bash deploy/deploy.sh
 
 ## Notlar
 - `AUTO_DEPLOY=1` yoksa varsayılan panel/DB'ye bakar (eski davranış).
+- Shell script'ler git'te **100755** (executable). `git reset --hard` sonrası da `+x` korunur.
+- Deploy sonunda yine `chmod +x deploy/cron/*.sh` çalışır (kemer+askı).
+- Kilit dosyası >2 saat ise otomatik silinir (takılı deploy/cron).
 - `git fetch` için VPS'te GitHub erişimi (deploy key / HTTPS token) gerekir.
 - Deploy ~2–5 dk; flock varken ikinci dakika atlanır.

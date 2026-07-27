@@ -10,12 +10,28 @@ LOCKDIR="${YUKAVCI_LOCKDIR:-/home/yukavci/locks}"
 
 mkdir -p "$LOGDIR" "$LOCKDIR"
 
+# Takılı kilit: 2 saatten eskiyse sil (cron yarım kalmış olabilir)
+eski_kilit_temizle() {
+  local lock="$1"
+  local log="$2"
+  [ -e "$lock" ] || return 0
+  if find "$lock" -mmin +120 2>/dev/null | grep -q .; then
+    echo "$(date -Is) eski kilit silindi (>2s): $lock" >>"$log"
+    if command -v fuser >/dev/null 2>&1; then
+      fuser -k "$lock" >>"$log" 2>&1 || true
+    fi
+    rm -f "$lock"
+  fi
+}
+
 cron_calistir() {
   local ad="$1"
   shift
   local log="$LOGDIR/${ad}.log"
   local lock="$LOCKDIR/${ad}.lock"
   local kod
+
+  eski_kilit_temizle "$lock" "$log"
 
   (
     flock -n 9 || {

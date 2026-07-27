@@ -3,7 +3,7 @@
 # flock — üst üste binmez. Build fail → eski commit + .next geri.
 #
 # Kurulum: crontab'a ekle (deploy/crontab.yukavci)
-# Ayarlar → «Otomatik deploy» açık olmalı.
+# AUTO_DEPLOY=1 veya Ayarlar → Otomatik deploy.
 
 set -euo pipefail
 
@@ -16,17 +16,38 @@ LOCK="$LOCKDIR/auto-deploy.lock"
 mkdir -p "$LOGDIR" "$LOCKDIR"
 cd "$REPO"
 
+log() { echo "$(date -Is) $*" >>"$LOG"; }
+
+# Takılı kilit: 2 saatten eskiyse temizle (deploy yarım kalmış olabilir)
+eski_kilit_temizle() {
+  local lock="$1"
+  [ -e "$lock" ] || return 0
+  if find "$lock" -mmin +120 2>/dev/null | grep -q .; then
+    log "UYARI: kilit >2s — siliniyor ($lock)"
+    if command -v fuser >/dev/null 2>&1; then
+      fuser -k "$lock" >>"$LOG" 2>&1 || true
+    fi
+    rm -f "$lock"
+  fi
+}
+
+eski_kilit_temizle "$LOCK"
+
 exec 9>"$LOCK"
 if ! flock -n 9; then
   echo "$(date -Is) zaten çalışıyor — atlandı" >>"$LOG"
   exit 0
 fi
 
-log() { echo "$(date -Is) $*" >>"$LOG"; }
-
 bildir() {
   local metin="$1"
   ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts "$metin" ) >>"$LOG" 2>&1 || true
+}
+
+script_izinleri() {
+  chmod +x "$REPO"/deploy/deploy.sh \
+    "$REPO"/deploy/cron/*.sh \
+    "$REPO"/deploy/nginx-body-size.sh 2>/dev/null || true
 }
 
 # Ayarlar'dan kapalıysa çık — AUTO_DEPLOY=1 env varsa her zaman açık
@@ -67,6 +88,7 @@ fi
 geri_al() {
   log "GERİ AL → $OLD_SHA"
   git reset --hard "$OLD_SHA" >>"$LOG" 2>&1 || true
+  script_izinleri
   set +e
   npm ci >>"$LOG" 2>&1
   if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
@@ -81,6 +103,7 @@ geri_al() {
 
 set +e
 git reset --hard origin/main >>"$LOG" 2>&1
+script_izinleri
 npm ci >>"$LOG" 2>&1
 CI_KOD=$?
 if [ "$CI_KOD" -ne 0 ]; then
@@ -172,6 +195,8 @@ if [ "$HATA" -ne 0 ]; then
   bildir "❌ Deploy hatası (doğrulama): $SHORT — $MSG (eski sürüme dönüldü)"
   exit 1
 fi
+
+script_izinleri
 
 if [ "$DAEMON_RESTART" -eq 1 ]; then
   log "DEPLOY OK $SHORT (daemon restart)"

@@ -38,6 +38,7 @@ fi
 geri_al() {
   echo "==> GERİ AL $OLD_SHA"
   git reset --hard "$OLD_SHA"
+  chmod +x deploy/deploy.sh deploy/cron/*.sh deploy/nginx-body-size.sh 2>/dev/null || true
   npm ci
   if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
     rm -rf .next
@@ -48,6 +49,10 @@ geri_al() {
 }
 
 git reset --hard origin/main
+
+# Reset sonrası executable bit'i yenile (git mode 100755 olmalı; yine de güvence)
+chmod +x deploy/deploy.sh deploy/cron/*.sh deploy/nginx-body-size.sh 2>/dev/null || true
+
 SHORT="$(git rev-parse --short HEAD)"
 MSG="$(git log -1 --format=%s HEAD | tr '\n' ' ' | cut -c1-120)"
 
@@ -150,6 +155,10 @@ if [ "$HATA" -ne 0 ]; then
 fi
 
 trap - ERR
+
+# git reset --hard izinleri sıfırlayabilir — her deploy sonunda yenile
+chmod +x deploy/deploy.sh deploy/cron/*.sh deploy/nginx-body-size.sh 2>/dev/null || true
+
 echo "==> DEPLOY OK $(date -Is) $(git rev-parse --short HEAD) daemon_restart=$DAEMON_RESTART"
 if [ "$DAEMON_RESTART" -eq 1 ]; then
   bildir "✅ Manuel deploy: $SHORT — $MSG"
