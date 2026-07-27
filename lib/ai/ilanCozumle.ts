@@ -266,6 +266,10 @@ export type CozumFiltre = {
   /** Kayıt filtresi (çekirdek bölge). Yoksa prompt kapsamı kullanılır. */
   filtreIlleri?: string[];
   anaUs?: string | null;
+  /** A/B test: varsayılan MODEL_HIZLI yerine bu model. */
+  model?: string;
+  /** AiCagri kaynak öneki (örn. ab.nano). */
+  kaynakOnek?: string;
 };
 
 async function tekParcaCozumle(
@@ -274,8 +278,9 @@ async function tekParcaCozumle(
   kaynak: string,
   filtre: CozumFiltre = {}
 ): Promise<CozulmusIlan[]> {
+  const model = filtre.model || MODEL_HIZLI;
   const cikti = await aiJson<IlanCikti>({
-    model: MODEL_HIZLI,
+    model,
     sistem: `${SISTEM}${kapsamTalimati(promptIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(parca, 12000)}`,
     semaAdi: "yuk_ilanlari",
@@ -312,10 +317,16 @@ export async function ilanlariCozumle(
 ): Promise<CozulmusIlan[]> {
   const metin = hamMetin.trim();
   if (metin.length < 12) return [];
+  const onek = filtre.kaynakOnek ? `${filtre.kaynakOnek}.` : "";
 
   const parcalar = mesajiAiParcalarinaBol(metin, AI_MAX_ROTA_PARCA);
   if (parcalar.length <= 1) {
-    return tekParcaCozumle(metin, kapsamIlleri, "ilanCozumle.tek", filtre);
+    return tekParcaCozumle(
+      metin,
+      kapsamIlleri,
+      `${onek}ilanCozumle.tek`,
+      filtre
+    );
   }
 
   const sonuc: CozulmusIlan[] = [];
@@ -323,7 +334,7 @@ export async function ilanlariCozumle(
     const dilim = await tekParcaCozumle(
       parcalar[i],
       kapsamIlleri,
-      `ilanCozumle.tek.p${i + 1}`,
+      `${onek}ilanCozumle.tek.p${i + 1}`,
       filtre
     );
     sonuc.push(...dilim);
@@ -421,7 +432,7 @@ async function partiPaketiCozumle(
     .join("\n\n");
 
   const cikti = await aiJson<MesajIlanCikti>({
-    model: MODEL_HIZLI,
+    model: filtre.model || MODEL_HIZLI,
     sistem: `${SISTEM}
 
 Mesajlar [1], [2] gibi numaralarla ayrılmıştır. Her ilan için mesajNo
