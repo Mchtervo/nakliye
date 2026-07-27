@@ -65,10 +65,22 @@ export default async function AyarlarSayfasi() {
     ]);
 
   const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
-  const takipteki = gruplar.filter((g) => g.durum === "AKTIF" && g.aktif);
   const adaylar = gruplar
     .filter((g) => g.durum === "ADAY")
-    .sort((a, b) => (b.uyeSayisi ?? 0) - (a.uyeSayisi ?? 0));
+    .sort(
+      (a, b) =>
+        (b.oncelik ?? 0) - (a.oncelik ?? 0) ||
+        (b.uyeSayisi ?? 0) - (a.uyeSayisi ?? 0)
+    );
+  const takipteki = gruplar
+    .filter((g) => g.durum === "AKTIF" && g.aktif)
+    .sort((a, b) => {
+      // Düşük isabet önce — çıkış kararı için
+      const ia = a.koridorIsabet ?? 999;
+      const ib = b.koridorIsabet ?? 999;
+      if (ia !== ib) return ia - ib;
+      return a.ad.localeCompare(b.ad, "tr");
+    });
   const takipEdilmiyor = gruplar.filter(
     (g) => g.durum === "PASIF" || (g.durum === "AKTIF" && !g.aktif)
   );
@@ -153,9 +165,11 @@ export default async function AyarlarSayfasi() {
             Telegram grupları
           </h2>
           <p className="text-sm text-fog">
-            Üye olduğun uygun gruplar kendiliğinden takibe alınır. Aday
-            gruplara sen katılırsın; katıldıktan sonra 5 dakika içinde
-            takibe geçerler.
+            Üye olduğun uygun gruplar kendiliğinden takibe alınır. Mesajdaki
+            t.me / @ grup linkleri ADAY olarak hasat edilir.{" "}
+            <span className="text-paper/80">
+              İsabet % = 7g rotalarda en az bir uç koridorda.
+            </span>
           </p>
         </div>
 
@@ -222,27 +236,36 @@ export default async function AyarlarSayfasi() {
                       <div className="text-xs text-fog">
                         {g.durum === "ADAY"
                           ? [
-                              "Aday",
+                              g.oncelik > 0 ? `öncelik ${g.oncelik}` : null,
+                              g.hasatKaynak || null,
                               g.uyeSayisi ? `${g.uyeSayisi} üye` : null,
                             ]
                               .filter(Boolean)
-                              .join(" · ")
+                              .join(" · ") || "Aday"
                           : [
                               `${g.takipGun}g takip`,
-                              `${g.mesajToplam} mesaj`,
-                              `${g.ilanAdedi} ilan`,
+                              `bugün ${g.cekilenBugun}çek/${g.kuyrukBugun}kuyruk`,
+                              `7g ${g.mesajHafta}kuyruk/${g.ilanHafta}ilan`,
+                              g.koridorIsabet !== null
+                                ? `isabet %${g.koridorIsabet}`
+                                : "isabet —",
                               g.sonIlan
                                 ? `son ilan: ${gecenSure(g.sonIlan)}`
                                 : "son ilan: yok",
-                              g.sonTarama
-                                ? `okuma: ${gecenSure(g.sonTarama)}`
-                                : null,
-                              `çekilen bugün: ${g.cekilenBugun}`,
                               g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
                             ]
                               .filter(Boolean)
                               .join(" · ")}
                       </div>
+                      {g.durum === "AKTIF" &&
+                        g.aktif &&
+                        g.koridorIsabet !== null &&
+                        g.koridorIsabet < 25 &&
+                        g.mesajHafta >= 5 && (
+                          <div className="mt-0.5 text-[11px] font-semibold text-ember/90">
+                            Düşük koridor isabet — çıkış adayı
+                          </div>
+                        )}
                       <div className="mt-0.5 text-[11px] text-amber/90">
                         {g.teshis}
                       </div>

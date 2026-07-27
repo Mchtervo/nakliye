@@ -97,12 +97,17 @@ model IlanKaynagi {
   sonTarama   DateTime?
   sonHata     String?
   bulunanAdet Int        @default(0)
+  /** Hasattan gelen ADAY önceliği (yüksek = önce katıl). */
+  oncelik     Int        @default(0)
+  /** Örn. «Hasat #12 GrupAdı» — nereden bulundu. */
+  hasatKaynak String?
   createdAt   DateTime   @default(now())
   ilanlar     YukIlani[]
   hamMesajlar HamMesaj[]
 
   @@unique([tur, hedef])
   @@index([tur, durum])
+  @@index([tur, durum, oncelik])
 }
 
 /// Gruplardan çekilen ham mesajlar. AI çözümlemesi kuyruktan yapılır;

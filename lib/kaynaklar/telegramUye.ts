@@ -848,6 +848,12 @@ export type GrupDurumu = {
   mesaj24s: number;
   /** Bugün Telegram'dan çekilen (ön filtre öncesi). */
   cekilenBugun: number;
+  /** Bugün kuyruğa giren. */
+  kuyrukBugun: number;
+  /** Son 7 günde kuyruğa giren. */
+  mesajHafta: number;
+  /** Son 7 günde üretilen ilan. */
+  ilanHafta: number;
   /** Bugün ön filtreyle elenen (sebep → adet). */
   elenenBugun: Record<string, number>;
   /** Kuyrukta bekleyen (henüz AI görmemiş) mesaj. */
@@ -860,6 +866,13 @@ export type GrupDurumu = {
   mesajToplam: number;
   /** Son ilan zamanı. */
   sonIlan: Date | null;
+  /**
+   * Koridor isabet % — 7g satır-rotalarında ≥1 uç koridorda.
+   * null = ölçülecek rota yok.
+   */
+  koridorIsabet: number | null;
+  hasatKaynak: string | null;
+  oncelik: number;
   /** Tek cümlelik teşhis. */
   teshis: string;
 };
@@ -925,12 +938,35 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
   });
   if (gruplar.length === 0) return [];
 
+  const tercih = await aiTercihleriOku();
+  const koridor = new Set(koridorIlKumesi(tercih.koridorIller));
+
   const dun = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const yediGun = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const ids = gruplar.map((g) => g.id);
-  const [sonGun, bekleyen, ilanlar, okumaMap, istatMap] = await Promise.all([
+  const [
+    sonGun,
+    haftaMesaj,
+    haftaIlan,
+    bekleyen,
+    ilanlar,
+    okumaMap,
+    istatMap,
+    hamHafta,
+  ] = await Promise.all([
     prisma.hamMesaj.groupBy({
       by: ["kaynakId"],
       where: { createdAt: { gte: dun } },
+      _count: { _all: true },
+    }),
+    prisma.hamMesaj.groupBy({
+      by: ["kaynakId"],
+      where: { createdAt: { gte: yediGun } },
+      _count: { _all: true },
+    }),
+    prisma.yukIlani.groupBy({
+      by: ["kaynakId"],
+      where: { createdAt: { gte: yediGun } },
       _count: { _all: true },
     }),
     prisma.hamMesaj.groupBy({
@@ -944,6 +980,14 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
     }),
     grupOkumaToplu(ids),
     grupIstatistikleri(ids),
+    prisma.hamMesaj.findMany({
+      where: {
+        kaynakId: { in: ids },
+        createdAt: { gte: yediGun },
+      },
+      select: { kaynakId: true, metin: true },
+      take: 3000,
+    }),
   ]);
 
   const say = (
@@ -951,14 +995,44 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
     id: number
   ) => liste.find((x) => x.kaynakId === id)?._count._all ?? 0;
 
+  // Koridor isabet: satırda ≥2 il → en az biri koridorda mı?
+  const isabetMap = new Map<number, { hit: number; toplam: number }>();
+  const { illeriBul } = await import("@/lib/iller");
+  const { satirlaraBol, rotaSatiriMi } = await import(
+    "@/lib/kaynaklar/onFiltre"
+  );
+  for (const h of hamHafta) {
+    if (!h.kaynakId) continue;
+    let slot = isabetMap.get(h.kaynakId);
+    if (!slot) {
+      slot = { hit: 0, toplam: 0 };
+      isabetMap.set(h.kaynakId, slot);
+    }
+    for (const satir of satirlaraBol(h.metin)) {
+      if (!rotaSatiriMi(satir) && illeriBul(satir).length < 2) continue;
+      const iller = illeriBul(satir);
+      if (iller.length < 2) continue;
+      slot.toplam += 1;
+      if (iller.some((il) => koridor.has(il))) slot.hit += 1;
+    }
+  }
+
   return gruplar.map((g) => {
     const okuma = okumaMap.get(g.id);
     const istat = istatMap.get(g.id);
     const mesaj24s = say(sonGun, g.id);
+    const mesajHafta = say(haftaMesaj, g.id);
+    const ilanHafta = say(haftaIlan, g.id);
     const bek = say(bekleyen, g.id);
     const ilanAdedi = say(ilanlar, g.id);
     const cekilenBugun = okuma?.cekilen ?? 0;
+    const kuyrukBugun = okuma?.kuyruk ?? 0;
     const elenenBugun = okuma?.elenen ?? {};
+    const isb = isabetMap.get(g.id);
+    const koridorIsabet =
+      isb && isb.toplam > 0
+        ? Math.round((100 * isb.hit) / isb.toplam)
+        : null;
     const baz = {
       durum: g.durum,
       aktif: g.aktif,
@@ -983,12 +1057,18 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
       ilkOkumaYapildi: g.sonMesajId !== null,
       mesaj24s,
       cekilenBugun,
+      kuyrukBugun,
+      mesajHafta,
+      ilanHafta,
       elenenBugun,
       bekleyen: bek,
       ilanAdedi,
       takipGun: istat?.takipGun ?? 0,
       mesajToplam: istat?.mesajToplam ?? 0,
       sonIlan: istat?.sonIlan ?? null,
+      koridorIsabet,
+      hasatKaynak: g.hasatKaynak ?? null,
+      oncelik: g.oncelik ?? 0,
       teshis: grupTeshisi(baz),
     };
   });
@@ -1203,7 +1283,8 @@ export async function adaylariDegerlendir(
         tur: TELEGRAM_UYE,
         hedef: chatId,
         ad: baslik.slice(0, 120),
-        aktif: false,
+        // aktif=true → otomatik katılım kuyruğu (cron-katil)
+        aktif: Boolean(grup.kullaniciAdi),
         durum: "ADAY",
         bolge: karar.bolge,
         kullaniciAdi: grup.kullaniciAdi || null,
@@ -1211,6 +1292,8 @@ export async function adaylariDegerlendir(
           typeof grup.uyeSayisi === "number" && grup.uyeSayisi > 0
             ? grup.uyeSayisi
             : null,
+        oncelik: 0,
+        hasatKaynak: "arama",
       },
     });
     rapor.yeniAday += 1;

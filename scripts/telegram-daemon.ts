@@ -28,6 +28,7 @@ type Kaynak = {
   chatId: string;
   kullaniciAdi: string | null;
   sonMesajId: number | null;
+  ad: string;
 };
 
 let sonAktivite = Date.now();
@@ -94,6 +95,7 @@ async function kaynaklariYukle(): Promise<number> {
       hedef: true,
       kullaniciAdi: true,
       sonMesajId: true,
+      ad: true,
     },
   });
   kaynaklar.clear();
@@ -103,6 +105,7 @@ async function kaynaklariYukle(): Promise<number> {
       chatId: String(s.hedef),
       kullaniciAdi: s.kullaniciAdi,
       sonMesajId: s.sonMesajId,
+      ad: s.ad || `grup#${s.id}`,
     };
     kaynaklar.set(k.chatId, k);
   }
@@ -187,6 +190,19 @@ async function kacanlariYakala(client: TelegramClient) {
         }));
       const enBuyuk = mesajlar.reduce((s, m) => (m.id > s ? m.id : s), 0);
 
+      // Catch-up hasadı
+      try {
+        const { mesajdanHasatEt } = await import("@/lib/kaynaklar/linkHasat");
+        let hasatYeni = 0;
+        for (const m of metinler) {
+          const h = await mesajdanHasatEt(m.metin, { id: k.id, ad: k.ad });
+          hasatYeni += h.yeni;
+        }
+        if (hasatYeni > 0) log(`catch-up hasat #${k.id}: +${hasatYeni}`);
+      } catch (e) {
+        uyari("catch-up hasat", e instanceof Error ? e.message : e);
+      }
+
       const rapor = await mesajlariKuyrugaAl([
         {
           id: k.id,
@@ -248,6 +264,15 @@ async function mesajiIsle(event: NewMessageEvent) {
 
   const mesajId = msg.id;
   log(`olay grup=#${k.id} msg=${mesajId} from=${fromUser || "?"} len=${metin.length}`);
+
+  // Link hasadı — filtre öncesi; elenen mesajdaki davet de değerli.
+  try {
+    const { mesajdanHasatEt } = await import("@/lib/kaynaklar/linkHasat");
+    const h = await mesajdanHasatEt(metin, { id: k.id, ad: k.ad });
+    if (h.yeni > 0) log(`hasat +${h.yeni} (mevcut=${h.mevcut})`);
+  } catch (e) {
+    uyari("hasat hata", e instanceof Error ? e.message : e);
+  }
 
   try {
     const rapor = await mesajlariKuyrugaAl([

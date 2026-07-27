@@ -269,21 +269,28 @@ export function aramaSorgulariUret(
   const oncelikli: string[] = [];
   const genel: string[] = ["yük ilanları", "nakliye yük", "tır yük grubu"];
 
-  // Koridor odaklı (Ankara–İstanbul hattı)
+  // Koridor odaklı (Ankara–İstanbul hattı) — öncelikli
   const sabitKoridor = [
-    "ankara yük",
-    "istanbul yük",
-    "gebze yük",
-    "bolu nakliye",
-    "ankara istanbul nakliye",
-    "kocaeli yük",
-    "sakarya nakliye",
-    "düzce yük",
+    "ankara istanbul yük",
     "ankara çıkışlı",
     "istanbul çıkışlı",
+    "gebze yük",
+    "gebze ankara",
+    "bolu nakliye",
+    "düzce yük",
+    "sakarya nakliye",
+    "kocaeli tır",
+    "ostim nakliye",
+    "hadımköy yük",
+    "ambarlı yük",
+    "ikitelli nakliye",
     "anadolu yakası yük",
     "avrupa yakası yük",
     "kırıkkale yük",
+    "ankara yük",
+    "istanbul yük",
+    "ankara istanbul nakliye",
+    "kocaeli yük",
     "çankırı nakliye",
   ];
   if (koridorIller.length > 0 || sabitKoridor.length > 0) {

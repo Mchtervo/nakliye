@@ -1,9 +1,9 @@
 /**
- * ADAY gruba otomatik katılım — günde max 4, arası ≥45 dk.
- * FloodWait → 24 saat kilit. InviteRequestSent → başarı say.
+ * ADAY gruba otomatik katılım — günde max 6, arası ≥45 dk.
+ * Hasat linkleri (oncelik yüksek) önce. FloodWait → 24s kilit.
  * OpenAI yok.
  */
-import { Api, TelegramClient, errors } from "telegram";
+import { Api, TelegramClient, errors, utils } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { prisma } from "@/lib/prisma";
 import {
@@ -16,7 +16,7 @@ import { yukBasligiMi } from "@/lib/bolgeler";
 import { bugunAnahtar } from "@/lib/kaynaklar/elemeSayac";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 
-const GUNLUK_LIMIT = 4;
+const GUNLUK_LIMIT = 6;
 const ARA_MS = 45 * 60 * 1000;
 
 function gunlukOku(ham: string | null): { gun: string; adet: number } {
@@ -73,7 +73,7 @@ async function main() {
       kullaniciAdi: { not: null },
       OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: 50 } }],
     },
-    orderBy: [{ uyeSayisi: "desc" }, { id: "asc" }],
+    orderBy: [{ oncelik: "desc" }, { uyeSayisi: "desc" }, { id: "asc" }],
   });
   if (!aday?.kullaniciAdi) {
     console.log("[cron-katil] uygun ADAY yok");
@@ -109,18 +109,51 @@ async function main() {
   console.log(`[cron-katil] deneme @${kullanici} (${aday.ad})`);
 
   try {
-    const channel = await client.getInputEntity(kullanici);
+    const entity = await client.getEntity(kullanici);
+    const channel = await client.getInputEntity(entity);
     await client.invoke(new Api.channels.JoinChannel({ channel }));
 
-    await prisma.ilanKaynagi.update({
-      where: { id: aday.id },
-      data: {
-        durum: "AKTIF",
-        aktif: true,
-        sonHata: null,
-        sonTarama: new Date(),
+    const chatId = String(utils.getPeerId(entity));
+    const baslik =
+      entity instanceof Api.Channel && entity.title
+        ? entity.title
+        : aday.ad;
+
+    // Hedef u:@x → gerçek chatId; çakışma varsa eski kaydı PASİF bırak.
+    const cakisan = await prisma.ilanKaynagi.findFirst({
+      where: {
+        tur: TELEGRAM_UYE,
+        hedef: chatId,
+        id: { not: aday.id },
       },
+      select: { id: true },
     });
+    if (cakisan) {
+      await prisma.ilanKaynagi.update({
+        where: { id: aday.id },
+        data: {
+          aktif: false,
+          durum: "PASIF",
+          sonHata: `Katıldı ama chatId #${cakisan.id} ile çakıştı`,
+        },
+      });
+      await prisma.ilanKaynagi.update({
+        where: { id: cakisan.id },
+        data: { durum: "AKTIF", aktif: true, sonHata: null },
+      });
+    } else {
+      await prisma.ilanKaynagi.update({
+        where: { id: aday.id },
+        data: {
+          hedef: chatId,
+          ad: baslik.slice(0, 120),
+          durum: "AKTIF",
+          aktif: true,
+          sonHata: null,
+          sonTarama: new Date(),
+        },
+      });
+    }
     await ayarYaz(AYAR_ANAHTARLARI.telegramSonKatilim, new Date().toISOString());
     await ayarYaz(
       AYAR_ANAHTARLARI.telegramKatilimGunluk,
@@ -129,7 +162,7 @@ async function main() {
     console.log(
       JSON.stringify({
         ok: true,
-        grup: aday.ad,
+        grup: baslik,
         bugun: `${sayac.adet + 1}/${GUNLUK_LIMIT}`,
       })
     );
@@ -173,10 +206,48 @@ async function main() {
     }
 
     if (/USER_ALREADY_PARTICIPANT|already a participant/i.test(mesaj)) {
-      await prisma.ilanKaynagi.update({
-        where: { id: aday.id },
-        data: { durum: "AKTIF", aktif: true, sonHata: null },
-      });
+      try {
+        const entity = await client.getEntity(kullanici);
+        const chatId = String(utils.getPeerId(entity));
+        const baslik =
+          entity instanceof Api.Channel && entity.title
+            ? entity.title
+            : aday.ad;
+        const cakisan = await prisma.ilanKaynagi.findFirst({
+          where: {
+            tur: TELEGRAM_UYE,
+            hedef: chatId,
+            id: { not: aday.id },
+          },
+          select: { id: true },
+        });
+        if (!cakisan) {
+          await prisma.ilanKaynagi.update({
+            where: { id: aday.id },
+            data: {
+              hedef: chatId,
+              ad: baslik.slice(0, 120),
+              durum: "AKTIF",
+              aktif: true,
+              sonHata: null,
+            },
+          });
+        } else {
+          await prisma.ilanKaynagi.update({
+            where: { id: aday.id },
+            data: {
+              aktif: false,
+              durum: "PASIF",
+              sonHata: `Zaten üye; kayıt #${cakisan.id}`,
+            },
+          });
+        }
+      } catch {
+        await prisma.ilanKaynagi.update({
+          where: { id: aday.id },
+          data: { durum: "AKTIF", aktif: true, sonHata: null },
+        });
+      }
       console.log("[cron-katil] zaten üye → AKTİF", aday.ad);
       return;
     }
