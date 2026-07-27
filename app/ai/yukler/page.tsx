@@ -308,7 +308,7 @@ export default async function AiYuklerSayfasi({
         <p className="text-xs text-teal">Filtre: {filtreOzet}</p>
       )}
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-asphalt-2 p-1">
+      <div className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-asphalt-2 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {SEKMELER.map((s) => {
           const aktif = s.kod === sekme;
           const rozet =
@@ -323,7 +323,7 @@ export default async function AiYuklerSayfasi({
             <Link
               key={s.kod}
               href={sekmeHref(s.kod, neredenHam, nereyeHam)}
-              className={`shrink-0 rounded-lg px-3 py-2.5 text-center text-sm font-semibold ${
+              className={`shrink-0 rounded-lg px-2.5 py-2.5 text-center text-xs font-semibold sm:px-3 sm:text-sm ${
                 aktif ? "bg-white/10 text-amber" : "text-fog hover:text-paper"
               }`}
             >

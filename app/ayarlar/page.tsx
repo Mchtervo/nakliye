@@ -250,7 +250,7 @@ export default async function AyarlarSayfasi() {
                       : "border-white/10 bg-white/4"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-paper">
                         {g.ad}
@@ -260,7 +260,7 @@ export default async function AyarlarSayfasi() {
                           </span>
                         ) : null}
                       </div>
-                      <div className="text-xs text-fog">
+                      <div className="break-words text-xs text-fog">
                         {g.durum === "ADAY"
                           ? [
                               g.oncelik > 0 ? `öncelik ${g.oncelik}` : null,
@@ -293,7 +293,7 @@ export default async function AyarlarSayfasi() {
                         {g.teshis}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end">
                       {(g.durum === "ADAY" ||
                         g.durum === "PASIF" ||
                         !g.aktif) && (

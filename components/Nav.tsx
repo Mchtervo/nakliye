@@ -2,12 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import NavLink from "@/components/NavLink";
 
 const ikonSinif = "h-5 w-5";
 
-/** Mobil alt dock'ta da görünen ana bölümler (5 slot). */
-const LINKLER = [
+type NavOge = {
+  href: string;
+  ad: string;
+  ikon: ReactNode;
+};
+
+/** Mobil alt dock — 4 ana + Daha. */
+const DOCK: NavOge[] = [
   {
     href: "/",
     ad: "Panel",
@@ -18,8 +25,8 @@ const LINKLER = [
     ),
   },
   {
-    href: "/ai",
-    ad: "AI",
+    href: "/ai/yukler",
+    ad: "Yükler",
     ikon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
         <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
@@ -32,13 +39,37 @@ const LINKLER = [
   },
   {
     href: "/yukler",
-    ad: "Yükler",
+    ad: "Sefer",
     ikon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
         <path d="M1 9h12v7H1z" />
         <path d="M13 12h4l3 3v1h-7z" />
         <circle cx="6" cy="18.5" r="1.5" />
         <circle cx="17" cy="18.5" r="1.5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/plan",
+    ad: "Plan",
+    ikon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
+        <path d="M4 6h16M4 12h10M4 18h14" />
+        <circle cx="18" cy="12" r="2" />
+      </svg>
+    ),
+  },
+];
+
+/** «Daha» menüsü + masaüstü yan menü. */
+const DIGER: NavOge[] = [
+  {
+    href: "/ai",
+    ad: "AI Merkez",
+    ikon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
+        <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
+        <rect x="6" y="6" width="12" height="12" rx="3" />
       </svg>
     ),
   },
@@ -60,20 +91,6 @@ const LINKLER = [
         <rect x="3" y="6" width="18" height="13" rx="2" />
         <path d="M3 10h18" />
         <circle cx="12" cy="14.5" r="1.5" />
-      </svg>
-    ),
-  },
-] as const;
-
-/** Masaüstü yan menüde ek bölümler. */
-const EK_LINKLER = [
-  {
-    href: "/plan",
-    ad: "Plan",
-    ikon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
-        <path d="M4 6h16M4 12h10M4 18h14" />
-        <circle cx="18" cy="12" r="2" />
       </svg>
     ),
   },
@@ -127,12 +144,26 @@ const EK_LINKLER = [
       </svg>
     ),
   },
-] as const;
+  {
+    href: "/giderler/yeni",
+    ad: "+ Gider",
+    ikon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    ),
+  },
+];
+
+const YAN_MENU: NavOge[] = [
+  ...DOCK,
+  ...DIGER.filter((d) => d.href !== "/giderler/yeni"),
+];
 
 function Logo() {
   return (
-    <Link href="/" className="group flex items-center gap-3">
-      <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber to-[#c97800] text-asphalt shadow-[0_8px_24px_rgba(240,160,32,0.35)] transition-transform group-hover:scale-105">
+    <Link href="/" className="group flex min-w-0 items-center gap-2.5 sm:gap-3">
+      <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber to-[#c97800] text-asphalt shadow-[0_8px_24px_rgba(240,160,32,0.35)] transition-transform group-hover:scale-105 sm:h-10 sm:w-10">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
           <path d="M1 9h12v7H1z" />
           <path d="M13 12h4l3 3v1h-7z" />
@@ -140,11 +171,11 @@ function Logo() {
           <circle cx="17" cy="18.5" r="1.5" />
         </svg>
       </span>
-      <span className="leading-tight">
-        <span className="font-display block text-lg font-bold tracking-wide text-paper">
+      <span className="min-w-0 leading-tight">
+        <span className="font-display block truncate text-base font-bold tracking-wide text-paper sm:text-lg">
           NAKLİYE
         </span>
-        <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-amber">
+        <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-amber sm:text-[11px] sm:tracking-[0.22em]">
           Defteri
         </span>
       </span>
@@ -152,10 +183,43 @@ function Logo() {
   );
 }
 
+function DahaIkon({ acik }: { acik: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={`h-5 w-5 transition-transform ${acik ? "rotate-90" : ""}`}
+    >
+      <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export default function Nav() {
   const pathname = usePathname();
+  const [dahaAcik, setDahaAcik] = useState(false);
+
   const aktifMi = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const dahaAktif = DIGER.some((l) => aktifMi(l.href));
+
+  useEffect(() => {
+    setDahaAcik(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!dahaAcik) return;
+    const onceki = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = onceki;
+    };
+  }, [dahaAcik]);
 
   const yanMenuSinifi = (aktif: boolean) =>
     `relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
@@ -172,7 +236,7 @@ export default function Nav() {
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
-          {[...LINKLER, ...EK_LINKLER].map((l) => {
+          {YAN_MENU.map((l) => {
             const aktif = aktifMi(l.href);
             return (
               <NavLink key={l.href} href={l.href} className={yanMenuSinifi(aktif)}>
@@ -202,31 +266,82 @@ export default function Nav() {
       </aside>
 
       {/* Mobil üst bar */}
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-asphalt/85 px-4 py-3 backdrop-blur-xl md:hidden">
-        <div className="flex items-center justify-between">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-asphalt/85 px-3 py-2.5 backdrop-blur-xl md:hidden">
+        <div className="flex items-center justify-between gap-2">
           <Logo />
-          <div className="flex gap-2">
-            <Link href="/ayarlar" className="btn btn-ghost !px-3 !py-2 text-xs">
+          <div className="flex shrink-0 gap-1.5">
+            <Link
+              href="/ayarlar"
+              className="btn btn-ghost !min-h-10 !px-2.5 !py-2 text-xs"
+            >
               Ayarlar
             </Link>
-            <Link href="/yukler/yeni" className="btn btn-amber !px-3 !py-2 text-xs">
+            <Link
+              href="/yukler/yeni"
+              className="btn btn-amber !min-h-10 !px-2.5 !py-2 text-xs"
+            >
               + Yük
             </Link>
           </div>
         </div>
-        <div className="lane-strip mt-3" />
+        <div className="lane-strip mt-2.5" />
       </header>
 
+      {/* Mobil «Daha» alt sheet */}
+      {dahaAcik && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/55"
+            aria-label="Menüyü kapat"
+            onClick={() => setDahaAcik(false)}
+          />
+          <div
+            className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-3xl border border-white/12 bg-asphalt-2 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl"
+            role="dialog"
+            aria-label="Diğer menü"
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" />
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-fog">
+              Tüm menü
+            </p>
+            <div className="grid grid-cols-3 gap-2 pb-2">
+              {DIGER.map((l) => {
+                const aktif = aktifMi(l.href);
+                return (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    onClick={() => setDahaAcik(false)}
+                    className={`flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-xs font-semibold ${
+                      aktif
+                        ? "border-amber/40 bg-amber/12 text-amber"
+                        : "border-white/10 bg-white/4 text-paper"
+                    }`}
+                  >
+                    <span className={aktif ? "text-amber" : "text-fog"}>{l.ikon}</span>
+                    {l.ad}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobil alt dock */}
-      <nav className="fixed inset-x-3 bottom-3 z-30 rounded-2xl border border-white/10 bg-asphalt-2/95 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden">
+      <nav
+        className="fixed inset-x-2 bottom-2 z-50 rounded-2xl border border-white/10 bg-asphalt-2/95 p-1 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
+        style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
+      >
         <div className="grid grid-cols-5">
-          {LINKLER.map((l) => {
+          {DOCK.map((l) => {
             const aktif = aktifMi(l.href);
             return (
               <NavLink
                 key={l.href}
                 href={l.href}
-                className={`relative flex flex-col items-center gap-0.5 rounded-xl py-2 text-[10px] font-semibold transition-all ${
+                className={`relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 text-[10px] font-semibold transition-all ${
                   aktif ? "text-amber" : "text-fog"
                 }`}
               >
@@ -234,10 +349,25 @@ export default function Nav() {
                   <span className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-amber shadow-[0_0_10px_rgba(240,160,32,0.9)]" />
                 )}
                 {l.ikon}
-                {l.ad}
+                <span className="max-w-full truncate">{l.ad}</span>
               </NavLink>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setDahaAcik((v) => !v)}
+            className={`relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 text-[10px] font-semibold transition-all ${
+              dahaAcik || dahaAktif ? "text-amber" : "text-fog"
+            }`}
+            aria-expanded={dahaAcik}
+            aria-label="Diğer menü"
+          >
+            {(dahaAcik || dahaAktif) && (
+              <span className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-amber shadow-[0_0_10px_rgba(240,160,32,0.9)]" />
+            )}
+            <DahaIkon acik={dahaAcik} />
+            Daha
+          </button>
         </div>
       </nav>
     </div>
