@@ -1,14 +1,13 @@
 /**
- * Onaylı Telegram DM — otomatik gönderim YOK.
- * Limit: 15/gün, ≥2 dk ara, aynı kişiye 24s 1 kez, FloodWait→24s dur,
- * kara liste.
+ * Telegram DM — sadece kullanıcı [Bilgi Sor] basınca kuyruk.
+ * Limit: varsayılan 10/gün, ≥2 dk ara, aynı kişi 24s 1,
+ * FloodWait→24s dur + bildir, kara liste. Otomatik yok.
  */
 import { prisma } from "@/lib/prisma";
 import {
   AYAR_ANAHTARLARI,
   aiTercihleriOku,
   ayarOku,
-  ayarYaz,
 } from "@/lib/ayarlar";
 import { bugunAnahtar } from "@/lib/kaynaklar/elemeSayac";
 import { ilanIletisimMesaji } from "@/lib/ai/whatsappMesaj";
@@ -18,20 +17,25 @@ import {
   telegramGonder,
   type InlineButon,
 } from "@/lib/bildirim/telegram";
+import { tlYazKisa } from "@/lib/para";
+import {
+  cevapAiCozumle,
+  cevapParseRegex,
+} from "@/lib/kaynaklar/tdmCevap";
 
-export const TDM_GUNLUK_LIMIT_VARSAYILAN = 5;
+export const TDM_GUNLUK_LIMIT_VARSAYILAN = 10;
 export const TDM_ARA_MS = 2 * 60 * 1000;
 export const TDM_KISI_MS = 24 * 60 * 60 * 1000;
 
 export const TDM_GUNLUK_ANAHTAR = "tdm_gunluk";
 export const TDM_SON_ANAHTAR = "tdm_son";
 export const TDM_DUZENLE_ANAHTAR = "tdm_duzenle_ilan";
-export const TDM_KARA_ANAHTAR = "tdm_kara_liste";
 
 export type TdmDurum =
   | "ONAY_BEKLIYOR"
   | "KUYRUK"
   | "GONDERILDI"
+  | "CEVAP_YOK"
   | "ATLANDI"
   | "HATA";
 
@@ -73,7 +77,7 @@ function gunlukOku(ham: string | null): { gun: string; adet: number } {
   return { gun, adet: Number.isFinite(adet) ? adet : 0 };
 }
 
-/** Ayarlar'dan günlük DM limiti (1–30). Varsayılan 5. */
+/** Ayarlar'dan günlük DM limiti (1–30). Varsayılan 10. */
 export async function tdmGunlukLimitOku(): Promise<number> {
   const ham = await ayarOku(AYAR_ANAHTARLARI.tdmGunlukLimit);
   const n = Number(ham);
@@ -84,6 +88,7 @@ export async function tdmGunlukLimitOku(): Promise<number> {
 export async function tdmLimitKontrol(hedefUserId: string | null): Promise<{
   ok: boolean;
   sebep?: string;
+  limitMi?: boolean;
 }> {
   const flood = Date.parse(
     (await ayarOku(AYAR_ANAHTARLARI.telegramFloodBitis)) || ""
@@ -98,7 +103,7 @@ export async function tdmLimitKontrol(hedefUserId: string | null): Promise<{
       ?.deger ?? null
   );
   if (sayac.adet >= limit) {
-    return { ok: false, sebep: `Günlük limit ${limit}` };
+    return { ok: false, sebep: `Günlük limit ${limit}`, limitMi: true };
   }
 
   const sonHam = (
@@ -106,8 +111,10 @@ export async function tdmLimitKontrol(hedefUserId: string | null): Promise<{
   )?.deger;
   const sonMs = Date.parse(sonHam || "");
   if (Number.isFinite(sonMs) && Date.now() - sonMs < TDM_ARA_MS) {
-    const kalan = Math.ceil((TDM_ARA_MS - (Date.now() - sonMs)) / 60000);
-    return { ok: false, sebep: `Ara: ${kalan} dk sonra` };
+    const kalanSn = Math.ceil((TDM_ARA_MS - (Date.now() - sonMs)) / 1000);
+    const kalan =
+      kalanSn >= 60 ? `${Math.ceil(kalanSn / 60)} dk` : `${kalanSn} sn`;
+    return { ok: false, sebep: `Ara: ${kalan} sonra` };
   }
 
   if (hedefUserId) {
@@ -139,99 +146,125 @@ export async function tdmKaraKontrol(
   return false;
 }
 
-/** Eksik fiyat/tonaj ilanı için DM kaydı + hazır mesaj. */
-export async function tdmHazirla(ilanId: number): Promise<{
-  dmId: number;
-  metin: string;
-  hedefUserId: string | null;
+/** Bildirim kartı: [Bilgi Sor] [Ara] [Geç] — taslak/onay yok. */
+export async function tdmKartButonlari(ilan: {
+  id: number;
+  gonderenUserId: string | null;
   telefon: string | null;
-} | null> {
-  const ilan = await prisma.yukIlani.findUnique({ where: { id: ilanId } });
-  if (!ilan) return null;
-  if (!fiyatTonajEksikMi(ilan)) return null;
+}): Promise<InlineButon[][] | null> {
   if (!ilan.gonderenUserId && !ilan.telefon) return null;
 
-  if (await tdmKaraKontrol(ilan.telefon, ilan.gonderenUserId)) {
-    return null;
+  const satir: InlineButon[] = [];
+
+  if (ilan.gonderenUserId) {
+    satir.push({ metin: "Bilgi Sor", callback: `tdm:s:${ilan.id}` });
+  } else if (ilan.telefon) {
+    let metin = "";
+    try {
+      metin = (await ilanIletisimMesaji(ilan.id)).metin;
+    } catch {
+      /* boş wa linki */
+    }
+    const wa = whatsappMesajUrl(ilan.telefon, metin);
+    if (wa) satir.push({ metin: "Bilgi Sor", url: wa });
   }
 
-  const mevcut = await prisma.telegramDm.findFirst({
+  if (ilan.telefon) {
+    const tel = ilan.telefon.replace(/[^\d+]/g, "");
+    if (tel) satir.push({ metin: "Ara", url: `tel:${tel}` });
+  }
+
+  satir.push({ metin: "Geç", callback: `tdm:p:${ilan.id}` });
+
+  return satir.length > 0 ? [satir] : null;
+}
+
+/**
+ * [Bilgi Sor] — mesajı hemen kuyruğa al (daemon saniyeler içinde gönderir).
+ * Onay / modal / düzenleme yok.
+ */
+export async function tdmBilgiSor(ilanId: number): Promise<{
+  ok: boolean;
+  mesaj: string;
+}> {
+  const ilan = await prisma.yukIlani.findUnique({ where: { id: ilanId } });
+  if (!ilan) return { ok: false, mesaj: "İlan yok." };
+  if (!ilan.gonderenUserId) {
+    return { ok: false, mesaj: "Telegram id yok." };
+  }
+  if (await tdmKaraKontrol(ilan.telefon, ilan.gonderenUserId)) {
+    return { ok: false, mesaj: "Kara liste." };
+  }
+
+  const limit = await tdmLimitKontrol(ilan.gonderenUserId);
+  if (!limit.ok) return { ok: false, mesaj: limit.sebep || "Limit" };
+
+  const yakin = await prisma.telegramDm.findFirst({
     where: {
       ilanId,
-      durum: { in: ["ONAY_BEKLIYOR", "KUYRUK", "GONDERILDI"] },
+      durum: { in: ["KUYRUK", "GONDERILDI"] },
+      createdAt: { gte: new Date(Date.now() - TDM_KISI_MS) },
     },
     orderBy: { createdAt: "desc" },
   });
-  if (mevcut) {
-    return {
-      dmId: mevcut.id,
-      metin: mevcut.metin,
-      hedefUserId: mevcut.hedefUserId,
-      telefon: mevcut.telefon,
-    };
+  if (yakin?.durum === "KUYRUK") {
+    return { ok: true, mesaj: "✅ Gönderildi" };
+  }
+  if (yakin?.durum === "GONDERILDI") {
+    return { ok: false, mesaj: "Zaten soruldu (24s)." };
   }
 
   let metin: string;
   try {
-    const r = await ilanIletisimMesaji(ilanId);
-    metin = r.metin;
-  } catch (e) {
-    console.warn(
-      "[tdm] mesaj üretilemedi",
-      e instanceof Error ? e.message : e
-    );
-    const rota = `${ilan.nereden || ilan.cikisIl || "?"} → ${ilan.nereye || ilan.varisIl || "?"}`;
+    metin = (await ilanIletisimMesaji(ilanId, { zorlaYenile: true })).metin;
+  } catch {
+    const rota = `${ilan.nereden || ilan.cikisIl || "?"}→${ilan.nereye || ilan.varisIl || "?"}`;
     metin =
-      `Merhaba, ${rota} yükünüz için tenteli TIR ile ilgileniyorum. ` +
-      `Net tonaj, yükleme adresi/saati ve navlun bilgisini yazar mısınız?`;
+      `Merhaba, ${rota} işiniz için bilgi alabilir miyim?\n` +
+      `Kaç ton, navlun ne kadar, yükleme ne zaman ve tam adres neresi?`;
   }
 
-  const dm = await prisma.telegramDm.create({
-    data: {
-      ilanId,
-      hedefUserId: ilan.gonderenUserId,
-      telefon: ilan.telefon,
-      metin,
-      durum: "ONAY_BEKLIYOR",
-    },
+  const onayBekleyen = await prisma.telegramDm.findFirst({
+    where: { ilanId, durum: "ONAY_BEKLIYOR" },
+    orderBy: { createdAt: "desc" },
   });
 
-  return {
-    dmId: dm.id,
-    metin: dm.metin,
-    hedefUserId: dm.hedefUserId,
-    telefon: dm.telefon,
-  };
+  let dmId: number;
+  if (onayBekleyen) {
+    await prisma.telegramDm.update({
+      where: { id: onayBekleyen.id },
+      data: {
+        metin,
+        hedefUserId: ilan.gonderenUserId,
+        telefon: ilan.telefon,
+        durum: "KUYRUK",
+        hata: null,
+      },
+    });
+    dmId = onayBekleyen.id;
+  } else {
+    const dm = await prisma.telegramDm.create({
+      data: {
+        ilanId,
+        hedefUserId: ilan.gonderenUserId,
+        telefon: ilan.telefon,
+        metin,
+        durum: "KUYRUK",
+      },
+    });
+    dmId = dm.id;
+  }
+
+  await prisma.yukIlani.update({
+    where: { id: ilanId },
+    data: { durum: "ILETISIME_GECILDI" },
+  });
+
+  void dmId;
+  return { ok: true, mesaj: "✅ Gönderildi" };
 }
 
-export function tdmBildirimButonlari(secenek: {
-  dmId: number;
-  ilanId: number;
-  hedefUserId: string | null;
-  telefon: string | null;
-  metin: string;
-  detayUrl?: string | null;
-}): InlineButon[][] {
-  const satir1: InlineButon[] = [];
-  if (secenek.hedefUserId) {
-    satir1.push({ metin: "Gönder", callback: `tdm:g:${secenek.dmId}` });
-  }
-  satir1.push({ metin: "Düzenle", callback: `tdm:e:${secenek.dmId}` });
-  satir1.push({ metin: "Geç", callback: `tdm:x:${secenek.dmId}` });
-
-  const satir2: InlineButon[] = [];
-  if (secenek.telefon) {
-    const wa = whatsappMesajUrl(secenek.telefon, secenek.metin);
-    if (wa) satir2.push({ metin: "WhatsApp", url: wa });
-  }
-  if (secenek.detayUrl) {
-    satir2.push({ metin: "Detay", url: secenek.detayUrl });
-  }
-
-  return [satir1, ...(satir2.length ? [satir2] : [])];
-}
-
-/** [Gönder] — kuyruğa al (GramJS daemon gönderir). */
+/** Eski bildirimler: tdm:g:dmId — kuyruğa al. */
 export async function tdmGonderOnayla(dmId: number): Promise<{
   ok: boolean;
   mesaj: string;
@@ -246,14 +279,14 @@ export async function tdmGonderOnayla(dmId: number): Promise<{
   }
   if (dm.durum === "ATLANDI") return { ok: false, mesaj: "Atlanmış." };
   if (!dm.hedefUserId) {
-    return { ok: false, mesaj: "Telegram kullanıcı id yok — WhatsApp kullan." };
+    return { ok: false, mesaj: "Telegram id yok." };
   }
   if (await tdmKaraKontrol(dm.telefon, dm.hedefUserId)) {
     await prisma.telegramDm.update({
       where: { id: dmId },
       data: { durum: "HATA", hata: "Kara liste" },
     });
-    return { ok: false, mesaj: "Kara listede — gönderilmedi." };
+    return { ok: false, mesaj: "Kara liste." };
   }
 
   const limit = await tdmLimitKontrol(dm.hedefUserId);
@@ -268,10 +301,7 @@ export async function tdmGonderOnayla(dmId: number): Promise<{
     data: { durum: "ILETISIME_GECILDI" },
   });
 
-  return {
-    ok: true,
-    mesaj: "Kuyruğa alındı — hesabınla DM atılacak (limitlere uygun).",
-  };
+  return { ok: true, mesaj: "✅ Gönderildi" };
 }
 
 export async function tdmAtla(dmId: number): Promise<{ ok: boolean; mesaj: string }> {
@@ -340,13 +370,12 @@ export async function tdmDuzenleMetinIsle(
     await prisma.ayar.delete({ where: { anahtar: TDM_DUZENLE_ANAHTAR } }).catch(() => null);
 
     const tercih = await aiTercihleriOku();
-    const butonlar = tdmBildirimButonlari({
-      dmId: dm.id,
-      ilanId: dm.ilanId,
-      hedefUserId: dm.hedefUserId,
-      telefon: dm.telefon,
-      metin: temiz,
-    });
+    const butonlar: InlineButon[][] = [
+      [
+        { metin: "Bilgi Sor", callback: `tdm:g:${dm.id}` },
+        { metin: "Geç", callback: `tdm:x:${dm.id}` },
+      ],
+    ];
     if (tercih.telegramChatId) {
       await telegramGonder(
         tercih.telegramChatId,
@@ -354,7 +383,7 @@ export async function tdmDuzenleMetinIsle(
         butonlar
       );
     }
-    return { islendi: true, mesaj: "Taslak güncellendi — Gönder / Geç." };
+    return { islendi: true, mesaj: "Taslak güncellendi." };
   } catch {
     return { islendi: false };
   }
@@ -374,7 +403,10 @@ export async function tdmKuyruktanAl(): Promise<{
   if (!aday?.hedefUserId) return null;
 
   const limit = await tdmLimitKontrol(aday.hedefUserId);
-  if (!limit.ok) return null;
+  if (!limit.ok) {
+    // Limit / FloodWait / kişi limiti — kuyrukta beklesin, hata yazma
+    return null;
+  }
 
   if (await tdmKaraKontrol(aday.telefon, aday.hedefUserId)) {
     await prisma.telegramDm.update({
@@ -400,6 +432,9 @@ export async function tdmGonderildiIsaretle(
     (await prisma.ayar.findUnique({ where: { anahtar: TDM_GUNLUK_ANAHTAR } }))
       ?.deger ?? null
   );
+  const limit = await tdmGunlukLimitOku();
+  const yeniAdet = sayac.adet + 1;
+
   await prisma.telegramDm.update({
     where: { id: dmId },
     data: {
@@ -418,10 +453,37 @@ export async function tdmGonderildiIsaretle(
     where: { anahtar: TDM_GUNLUK_ANAHTAR },
     create: {
       anahtar: TDM_GUNLUK_ANAHTAR,
-      deger: `${sayac.gun}:${sayac.adet + 1}`,
+      deger: `${sayac.gun}:${yeniAdet}`,
     },
-    update: { deger: `${sayac.gun}:${sayac.adet + 1}` },
+    update: { deger: `${sayac.gun}:${yeniAdet}` },
   });
+
+  const dm = await prisma.telegramDm.findUnique({
+    where: { id: dmId },
+    include: {
+      ilan: {
+        select: {
+          nereden: true,
+          nereye: true,
+          cikisIl: true,
+          varisIl: true,
+          firmaAdi: true,
+          ilgiliKisi: true,
+        },
+      },
+    },
+  });
+  const tercih = await aiTercihleriOku();
+  if (tercih.telegramChatId && dm) {
+    const rota = `${dm.ilan.nereden || dm.ilan.cikisIl || "?"}→${dm.ilan.nereye || dm.ilan.varisIl || "?"}`;
+    const kim = dm.ilan.firmaAdi || dm.ilan.ilgiliKisi || "";
+    await telegramGonder(
+      tercih.telegramChatId,
+      `✅ <b>Gönderildi:</b> ${htmlKacis(rota)}` +
+        (kim ? ` · ${htmlKacis(kim)}` : "") +
+        `\nBugün ${yeniAdet}/${limit}`
+    );
+  }
 }
 
 export async function tdmHataIsaretle(dmId: number, hata: string): Promise<void> {
@@ -429,6 +491,16 @@ export async function tdmHataIsaretle(dmId: number, hata: string): Promise<void>
     where: { id: dmId },
     data: { durum: "HATA", hata: hata.slice(0, 300) },
   });
+}
+
+export async function tdmFloodBildir(saniye: number): Promise<void> {
+  const tercih = await aiTercihleriOku();
+  if (!tercih.telegramChatId) return;
+  await telegramGonder(
+    tercih.telegramChatId,
+    `⛔ <b>Telegram FloodWait</b> (${saniye}s)\n` +
+      `DM + katılım 24 saat durdu. Okuyucu hesabı korunuyor.`
+  );
 }
 
 /** Gelen özel mesaj → son gönderilen DM cevabı mı? */
@@ -458,13 +530,16 @@ export async function tdmCevapIsle(
           tonaj: true,
           ucret: true,
           fiyatTon: true,
+          hamMetin: true,
         },
       },
     },
   });
   if (!dm) return { islendi: false };
 
-  const { tonaj, ucretKurush, fiyatTonKurush, ozet } = cevapParse(metin);
+  const rota = `${dm.ilan.nereden || dm.ilan.cikisIl || "?"}→${dm.ilan.nereye || dm.ilan.varisIl || "?"}`;
+  const bugun = new Date().toISOString().slice(0, 10);
+  const cozum = await cevapAiCozumle(metin, { rota, bugun });
 
   await prisma.telegramDm.update({
     where: { id: dm.id },
@@ -475,83 +550,110 @@ export async function tdmCevapIsle(
     tonaj?: number;
     ucret?: number | null;
     fiyatTon?: number | null;
-  } = {};
-  if (tonaj && !dm.ilan.tonaj) guncelle.tonaj = tonaj;
-  if (ucretKurush && !dm.ilan.ucret && !dm.ilan.fiyatTon) {
-    guncelle.ucret = ucretKurush;
-  } else if (fiyatTonKurush && !dm.ilan.fiyatTon && !dm.ilan.ucret) {
-    guncelle.fiyatTon = fiyatTonKurush;
+    yuklemeTarihi?: Date | null;
+    nereden?: string;
+    durum: string;
+  } = { durum: "PAZARLIKTA" };
+
+  if (cozum.tonaj) guncelle.tonaj = cozum.tonaj;
+  if (cozum.ucretKurush) {
+    guncelle.ucret = cozum.ucretKurush;
+    guncelle.fiyatTon = null;
+  } else if (cozum.fiyatTonKurush) {
+    guncelle.fiyatTon = cozum.fiyatTonKurush;
   }
-  if (Object.keys(guncelle).length > 0) {
-    await prisma.yukIlani.update({
-      where: { id: dm.ilanId },
-      data: guncelle,
-    });
+  if (cozum.yuklemeTarihi) guncelle.yuklemeTarihi = cozum.yuklemeTarihi;
+  if (cozum.adres && cozum.adres.length >= 3) {
+    // Adresi nereden alanına ekle (kısa not) — var olan ili bozma
+    const mevcut = dm.ilan.nereden || dm.ilan.cikisIl || "";
+    if (!mevcut.toLocaleLowerCase("tr-TR").includes(cozum.adres.slice(0, 12).toLocaleLowerCase("tr-TR"))) {
+      guncelle.nereden = `${mevcut} (${cozum.adres})`.slice(0, 120);
+    }
   }
 
+  await prisma.yukIlani.update({
+    where: { id: dm.ilanId },
+    data: guncelle,
+  });
+
+  const guncel = await prisma.yukIlani.findUnique({
+    where: { id: dm.ilanId },
+    select: { tonaj: true, ucret: true, fiyatTon: true, yuklemeTarihi: true },
+  });
+
   const kim =
-    dm.ilan.firmaAdi ||
-    dm.ilan.ilgiliKisi ||
-    `İlan #${dm.ilanId}`;
+    dm.ilan.firmaAdi || dm.ilan.ilgiliKisi || `İlan #${dm.ilanId}`;
+  const zamanParca = [
+    guncel?.yuklemeTarihi
+      ? guncel.yuklemeTarihi.toLocaleDateString("tr-TR")
+      : null,
+    cozum.yuklemeSaati,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const ozetSatir = [
+    guncel?.tonaj ? `${guncel.tonaj} ton` : null,
+    guncel?.ucret
+      ? tlYazKisa(guncel.ucret)
+      : guncel?.fiyatTon
+        ? `${tlYazKisa(guncel.fiyatTon)}/ton`
+        : null,
+    zamanParca || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const tercih = await aiTercihleriOku();
   if (tercih.telegramChatId) {
     await telegramGonder(
       tercih.telegramChatId,
-      `<b>${htmlKacis(kim)} cevap verdi:</b> ${htmlKacis(ozet)}\n\n` +
-        `<i>${htmlKacis(metin.slice(0, 500))}</i>`
+      `✅ <b>${htmlKacis(kim)} cevap verdi:</b> ` +
+        `${htmlKacis(ozetSatir || cozum.ozet || rota)}` +
+        `\n<i>${htmlKacis(metin.slice(0, 300))}</i>`
     );
   }
 
   return { islendi: true };
 }
 
-/** Cevaptan tonaj / fiyat çıkar (AI yok). */
-export function cevapParse(metin: string): {
-  tonaj: number | null;
-  ucretKurush: number | null;
-  fiyatTonKurush: number | null;
-  ozet: string;
-} {
-  const sade = metin.toLocaleLowerCase("tr-TR");
-  let tonaj: number | null = null;
-  const tonM = sade.match(/(\d{1,2})\s*ton/);
-  if (tonM) {
-    const t = Number(tonM[1]);
-    if (t >= 1 && t <= 50) tonaj = t;
+/** 24s cevap gelmeyen DM → CEVAP_YOK. */
+export async function tdmCevapYokIsle(): Promise<number> {
+  const sinir = new Date(Date.now() - TDM_KISI_MS);
+  const bekleyen = await prisma.telegramDm.findMany({
+    where: {
+      durum: "GONDERILDI",
+      cevapAt: null,
+      gonderildiAt: { lt: sinir },
+    },
+    take: 40,
+    select: { id: true, ilanId: true },
+  });
+  if (bekleyen.length === 0) return 0;
+
+  for (const d of bekleyen) {
+    await prisma.telegramDm.update({
+      where: { id: d.id },
+      data: { durum: "CEVAP_YOK", hata: "24s cevap yok" },
+    });
+    await prisma.yukIlani.updateMany({
+      where: {
+        id: d.ilanId,
+        durum: { in: ["ILETISIME_GECILDI", "YENI", "ILGILENIYOR"] },
+      },
+      data: { durum: "CEVAP_YOK" },
+    });
   }
+  return bekleyen.length;
+}
 
-  let ucretKurush: number | null = null;
-  let fiyatTonKurush: number | null = null;
-  // 19.000 / 19000 / 19 bin
-  const fiyatM = sade.match(
-    /(\d{1,3}(?:[.\s]\d{3})+|\d{4,6}|\d{1,2}\s*bin)\s*(?:tl|₺|lira)?/
-  );
-  if (fiyatM) {
-    let ham = fiyatM[1].replace(/\s/g, "");
-    if (/bin$/.test(ham)) {
-      ham = String(Number(ham.replace(/bin$/, "")) * 1000);
-    } else {
-      ham = ham.replace(/\./g, "");
-    }
-    const tl = Number(ham);
-    if (Number.isFinite(tl) && tl >= 500 && tl <= 5_000_000) {
-      if (/ton|\/ton|kdv/.test(sade) && tl < 8000) {
-        fiyatTonKurush = Math.round(tl * 100);
-      } else {
-        ucretKurush = Math.round(tl * 100);
-      }
-    }
-  }
-
-  const parcalar = [
-    tonaj ? `${tonaj} ton` : null,
-    ucretKurush
-      ? `${(ucretKurush / 100).toLocaleString("tr-TR")} TL`
-      : fiyatTonKurush
-        ? `₺${(fiyatTonKurush / 100).toLocaleString("tr-TR")}/ton`
-        : null,
-  ].filter(Boolean);
-  const ozet = parcalar.length > 0 ? parcalar.join(", ") : metin.slice(0, 80);
-
-  return { tonaj, ucretKurush, fiyatTonKurush, ozet };
+/** @deprecated — tdmCevap.ts regex; geriye uyum */
+export function cevapParse(metin: string) {
+  const c = cevapParseRegex(metin);
+  return {
+    tonaj: c.tonaj,
+    ucretKurush: c.ucretKurush,
+    fiyatTonKurush: c.fiyatTonKurush,
+    ozet: c.ozet,
+  };
 }

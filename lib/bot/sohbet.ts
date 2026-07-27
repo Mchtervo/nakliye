@@ -242,36 +242,45 @@ export async function botCallbackIsle(guncelleme: {
     return { cevaplandi: true, not: `gcik:${idHam}` };
   }
 
-  // Onaylı Telegram DM: tdm:g:id | tdm:e:id | tdm:x:id
+  // Telegram DM: tdm:s:ilanId | tdm:g:dmId | tdm:x:dmId | tdm:p:ilanId | tdm:e:dmId
   if (islem === "tdm") {
     const parca = cq.data.split(":");
     const alt = parca[1];
-    const dmId = Number(parca[2]);
-    if (!Number.isFinite(dmId) || dmId <= 0) {
+    const id = Number(parca[2]);
+    if (!Number.isFinite(id) || id <= 0) {
       await telegramCallbackCevapla(cq.id, "Geçersiz.");
       return { cevaplandi: false, not: "tdm geçersiz" };
     }
     const {
+      tdmBilgiSor,
       tdmGonderOnayla,
       tdmAtla,
       tdmDuzenleBaslat,
     } = await import("@/lib/kaynaklar/telegramDm");
 
-    if (alt === "g") {
-      const r = await tdmGonderOnayla(dmId);
+    if (alt === "s") {
+      const r = await tdmBilgiSor(id);
       await telegramCallbackCevapla(cq.id, r.mesaj.slice(0, 180));
-      if (r.ok) await telegramGonder(chatId, r.mesaj);
-      return { cevaplandi: true, not: `tdm:g:${dmId}` };
+      return { cevaplandi: true, not: `tdm:s:${id}` };
+    }
+    if (alt === "p") {
+      await telegramCallbackCevapla(cq.id, "Geçildi.");
+      return { cevaplandi: true, not: `tdm:p:${id}` };
+    }
+    if (alt === "g") {
+      const r = await tdmGonderOnayla(id);
+      await telegramCallbackCevapla(cq.id, r.mesaj.slice(0, 180));
+      return { cevaplandi: true, not: `tdm:g:${id}` };
     }
     if (alt === "x") {
-      const r = await tdmAtla(dmId);
+      const r = await tdmAtla(id);
       await telegramCallbackCevapla(cq.id, r.mesaj.slice(0, 180));
-      return { cevaplandi: true, not: `tdm:x:${dmId}` };
+      return { cevaplandi: true, not: `tdm:x:${id}` };
     }
     if (alt === "e") {
-      const r = await tdmDuzenleBaslat(dmId, chatId);
+      const r = await tdmDuzenleBaslat(id, chatId);
       await telegramCallbackCevapla(cq.id, r.mesaj.slice(0, 180));
-      return { cevaplandi: true, not: `tdm:e:${dmId}` };
+      return { cevaplandi: true, not: `tdm:e:${id}` };
     }
     await telegramCallbackCevapla(cq.id, "Bilinmeyen DM işlemi.");
     return { cevaplandi: false, not: "tdm ?" };

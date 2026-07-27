@@ -294,6 +294,8 @@ async function tdmKuyrukIsle(client: TelegramClient) {
       const { ayarYaz } = await import("@/lib/ayarlar");
       await ayarYaz(AYAR_ANAHTARLARI.telegramFloodBitis, kilit.toISOString());
       await tdmHataIsaretle(aday.id, `FloodWait ${e.seconds}s`);
+      const { tdmFloodBildir } = await import("@/lib/kaynaklar/telegramDm");
+      await tdmFloodBildir(e.seconds).catch(() => null);
       uyari(`tdm FloodWait ${e.seconds}s → 24s kilit`);
       return;
     }
@@ -343,7 +345,18 @@ async function main() {
     tdmKuyrukIsle(istemci).catch((e) =>
       uyari("tdm kuyruk", e instanceof Error ? e.message : e)
     );
-  }, 30_000);
+  }, 5_000);
+
+  const cevapYokTimer = setInterval(() => {
+    import("@/lib/kaynaklar/telegramDm")
+      .then(({ tdmCevapYokIsle }) => tdmCevapYokIsle())
+      .then((n) => {
+        if (n > 0) log(`CEVAP_YOK işaretlendi: ${n}`);
+      })
+      .catch((e) =>
+        uyari("tdm cevap yok", e instanceof Error ? e.message : e)
+      );
+  }, 15 * 60_000);
 
   const kaynakTimer = setInterval(() => {
     kaynaklariYukle()
@@ -374,6 +387,7 @@ async function main() {
     clearInterval(kaynakTimer);
     clearInterval(saglikTimer);
     clearInterval(tdmTimer);
+    clearInterval(cevapYokTimer);
     try {
       await istemci?.disconnect();
     } catch {

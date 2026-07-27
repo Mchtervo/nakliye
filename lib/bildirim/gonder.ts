@@ -5,9 +5,7 @@ import { pushGonder, pushKullanilabilir } from "@/lib/bildirim/push";
 import { ilanKarti } from "@/lib/bot/kart";
 import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
 import {
-  fiyatTonajEksikMi,
-  tdmBildirimButonlari,
-  tdmHazirla,
+  tdmKartButonlari,
 } from "@/lib/kaynaklar/telegramDm";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
@@ -97,31 +95,19 @@ export async function yukIlanlariniBildir(
 
     const donusMu = Boolean(ilan.donusTalebiId);
     const baslik = donusMu ? "Dönüş yükü bulundu" : "Yeni yük bulundu";
-    let metin = kartMetni(ilan, donusMu);
-    let butonSatirlari: ReturnType<typeof tdmBildirimButonlari> | null = null;
+    const metin = kartMetni(ilan, donusMu);
+    let butonSatirlari: Awaited<ReturnType<typeof tdmKartButonlari>> = null;
 
-    // Fiyat/tonaj eksik → onaylı DM taslağı (otomatik gönderim YOK)
-    if (fiyatTonajEksikMi(ilan) && (ilan.gonderenUserId || ilan.telefon)) {
+    if (ilan.gonderenUserId || ilan.telefon) {
       try {
-        const hazir = await tdmHazirla(ilan.id);
-        if (hazir) {
-          metin +=
-            `\n\n<b>Taslak soru</b> <i>(onaysız gitmez)</i>\n` +
-            htmlKacis(hazir.metin);
-          butonSatirlari = tdmBildirimButonlari({
-            dmId: hazir.dmId,
-            ilanId: ilan.id,
-            hedefUserId: hazir.hedefUserId,
-            telefon: hazir.telefon,
-            metin: hazir.metin,
-            detayUrl: kok
-              ? `${kok}/ai/yukler?sekme=HEPSI&id=${ilan.id}`
-              : null,
-          });
-        }
+        butonSatirlari = await tdmKartButonlari({
+          id: ilan.id,
+          gonderenUserId: ilan.gonderenUserId ?? null,
+          telefon: ilan.telefon,
+        });
       } catch (e) {
         console.warn(
-          "[bildirim] tdmHazirla",
+          "[bildirim] tdmKartButonlari",
           e instanceof Error ? e.message : e
         );
       }

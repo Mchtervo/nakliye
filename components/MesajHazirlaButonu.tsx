@@ -11,9 +11,12 @@ import { whatsappMesajUrl } from "@/lib/whatsapp";
 export default function MesajHazirlaButonu({
   ilanId,
   telefon,
+  yedek = false,
 }: {
   ilanId: number;
   telefon: string;
+  /** Telegram varken yedek kanal — daha soluk stil */
+  yedek?: boolean;
 }) {
   const router = useRouter();
   const [bekliyor, baslat] = useTransition();
@@ -68,9 +71,17 @@ export default function MesajHazirlaButonu({
         type="button"
         disabled={bekliyor}
         onClick={uret}
-        className="rounded-lg border border-teal/40 bg-teal/15 px-2.5 py-1.5 text-xs font-semibold text-teal transition-colors hover:bg-teal/25 disabled:opacity-50"
+        className={
+          yedek
+            ? "rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-semibold text-fog transition-colors hover:border-white/30 hover:text-paper disabled:opacity-50"
+            : "rounded-lg border border-teal/40 bg-teal/15 px-2.5 py-1.5 text-xs font-semibold text-teal transition-colors hover:bg-teal/25 disabled:opacity-50"
+        }
       >
-        {bekliyor && !acik ? "Hazırlanıyor…" : "Mesaj Hazırla"}
+        {bekliyor && !acik
+          ? "Hazırlanıyor…"
+          : yedek
+            ? "WhatsApp (yedek)"
+            : "Mesaj Hazırla"}
       </button>
 
       {acik && (

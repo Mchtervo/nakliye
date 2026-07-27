@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { ilanDurumGuncelle, ilanSil } from "@/app/ai-actions";
-import MesajHazirlaButonu from "@/components/MesajHazirlaButonu";
+import BilgiSorButonu from "@/components/BilgiSorButonu";
 
 export type IlanOzeti = {
   id: number;
@@ -12,12 +12,15 @@ export type IlanOzeti = {
   nereye: string | null;
   firmaAdi: string | null;
   telefon: string | null;
+  gonderenUserId?: string | null;
   ucretYazi: string | null;
 };
 
 export default function IlanAksiyonlari({ ilan }: { ilan: IlanOzeti }) {
   const router = useRouter();
   const [bekliyor, baslat] = useTransition();
+
+  const iletisimVar = Boolean(ilan.gonderenUserId || ilan.telefon);
 
   function yukeCevir() {
     const p = new URLSearchParams();
@@ -34,6 +37,14 @@ export default function IlanAksiyonlari({ ilan }: { ilan: IlanOzeti }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {iletisimVar && (
+        <BilgiSorButonu
+          ilanId={ilan.id}
+          gonderenUserId={ilan.gonderenUserId}
+          telefon={ilan.telefon}
+        />
+      )}
+
       {ilan.telefon && (
         <a
           href={`tel:${ilan.telefon}`}
@@ -41,10 +52,6 @@ export default function IlanAksiyonlari({ ilan }: { ilan: IlanOzeti }) {
         >
           Ara
         </a>
-      )}
-
-      {ilan.telefon && (
-        <MesajHazirlaButonu ilanId={ilan.id} telefon={ilan.telefon} />
       )}
 
       <button
@@ -56,20 +63,22 @@ export default function IlanAksiyonlari({ ilan }: { ilan: IlanOzeti }) {
         Yüke çevir
       </button>
 
-      {ilan.durum !== "ILGILENIYOR" && ilan.durum !== "ILETISIME_GECILDI" && (
-        <button
-          type="button"
-          disabled={bekliyor}
-          onClick={() =>
-            baslat(async () => {
-              await ilanDurumGuncelle(ilan.id, "ILGILENIYOR");
-            })
-          }
-          className="rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber disabled:opacity-50"
-        >
-          Takibe al
-        </button>
-      )}
+      {ilan.durum !== "ILGILENIYOR" &&
+        ilan.durum !== "ILETISIME_GECILDI" &&
+        ilan.durum !== "PAZARLIKTA" && (
+          <button
+            type="button"
+            disabled={bekliyor}
+            onClick={() =>
+              baslat(async () => {
+                await ilanDurumGuncelle(ilan.id, "ILGILENIYOR");
+              })
+            }
+            className="rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber disabled:opacity-50"
+          >
+            Takibe al
+          </button>
+        )}
 
       {ilan.durum !== "ELENDI" && (
         <button

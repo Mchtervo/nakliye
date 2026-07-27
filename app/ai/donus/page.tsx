@@ -123,6 +123,7 @@ export default async function DonusYukuSayfasi() {
                             nereye: ilan.nereye,
                             firmaAdi: ilan.firmaAdi,
                             telefon: ilan.telefon,
+                            gonderenUserId: ilan.gonderenUserId,
                             ucretYazi:
                               ilan.ucret !== null ? kurustanGiris(ilan.ucret) : null,
                           }}

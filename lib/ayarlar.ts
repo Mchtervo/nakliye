@@ -53,8 +53,12 @@ export const AYAR_ANAHTARLARI = {
   waSablonImza: "wa_sablon_imza",
   /** DM kara liste — telefon / user id, virgüllü */
   tdmKaraListe: "tdm_kara_liste",
-  /** Günlük onaylı DM üst sınırı (varsayılan 5) */
+  /** Günlük Bilgi Sor (Telegram DM) üst sınırı (varsayılan 10) */
   tdmGunlukLimit: "tdm_gunluk_limit",
+  /** @deprecated otomatik DM kaldırıldı */
+  tdmOtomatik: "tdm_otomatik",
+  /** Mesaj metin şablonu: {rota} */
+  waMesajSablon: "wa_mesaj_sablon",
 } as const;
 
 export type AyarAnahtari =
@@ -116,6 +120,7 @@ export type AiTercihleri = {
     musaitlik: string;
     tonTercih: string;
     imza: string;
+    mesajSablon: string;
   };
   tdmKaraListe: string;
   tdmGunlukLimit: number;
@@ -145,6 +150,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.waSablonImza,
     AYAR_ANAHTARLARI.tdmKaraListe,
     AYAR_ANAHTARLARI.tdmGunlukLimit,
+    AYAR_ANAHTARLARI.waMesajSablon,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
@@ -193,11 +199,12 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       musaitlik: a[AYAR_ANAHTARLARI.waSablonMusaitlik] || "",
       tonTercih: a[AYAR_ANAHTARLARI.waSablonTonTercih] || "",
       imza: a[AYAR_ANAHTARLARI.waSablonImza] || "",
+      mesajSablon: a[AYAR_ANAHTARLARI.waMesajSablon] || "",
     },
     tdmKaraListe: a[AYAR_ANAHTARLARI.tdmKaraListe] || "",
     tdmGunlukLimit: (() => {
       const n = Number(a[AYAR_ANAHTARLARI.tdmGunlukLimit]);
-      if (!Number.isFinite(n) || n < 1) return 5;
+      if (!Number.isFinite(n) || n < 1) return 10;
       return Math.min(30, Math.round(n));
     })(),
   };

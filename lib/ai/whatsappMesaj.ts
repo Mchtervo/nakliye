@@ -1,16 +1,17 @@
 /**
- * İlana özel iletişim mesajı (WhatsApp / Telegram DM).
- * Cache 24s. Telefon şart değil (DM için).
+ * İlana özel iletişim mesajı — taahhüt yok, sadece eksik bilgi sorusu.
+ * Şablon Ayarlar'dan; AI yok (ton kontrolü + maliyet).
  */
-import { aiMetin } from "@/lib/ai/istemci";
-import { MODEL_HIZLI } from "@/lib/ai/modeller";
 import { prisma } from "@/lib/prisma";
-import { aiTercihleriOku, AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
+import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { fiyatGorunumu } from "@/lib/ilanGorunum";
-import { guvenliKirp } from "@/lib/metin";
 import { whatsappMesajUrl } from "@/lib/whatsapp";
 
 const CACHE_MS = 24 * 60 * 60 * 1000;
+
+/** Varsayılan nötr şablon — taahhüt / araç / müsaitlik YOK. */
+export const VARSAYILAN_MESAJ_SABLON =
+  "Merhaba, {rota} işiniz için bilgi alabilir miyim?\nKaç ton, navlun ne kadar, yükleme ne zaman ve tam adres neresi?";
 
 export type WaSablon = {
   ad: string;
@@ -20,11 +21,12 @@ export type WaSablon = {
   musaitlik: string;
   tonTercih: string;
   imza: string;
+  /** {rota} {sorular} yer tutuculu metin */
+  mesajSablon: string;
 };
 
 export async function waSablonOku(): Promise<WaSablon> {
-  const tercih = await aiTercihleriOku();
-  const [ad, firma, arac, tonaj, musaitlik, tonTercih, imza] =
+  const [ad, firma, arac, tonaj, musaitlik, tonTercih, imza, mesajSablon] =
     await Promise.all([
       ayarOku(AYAR_ANAHTARLARI.waSablonAd),
       ayarOku(AYAR_ANAHTARLARI.waSablonFirma),
@@ -33,25 +35,23 @@ export async function waSablonOku(): Promise<WaSablon> {
       ayarOku(AYAR_ANAHTARLARI.waSablonMusaitlik),
       ayarOku(AYAR_ANAHTARLARI.waSablonTonTercih),
       ayarOku(AYAR_ANAHTARLARI.waSablonImza),
+      ayarOku(AYAR_ANAHTARLARI.waMesajSablon),
     ]);
-
-  const aracVarsayilan = tercih.aracTipleri.includes("TENTELI")
-    ? "tenteli TIR"
-    : tercih.aracTipleri[0] || "tenteli TIR";
 
   return {
     ad: ad || "",
     firma: firma || "",
-    arac: arac || aracVarsayilan,
-    tonaj: tonaj || (tercih.maxTonaj ? String(tercih.maxTonaj) : "24"),
-    musaitlik: musaitlik || "Ankara merkezliyim, müsaitim",
-    tonTercih: tonTercih || "komple tercih ederim",
+    arac: arac || "",
+    tonaj: tonaj || "",
+    musaitlik: musaitlik || "",
+    tonTercih: tonTercih || "",
     imza: imza || "",
+    mesajSablon: (mesajSablon || "").trim() || VARSAYILAN_MESAJ_SABLON,
   };
 }
 
 function cacheAnahtar(ilanId: number): string {
-  return `ilan_wa:${ilanId}`;
+  return `ilan_wa_v3:${ilanId}`;
 }
 
 type CacheKayit = { metin: string; zaman: string };
@@ -83,6 +83,65 @@ async function cacheYaz(ilanId: number, metin: string): Promise<void> {
   });
 }
 
+/** Sadece ilanda olmayanları sor. */
+export function eksikSorulariUret(ilan: {
+  tonaj: number | null;
+  ucret: number | null;
+  fiyatTon: number | null;
+  fiyatBelirsiz?: boolean;
+  yuklemeTarihi: Date | null;
+}): string[] {
+  const fiyat = fiyatGorunumu(ilan);
+  const sorular: string[] = [];
+  if (!ilan.tonaj) sorular.push("kaç ton");
+  if (!fiyat.ana) sorular.push("navlun ne kadar");
+  if (!ilan.yuklemeTarihi) sorular.push("yükleme ne zaman");
+  sorular.push("tam adres neresi");
+  sorular.push("ödeme peşin mi vadeli mi");
+  return sorular;
+}
+
+function sorulariCumle(sorular: string[]): string {
+  if (sorular.length === 0) {
+    return "Hâlâ güncel mi, kısa bilgi verir misiniz?";
+  }
+  if (sorular.length === 1) {
+    return `${sorular[0][0].toUpperCase()}${sorular[0].slice(1)}?`;
+  }
+  const son = sorular[sorular.length - 1];
+  const once = sorular.slice(0, -1);
+  const metin = `${once.join(", ")} ve ${son}?`;
+  return metin.charAt(0).toUpperCase() + metin.slice(1);
+}
+
+/**
+ * Şablondan mesaj üret. Taahhüt / araç / müsaitlik eklenmez.
+ * Yer tutucular: {rota} {sorular} (sorular opsiyonel)
+ */
+export function mesajSablondanUret(
+  sablon: string,
+  rota: string,
+  sorular: string[]
+): string {
+  const ham = (sablon || VARSAYILAN_MESAJ_SABLON)
+    .replaceAll("{rota}", rota)
+    .replaceAll("{sorular}", sorulariCumle(sorular))
+    .trim();
+
+  // Güvenlik: taahhüt kalıplarını budama (eski şablon kalıntısı)
+  const yasak =
+    /\b(müsaitim|musaitim|taşıyabilirim|tasiyabilirim|alırım|alirim|yaparım|yaparim|komple yük taşı|ilgileniyorum)\b/i;
+  return (
+    ham
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s && !yasak.test(s))
+      .join("\n")
+      .trim() ||
+    `Merhaba, ${rota} işiniz için bilgi alabilir miyim?\nKaç ton, navlun ne kadar, yükleme ne zaman ve tam adres neresi?`
+  );
+}
+
 /** Ortak mesaj üretimi — telefon zorunlu değil. */
 export async function ilanIletisimMesaji(
   ilanId: number,
@@ -103,66 +162,30 @@ export async function ilanIletisimMesaji(
   }
 
   const sablon = await waSablonOku();
-  const rota = `${ilan.nereden || ilan.cikisIl || "?"} → ${ilan.nereye || ilan.varisIl || "?"}`;
-  const fiyat = fiyatGorunumu(ilan);
-  const bilinen = [
-    `Güzergah: ${rota}`,
-    ilan.tonaj ? `İlan tonajı: ${ilan.tonaj} ton` : null,
-    fiyat.ana ? `İlan fiyatı: ${fiyat.ana}` : null,
-    ilan.yukTipi ? `Yük: ${ilan.yukTipi}` : null,
-    ilan.aracTipi ? `İlan araç: ${ilan.aracTipi}` : null,
-    ilan.yuklemeTarihi
-      ? `Yükleme tarihi: ${ilan.yuklemeTarihi.toLocaleDateString("tr-TR")}`
-      : null,
-    ilan.firmaAdi ? `Firma: ${ilan.firmaAdi}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const rota = `${ilan.nereden || ilan.cikisIl || "?"}→${ilan.nereye || ilan.varisIl || "?"}`;
+  // Sabit bilgi sorusu — taahhüt / ödeme / araç yok
+  const sabitSorular = [
+    "kaç ton",
+    "navlun ne kadar",
+    "yükleme ne zaman",
+    "tam adres neresi",
+  ];
+  const temiz = mesajSablondanUret(sablon.mesajSablon, rota, sabitSorular);
 
-  const eksikSorular = [
-    !ilan.tonaj ? "net tonaj" : null,
-    "tam yükleme adresi",
-    !ilan.yuklemeTarihi ? "yükleme tarihi/saati" : null,
-    "komple mi parsiyel mi",
-    !fiyat.ana ? "navlun ne kadar" : null,
-    "ödeme peşin mi vadeli mi",
-    "boşaltma yeri neresi",
-  ].filter(Boolean);
 
-  const metin = await aiMetin({
-    model: MODEL_HIZLI,
-    sistem: `Sen Türk şoför/esnaf dilinde WhatsApp/Telegram mesajı yazan asistansın.
-Kurallar:
-- 4-5 cümle, samimi ama profesyonel.
-- Bilinen bilgiyi tekrar SORMA.
-- Eksik olanları sor.
-- Sadece mesaj metnini yaz; tırnak/başlık/markdown yok.
-- Türkçe, kopyala-yapıştır düz metin.`,
-    metin: guvenliKirp(
-      `İLAN BİLGİLERİ:\n${bilinen}\n\n` +
-        `BENİM BİLGİLERİM:\n` +
-        `- Ad: ${sablon.ad || "(yok)"}\n` +
-        `- Firma: ${sablon.firma || "(yok)"}\n` +
-        `- Araç: ${sablon.arac}, ${sablon.tonaj} ton\n` +
-        `- Durum: ${sablon.musaitlik}\n` +
-        `- Tercih: ${sablon.tonTercih}\n` +
-        `- İmza: ${sablon.imza || "(yok)"}\n\n` +
-        `SORULACAKLAR (bilineni atla): ${eksikSorular.join(", ")}\n\n` +
-        `Bu ilan için kısa bir mesaj yaz.`,
-      4000
-    ),
-    caba: "none",
-    maxCikti: 400,
-    kaynak: `wa.mesaj.${ilanId}`,
-  });
+  // İmza isteğe bağlı — sadece ayarda doluysa ve taahhüt değilse
+  const imza = sablon.imza.trim();
+  const metin =
+    imza && !/\b(müsait|taşı|alır|yapar)\b/i.test(imza)
+      ? `${temiz}\n${imza}`
+      : temiz;
 
-  const temiz = metin.trim().replace(/^["«]|["»]$/g, "");
-  await cacheYaz(ilanId, temiz);
+  await cacheYaz(ilanId, metin);
 
   return {
-    metin: temiz,
+    metin,
     cache: false,
-    waUrl: whatsappMesajUrl(ilan.telefon, temiz),
+    waUrl: whatsappMesajUrl(ilan.telefon, metin),
   };
 }
 

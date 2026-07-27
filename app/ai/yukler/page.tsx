@@ -47,7 +47,14 @@ export default async function AiYuklerSayfasi({
             ? { durum: "YENI", ...tercihKosulu(tercih) }
             : sekme === "ILGILENIYOR"
               ? {
-                  durum: { in: ["ILGILENIYOR", "ILETISIME_GECILDI"] },
+                  durum: {
+                    in: [
+                      "ILGILENIYOR",
+                      "ILETISIME_GECILDI",
+                      "PAZARLIKTA",
+                      "CEVAP_YOK",
+                    ],
+                  },
                   guvenSkoru: { gte: SUPHE_SINIRI },
                 }
               : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
@@ -210,7 +217,9 @@ export default async function AiYuklerSayfasi({
               key={ilan.id}
               className={`kart space-y-3 p-4 sm:p-5 reveal reveal-d${Math.min(i + 1, 6)} ${
                 ilan.donusTalebiId ? "border-teal/30" : ""
-              } ${odakli ? "ring-2 ring-teal/50 border-teal/40" : ""}`}
+              } ${odakli ? "ring-2 ring-teal/50 border-teal/40" : ""} ${
+                ilan.durum === "CEVAP_YOK" ? "opacity-45" : ""
+              }`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -232,6 +241,16 @@ export default async function AiYuklerSayfasi({
                     {ilan.durum === "ILETISIME_GECILDI" && (
                       <span className="rounded-full border border-teal/40 bg-teal/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal">
                         İletişime geçildi
+                      </span>
+                    )}
+                    {ilan.durum === "PAZARLIKTA" && (
+                      <span className="rounded-full border border-sky-400/40 bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-200">
+                        Pazarlıkta
+                      </span>
+                    )}
+                    {ilan.durum === "CEVAP_YOK" && (
+                      <span className="rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-fog">
+                        Cevap yok
                       </span>
                     )}
                     {ilan.durum === "YUKE_DONDU" && (
@@ -296,6 +315,7 @@ export default async function AiYuklerSayfasi({
                     nereye: ilan.nereye,
                     firmaAdi: ilan.firmaAdi,
                     telefon: ilan.telefon,
+                    gonderenUserId: ilan.gonderenUserId,
                     ucretYazi: ilan.ucret !== null ? kurustanGiris(ilan.ucret) : null,
                   }}
                 />

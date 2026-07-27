@@ -42,6 +42,7 @@ export default function AiTercihForm({
     musaitlik: string;
     tonTercih: string;
     imza: string;
+    mesajSablon: string;
   };
   tdmKaraListe: string;
   tdmGunlukLimit: string;
@@ -265,18 +266,36 @@ export default function AiTercihForm({
         </label>
       </div>
 
-      <div className="space-y-3 rounded-xl border border-teal/20 bg-teal/5 p-3">
+        <div className="space-y-3 rounded-xl border border-teal/20 bg-teal/5 p-3">
         <div className="text-xs font-bold uppercase tracking-wider text-teal">
-          WhatsApp mesaj şablonu
+          Bilgi Sor mesajı (taahhüt yok)
         </div>
         <p className="text-xs text-fog">
-          «Mesaj Hazırla» butonu bu bilgileri kullanır. Sadece butona basınca
-          AI çağrılır.
+          [Bilgi Sor] bu metni gönderir. AI yok. Yer tutucu: {"{rota}"}.
+          Araç / müsaitlik / «alırım» yazma.
         </p>
+        <div>
+          <label htmlFor="waMesajSablon" className="etiket">
+            Mesaj metni
+          </label>
+          <textarea
+            id="waMesajSablon"
+            name="waMesajSablon"
+            rows={4}
+            placeholder={
+              "Merhaba, {rota} işiniz için bilgi alabilir miyim?\nKaç ton, navlun ne kadar, yükleme ne zaman ve tam adres neresi?"
+            }
+            defaultValue={
+              waSablon.mesajSablon ||
+              "Merhaba, {rota} işiniz için bilgi alabilir miyim?\nKaç ton, navlun ne kadar, yükleme ne zaman ve tam adres neresi?"
+            }
+            className="alan"
+          />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="waAd" className="etiket">
-              Adım
+              Adım (opsiyonel)
             </label>
             <input
               id="waAd"
@@ -289,7 +308,7 @@ export default function AiTercihForm({
           </div>
           <div>
             <label htmlFor="waFirma" className="etiket">
-              Firma
+              Firma (opsiyonel)
             </label>
             <input
               id="waFirma"
@@ -300,62 +319,10 @@ export default function AiTercihForm({
               className="alan"
             />
           </div>
-          <div>
-            <label htmlFor="waArac" className="etiket">
-              Araç tipim
-            </label>
-            <input
-              id="waArac"
-              name="waArac"
-              type="text"
-              placeholder="tenteli TIR"
-              defaultValue={waSablon.arac}
-              className="alan"
-            />
-          </div>
-          <div>
-            <label htmlFor="waTonaj" className="etiket">
-              Tonajım
-            </label>
-            <input
-              id="waTonaj"
-              name="waTonaj"
-              type="text"
-              placeholder="24"
-              defaultValue={waSablon.tonaj}
-              className="alan"
-            />
-          </div>
-        </div>
-        <div>
-          <label htmlFor="waMusaitlik" className="etiket">
-            Müsaitlik / üs
-          </label>
-          <input
-            id="waMusaitlik"
-            name="waMusaitlik"
-            type="text"
-            placeholder="Ankara merkezliyim, müsaitim"
-            defaultValue={waSablon.musaitlik}
-            className="alan"
-          />
-        </div>
-        <div>
-          <label htmlFor="waTonTercih" className="etiket">
-            Ton tercihi
-          </label>
-          <input
-            id="waTonTercih"
-            name="waTonTercih"
-            type="text"
-            placeholder="komple tercih ederim"
-            defaultValue={waSablon.tonTercih}
-            className="alan"
-          />
         </div>
         <div>
           <label htmlFor="waImza" className="etiket">
-            İmza (isteğe bağlı)
+            İmza (isteğe bağlı, kısa)
           </label>
           <input
             id="waImza"
@@ -366,22 +333,36 @@ export default function AiTercihForm({
             className="alan"
           />
         </div>
+        {/* Gizli alanlar — form uyumu için eski alanlar */}
+        <input type="hidden" name="waArac" value={waSablon.arac || ""} />
+        <input type="hidden" name="waTonaj" value={waSablon.tonaj || ""} />
+        <input
+          type="hidden"
+          name="waMusaitlik"
+          value={waSablon.musaitlik || ""}
+        />
+        <input
+          type="hidden"
+          name="waTonTercih"
+          value={waSablon.tonTercih || ""}
+        />
+
         <div>
           <label htmlFor="tdmGunlukLimit" className="etiket">
-            Günlük DM limiti
+            Günlük Bilgi Sor limiti (Telegram)
           </label>
           <input
             id="tdmGunlukLimit"
             name="tdmGunlukLimit"
             type="text"
             inputMode="numeric"
-            placeholder="5"
+            placeholder="10"
             defaultValue={tdmGunlukLimit}
             className="alan"
           />
           <p className="mt-1 text-xs text-fog">
-            İlk hafta 5 önerilir (okuyucu hesabı). 1–30. Sorunsuz giderse
-            kademeli artır.
+            Varsayılan 10. Ara ≥2 dk. FloodWait → 24s durur, haber verir. 1–30.
+            Otomatik gönderme yok — sadece [Bilgi Sor].
           </p>
         </div>
         <div>
@@ -392,14 +373,10 @@ export default function AiTercihForm({
             id="tdmKaraListe"
             name="tdmKaraListe"
             rows={2}
-            placeholder="0532..., 05..., telegram user id — virgülle"
+            placeholder="0532..., telegram user id — virgülle"
             defaultValue={tdmKaraListe}
             className="alan"
           />
-          <p className="mt-1 text-xs text-fog">
-            Bu numaralara / kullanıcılara Telegram DM asla gitmez. Otomatik
-            gönderim yok — her mesajda [Gönder] onayı şart.
-          </p>
         </div>
       </div>
 

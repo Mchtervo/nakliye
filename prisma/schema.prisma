@@ -178,7 +178,7 @@ model YukIlani {
   aracTipiKod   String? // TENTELI | FRIGO | DAMPER | KAPALI_KASA | LOWBED | SAL_DORSE | KAMYON | DIGER
   yukTipi       String?
   guvenSkoru    Int          @default(0) // 0-100
-  durum         String       @default("YENI") // YENI | ILGILENIYOR | ILETISIME_GECILDI | ELENDI | YUKE_DONDU
+  durum         String       @default("YENI") // YENI | ILGILENIYOR | ILETISIME_GECILDI | PAZARLIKTA | CEVAP_YOK | ELENDI | YUKE_DONDU
   dedupHash     String       @unique
   donusTalebiId Int?
   donusTalebi   DonusTalebi? @relation(fields: [donusTalebiId], references: [id], onDelete: SetNull)
@@ -206,7 +206,7 @@ model TelegramDm {
   hedefUserId     String? // Telegram user id
   telefon         String?
   metin           String
-  /** ONAY_BEKLIYOR | KUYRUK | GONDERILDI | ATLANDI | HATA */
+  /** ONAY_BEKLIYOR | KUYRUK | GONDERILDI | CEVAP_YOK | ATLANDI | HATA */
   durum           String    @default("ONAY_BEKLIYOR")
   outboundMesajId Int? // gönderilen DM mesaj id (cevap eşlemesi)
   gonderildiAt    DateTime?

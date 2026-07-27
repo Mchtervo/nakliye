@@ -39,6 +39,8 @@ const ILAN_DURUMLARI = [
   "YENI",
   "ILGILENIYOR",
   "ILETISIME_GECILDI",
+  "PAZARLIKTA",
+  "CEVAP_YOK",
   "ELENDI",
   "YUKE_DONDU",
 ];
@@ -75,6 +77,68 @@ export async function ilanMesajHazirla(
       hata: e instanceof Error ? e.message : "Mesaj üretilemedi.",
     };
   }
+}
+
+/** Panel / bildirim: Bilgi Sor — Telegram kuyruk veya WhatsApp link. Modal yok. */
+export async function ilanBilgiSor(id: number): Promise<
+  | { ok: true; kanal: "telegram"; mesaj: string }
+  | { ok: true; kanal: "whatsapp"; mesaj: string; waUrl: string }
+  | { ok: false; mesaj: string; kanal?: undefined; waUrl?: undefined }
+> {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, mesaj: "Geçersiz ilan." };
+  }
+  try {
+    const ilan = await prisma.yukIlani.findUnique({
+      where: { id },
+      select: { gonderenUserId: true, telefon: true },
+    });
+    if (!ilan) return { ok: false, mesaj: "İlan yok." };
+
+    if (ilan.gonderenUserId) {
+      const { tdmBilgiSor } = await import("@/lib/kaynaklar/telegramDm");
+      const r = await tdmBilgiSor(id);
+      if (r.ok) {
+        revalidatePath("/ai/yukler");
+        revalidatePath("/ai/donus");
+      }
+      return r.ok
+        ? { ok: true, kanal: "telegram", mesaj: r.mesaj }
+        : { ok: false, mesaj: r.mesaj };
+    }
+
+    if (ilan.telefon) {
+      const { ilanIletisimMesaji } = await import("@/lib/ai/whatsappMesaj");
+      const r = await ilanIletisimMesaji(id);
+      if (!r.waUrl) return { ok: false, mesaj: "WhatsApp linki yok." };
+      await prisma.yukIlani
+        .update({ where: { id }, data: { durum: "ILETISIME_GECILDI" } })
+        .catch(() => null);
+      revalidatePath("/ai/yukler");
+      revalidatePath("/ai/donus");
+      return {
+        ok: true,
+        kanal: "whatsapp",
+        mesaj: "✅ WhatsApp",
+        waUrl: r.waUrl,
+      };
+    }
+
+    return { ok: false, mesaj: "Telegram / telefon yok." };
+  } catch (e) {
+    return {
+      ok: false,
+      mesaj: e instanceof Error ? e.message : "Bilgi sorulamadı.",
+    };
+  }
+}
+
+/** @deprecated — ilanBilgiSor kullan */
+export async function ilanTelegramDmGonder(
+  id: number
+): Promise<{ ok: boolean; mesaj: string }> {
+  const r = await ilanBilgiSor(id);
+  return { ok: r.ok, mesaj: r.mesaj };
 }
 
 /** WhatsApp açıldı / kopyalandı → ILETISIME_GECILDI */
@@ -299,11 +363,17 @@ export async function aiTercihKaydet(
     metinOku(formData.get("tdmKaraListe"))
   );
   const tdmLimitHam = metinOku(formData.get("tdmGunlukLimit"));
-  const tdmLimit = tdmLimitHam ? Number(tdmLimitHam.replace(/\D/g, "")) : 5;
+  const tdmLimit = tdmLimitHam ? Number(tdmLimitHam.replace(/\D/g, "")) : 10;
   if (!Number.isFinite(tdmLimit) || tdmLimit < 1 || tdmLimit > 30) {
     return { hata: "Günlük DM limiti 1–30 arası olmalı." };
   }
   await ayarYaz(AYAR_ANAHTARLARI.tdmGunlukLimit, String(tdmLimit));
+  // Otomatik DM kaldırıldı — anahtar kapalı kalsın
+  await ayarYaz(AYAR_ANAHTARLARI.tdmOtomatik, "0");
+  await ayarYaz(
+    AYAR_ANAHTARLARI.waMesajSablon,
+    metinOku(formData.get("waMesajSablon"))
+  );
 
   revalidatePath("/ayarlar");
   revalidatePath("/ai/yukler");
