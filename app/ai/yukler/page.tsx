@@ -4,10 +4,13 @@ import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
+import { ilBul } from "@/lib/iller";
 import { SUPHE_SINIRI, tercihKosulu } from "@/lib/kaynaklar/filtre";
 import { eskiIlanlariTemizle, simdiTara } from "@/app/ai-actions";
 import AksiyonButonu from "@/components/AksiyonButonu";
+import IlanAramaCubugu, { type RotaCip } from "@/components/IlanAramaCubugu";
 import IlanKart from "@/components/IlanKart";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +24,14 @@ const SEKMELER = [
 
 const DORT_SAAT_MS = 4 * 60 * 60 * 1000;
 
+const VARSAYILAN_CIPLER: RotaCip[] = [
+  { etiket: "Ankara→İstanbul", nereden: "Ankara", nereye: "İstanbul" },
+  { etiket: "İstanbul→Ankara", nereden: "İstanbul", nereye: "Ankara" },
+  { etiket: "Gebze→Ankara", nereden: "Gebze", nereye: "Ankara" },
+  { etiket: "Ankara→Bolu", nereden: "Ankara", nereye: "Bolu" },
+  { etiket: "Kocaeli→Ankara", nereden: "Kocaeli", nereye: "Ankara" },
+];
+
 /** Taze + güven + fiyat belli → üstte. */
 function siralamaSkoru(ilan: {
   createdAt: Date;
@@ -29,7 +40,7 @@ function siralamaSkoru(ilan: {
   fiyatTon: number | null;
 }): number {
   const saat = (Date.now() - ilan.createdAt.getTime()) / 3_600_000;
-  const taze = Math.max(0, 36 - saat); // 0–36
+  const taze = Math.max(0, 36 - saat);
   const fiyat =
     (ilan.ucret !== null && ilan.ucret > 0) ||
     (ilan.fiyatTon !== null && ilan.fiyatTon > 0)
@@ -52,10 +63,46 @@ function iyiIsMi(ilan: {
   return taze && ilan.guvenSkoru >= 70 && fiyatVar;
 }
 
+function rotaCipleri(rotalar: string[]): RotaCip[] {
+  const sonuc: RotaCip[] = [];
+  const gorulen = new Set<string>();
+  const ekle = (c: RotaCip) => {
+    const k = `${c.nereden}|${c.nereye}`.toLocaleLowerCase("tr-TR");
+    if (gorulen.has(k)) return;
+    gorulen.add(k);
+    sonuc.push(c);
+  };
+  for (const r of rotalar) {
+    const parca = r
+      .split(/[->→]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parca.length < 2) continue;
+    const a = ilBul(parca[0]) || parca[0];
+    const b = ilBul(parca[1]) || parca[1];
+    ekle({ etiket: `${a}→${b}`, nereden: a, nereye: b });
+  }
+  for (const c of VARSAYILAN_CIPLER) ekle(c);
+  return sonuc.slice(0, 8);
+}
+
+function sekmeHref(kod: string, nereden: string, nereye: string): string {
+  const p = new URLSearchParams();
+  p.set("sekme", kod);
+  if (nereden) p.set("nereden", nereden);
+  if (nereye) p.set("nereye", nereye);
+  return `/ai/yukler?${p.toString()}`;
+}
+
 export default async function AiYuklerSayfasi({
   searchParams,
 }: {
-  searchParams: Promise<{ sekme?: string; id?: string }>;
+  searchParams: Promise<{
+    sekme?: string;
+    id?: string;
+    nereden?: string;
+    nereye?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const sekme = SEKMELER.some((s) => s.kod === sp.sekme)
@@ -65,9 +112,16 @@ export default async function AiYuklerSayfasi({
   const odak =
     Number.isInteger(odakId) && odakId > 0 ? odakId : null;
 
+  const neredenHam = (sp.nereden || "").trim();
+  const nereyeHam = (sp.nereye || "").trim();
+  const cikisIl = neredenHam ? ilBul(neredenHam) : null;
+  const varisIl = nereyeHam ? ilBul(nereyeHam) : null;
+  const neredenHata = Boolean(neredenHam && !cikisIl);
+  const nereyeHata = Boolean(nereyeHam && !varisIl);
+
   const tercih = await aiTercihleriOku();
 
-  const filtre =
+  const tabanFiltre: Prisma.YukIlaniWhereInput =
     sekme === "SUPHELI"
       ? { guvenSkoru: { lt: SUPHE_SINIRI } }
       : sekme === "HEPSI"
@@ -90,6 +144,16 @@ export default async function AiYuklerSayfasi({
                 }
               : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
 
+  const rotaKosul: Prisma.YukIlaniWhereInput = {};
+  if (cikisIl) rotaKosul.cikisIl = cikisIl;
+  if (varisIl) rotaKosul.varisIl = varisIl;
+  if (neredenHata) rotaKosul.cikisIl = "__yok__";
+  if (nereyeHata) rotaKosul.varisIl = "__yok__";
+
+  const filtre: Prisma.YukIlaniWhereInput = {
+    AND: [tabanFiltre, rotaKosul],
+  };
+
   const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi] =
     await Promise.all([
       prisma.yukIlani.findMany({
@@ -109,6 +173,7 @@ export default async function AiYuklerSayfasi({
   const aiAcik = aiKullanilabilir();
   const killSwitch = aiKapaliMi();
   const anahtarVar = Boolean(process.env.OPENAI_API_KEY);
+  const cipler = rotaCipleri(tercih.rotalar);
 
   let sirali = [...ilanlar].sort(
     (a, b) => siralamaSkoru(b) - siralamaSkoru(a)
@@ -122,6 +187,16 @@ export default async function AiYuklerSayfasi({
 
   const iyiSayisi = sirali.filter(iyiIsMi).length;
   const simdi = Date.now();
+  const filtreOzet = [
+    cikisIl
+      ? `çıkış ${cikisIl}${neredenHam !== cikisIl ? ` (${neredenHam})` : ""}`
+      : null,
+    varisIl
+      ? `varış ${varisIl}${nereyeHam !== varisIl ? ` (${nereyeHam})` : ""}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -181,6 +256,27 @@ export default async function AiYuklerSayfasi({
         </div>
       )}
 
+      <IlanAramaCubugu
+        key={`${neredenHam}|${nereyeHam}|${sekme}`}
+        sekme={sekme}
+        nereden={neredenHam}
+        nereye={nereyeHam}
+        cipler={cipler}
+      />
+
+      {(neredenHata || nereyeHata) && (
+        <p className="text-xs text-ember">
+          Yer adı çözülemedi
+          {neredenHata ? `: «${neredenHam}»` : ""}
+          {nereyeHata ? `${neredenHata ? "," : ":"} «${nereyeHam}»` : ""}
+          . İl veya ilçe yaz (Ostim, Gebze, Hadımköy…).
+        </p>
+      )}
+
+      {filtreOzet && !neredenHata && !nereyeHata && (
+        <p className="text-xs text-teal">Filtre: {filtreOzet}</p>
+      )}
+
       <div className="flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-asphalt-2 p-1">
         {SEKMELER.map((s) => {
           const aktif = s.kod === sekme;
@@ -195,7 +291,7 @@ export default async function AiYuklerSayfasi({
           return (
             <Link
               key={s.kod}
-              href={`/ai/yukler?sekme=${s.kod}`}
+              href={sekmeHref(s.kod, neredenHam, nereyeHam)}
               className={`shrink-0 rounded-lg px-3 py-2.5 text-center text-sm font-semibold ${
                 aktif ? "bg-white/10 text-amber" : "text-fog hover:text-paper"
               }`}
@@ -227,9 +323,11 @@ export default async function AiYuklerSayfasi({
 
       {sirali.length === 0 ? (
         <div className="bos-durum">
-          {sekme === "YENI"
-            ? "Şu an yeni ilan yok."
-            : "Bu listede kayıt yok."}
+          {neredenHam || nereyeHam
+            ? "Bu rotada ilan yok."
+            : sekme === "YENI"
+              ? "Şu an yeni ilan yok."
+              : "Bu listede kayıt yok."}
         </div>
       ) : (
         <div className="space-y-3">
