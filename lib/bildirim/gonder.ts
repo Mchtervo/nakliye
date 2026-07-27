@@ -113,6 +113,7 @@ export async function yukIlanlariniBildir(
       }
     }
 
+    let tgOk = false;
     if (tercih.telegramAcik && tercih.telegramChatId && telegramKullanilabilir()) {
       const butonlar =
         butonSatirlari ||
@@ -144,10 +145,15 @@ export async function yukIlanlariniBildir(
         },
       });
 
-      if (cevap.basarili) sonuc.telegram += 1;
-      else if (cevap.hata) sonuc.hatalar.push(cevap.hata);
+      if (cevap.basarili) {
+        tgOk = true;
+        sonuc.telegram += 1;
+      } else if (cevap.hata) {
+        sonuc.hatalar.push(cevap.hata);
+      }
     }
 
+    let pushOk = false;
     if (tercih.pushAcik && pushKullanilabilir()) {
       const cevap = await pushGonder({
         baslik,
@@ -155,10 +161,11 @@ export async function yukIlanlariniBildir(
         url: `/ai/yukler?sekme=HEPSI&id=${ilan.id}`,
       });
       sonuc.push += cevap.gonderilen;
+      pushOk = cevap.gonderilen > 0;
       if (cevap.hata) sonuc.hatalar.push(cevap.hata);
     }
 
-    gonderilenIdler.push(ilan.id);
+    if (tgOk || pushOk) gonderilenIdler.push(ilan.id);
   }
 
   if (gonderilenIdler.length > 0) {

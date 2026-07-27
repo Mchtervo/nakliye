@@ -18,8 +18,57 @@ import type { KaynakTuru } from "@/lib/kaynaklar/tip";
 
 export type AiSonuc = { hata: string } | { bilgi: string } | null;
 
-/** AI_KAPALI iken 1 adet 10'luk test hakkı (30 dk). tavanUsd varsayılan $0.05. */
-export async function aiTestIzniVer(tavanUsd = 0.05): Promise<AiSonuc> {
+/** Ayarlar: Telegram test bildirimi. */
+export async function testBildirimGonder(): Promise<AiSonuc> {
+  const { aiTercihleriOku } = await import("@/lib/ayarlar");
+  const { telegramGonder, telegramKullanilabilir, htmlKacis } = await import(
+    "@/lib/bildirim/telegram"
+  );
+  const { bildirimSessizMi } = await import("@/lib/bildirim/gonder");
+  const { prisma } = await import("@/lib/prisma");
+
+  if (!telegramKullanilabilir()) {
+    return { hata: "TELEGRAM_BOT_TOKEN yok — VPS .env kontrol et." };
+  }
+  const tercih = await aiTercihleriOku();
+  if (!tercih.telegramChatId) {
+    return {
+      hata: "telegram_chat_id yok — bota özelden /baglan yaz.",
+    };
+  }
+  if (!tercih.telegramAcik) {
+    return { hata: "Telegram bildirimi kapalı — ayarlardan aç." };
+  }
+
+  const sessiz = bildirimSessizMi();
+  const metin =
+    `<b>Yük Avcısı — test bildirimi</b>\n` +
+    `${htmlKacis(
+      new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })
+    )}\n` +
+    `Sessiz saat: <b>${sessiz ? "EVET (23–07)" : "hayır"}</b>\n` +
+    `Bu mesajı görüyorsan bildirim yolu açık.`;
+
+  const cevap = await telegramGonder(tercih.telegramChatId, metin);
+  await prisma.bildirim.create({
+    data: {
+      kanal: "TELEGRAM",
+      hedef: tercih.telegramChatId,
+      baslik: "Test bildirimi",
+      metin: "panel test",
+      durum: cevap.basarili ? "GONDERILDI" : "HATA",
+      hata: cevap.hata,
+    },
+  });
+
+  revalidatePath("/ayarlar");
+  if (!cevap.basarili) {
+    return { hata: cevap.hata || "Telegram gönderilemedi." };
+  }
+  return {
+    bilgi: "Test bildirimi Telegram'a gitti — sohbetini kontrol et.",
+  };
+}
   const { bitisMs, tavanUsd: tavan } = await testIzniVer(30, tavanUsd);
   const durum = await testIzniDurum();
   revalidatePath("/ayarlar");

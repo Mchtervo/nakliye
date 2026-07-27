@@ -4,6 +4,7 @@ import SifreDegistirForm from "@/components/SifreDegistirForm";
 import HizliAraForm from "@/components/HizliAraForm";
 import AiTercihForm from "@/components/AiTercihForm";
 import YenidenIsleButonu from "@/components/YenidenIsleButonu";
+import TestBildirimButonu from "@/components/TestBildirimButonu";
 import KaynakForm from "@/components/KaynakForm";
 import PushIzinButonu from "@/components/PushIzinButonu";
 import AksiyonButonu from "@/components/AksiyonButonu";
@@ -143,6 +144,8 @@ export default async function AyarlarSayfasi() {
           tdmGunlukLimit={String(tercih.tdmGunlukLimit)}
           autoDeploy={tercih.autoDeploy}
         />
+
+        <TestBildirimButonu />
 
         <YenidenIsleButonu />
 
