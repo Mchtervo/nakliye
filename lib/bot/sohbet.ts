@@ -15,6 +15,7 @@ import {
   telegramGonder,
   type InlineButon,
 } from "@/lib/bildirim/telegram";
+import { illeriBul } from "@/lib/iller";
 import { prisma } from "@/lib/prisma";
 
 export type BotSohbetSonucu = {
@@ -44,6 +45,10 @@ function sistemPrompt(t: AiTercihleri): string {
   return [
     "Sen Yük Avcısı Telegram asistanısın. Kısa Türkçe cevap ver.",
     "Kullanıcı doğal dilde yük sorar; araçları kullanarak veritabanından bak.",
+    "ilanAra ile son 48 saatteki KAYITLI ilanlara bak (varsayılan).",
+    "cikisIl / varisIl alanına il VEYA ilçe yazabilirsin: Ostim→Ankara,",
+    "Gerede→Bolu, Gebze→Kocaeli, Hadımköy→İstanbul otomatik çözülür.",
+    `"Ankaradayım Boluya yük var mı" → cikisIl=Ankara, varisIl=Bolu.`,
     "En fazla 5 ilan özetle. Daha fazla varsa 'N tane daha var' de.",
     "İlan kartlarını sen formatlama — sistem ayrıca kart gönderir.",
     "Sen sadece kısa özet / yönlendirme yaz.",
@@ -89,13 +94,28 @@ export async function botSohbetIsle(
   }
 
   if (aiKapaliMi()) {
-    await telegramGonder(
-      chatId,
-      "AI şu an kapalı. Açılınca buradan doğal Türkçe sorabilirsin (ör. «ankara yük var mı»)."
-    );
+    // AI kapalı olsa da kayıtlı ilanlardan cevap verebiliriz.
+    const iller = illeriBul(metin);
+    const s = await ilanAra({
+      cikisIl: iller[0] || tercih.anaUs || tercih.sehir,
+      varisIl: iller.length >= 2 ? iller[iller.length - 1] : null,
+      maxTonaj: tercih.maxTonaj,
+      sonSaat: 48,
+      limit: 5,
+    });
+    const bas =
+      s.toplam > 0
+        ? `${s.toplam} ilan (son 48s` +
+          (iller.length ? `, ${iller.join("→")}` : "") +
+          "):"
+        : "Son 48 saatte uygun ilan yok. (AI kapalı — sadece kayıtlı arama.)";
+    await telegramGonder(chatId, bas);
+    for (const ilan of s.ilanlar.slice(0, 5)) {
+      await telegramGonder(chatId, ilanKarti(ilan), kartButonlari(ilan));
+    }
     await botGunlukLimitArtir();
-    await sohbetHafizasinaEkle(metin, "AI şu an kapalı.");
-    return { cevaplandi: true, not: "AI kapalı." };
+    await sohbetHafizasinaEkle(metin, bas);
+    return { cevaplandi: true, not: "AI kapalı — DB araması." };
   }
 
   const hafiza = await sohbetHafizasiOku();
@@ -148,8 +168,10 @@ export async function botSohbetIsle(
   }
 
   if (!cevapMetni.trim() && yakalanan.length === 0) {
+    const iller = illeriBul(metin);
     const s = await ilanAra({
-      cikisIl: tercih.anaUs || tercih.sehir,
+      cikisIl: iller[0] || tercih.anaUs || tercih.sehir,
+      varisIl: iller.length >= 2 ? iller[iller.length - 1] : null,
       maxTonaj: tercih.maxTonaj,
       sonSaat: 48,
       limit: 5,
@@ -200,6 +222,19 @@ export async function botCallbackIsle(guncelleme: {
   }
 
   const [islem, idHam] = cq.data.split(":");
+
+  // Grup çıkış onayı (id yok)
+  if (islem === "gcik") {
+    const { cikisOnayiniIsle } = await import("@/lib/kaynaklar/grupTemizlik");
+    const evet = idHam === "evet";
+    const sonuc = await cikisOnayiniIsle(evet);
+    await telegramCallbackCevapla(cq.id, sonuc.mesaj.slice(0, 180));
+    if (sonuc.ok) {
+      await telegramGonder(chatId, sonuc.mesaj);
+    }
+    return { cevaplandi: true, not: `gcik:${idHam}` };
+  }
+
   const id = Number(idHam);
   if (!Number.isFinite(id) || id <= 0) {
     await telegramCallbackCevapla(cq.id, "Geçersiz.");

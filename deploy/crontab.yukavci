@@ -16,6 +16,12 @@ YUKAVCI_LOCKDIR=/home/yukavci/locks
 # Grup keşfi — günde 1, 08:00
 0 8 * * * /home/yukavci/muhasebbe/deploy/cron/grup-kesif.sh
 
+# Grup temizlik onayı — keşiften 15 dk sonra (Telegram'da Evet/Hayır)
+15 8 * * * /home/yukavci/muhasebbe/deploy/cron/grup-temizlik.sh
+
+# Onaylı grup çıkışı — 30 dk; script günde max 3 + 30 dk ara
+*/30 * * * * /home/yukavci/muhasebbe/deploy/cron/grup-cik.sh
+
 # Grup katılımı — 45 dk arayla dene; script günde max 4 + 45 dk ara uygular
 */45 * * * * /home/yukavci/muhasebbe/deploy/cron/grup-katil.sh
 

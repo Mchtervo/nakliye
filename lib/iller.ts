@@ -365,6 +365,9 @@ const EKLER = [
   "dan", "den", "tan", "ten", "ndan", "nden",
   "da", "de", "ta", "te", "nda", "nde",
   "ya", "ye", "na", "ne",
+  // "Ankaradayım" / "İstanbuldayız" (da+yım kişi eki bitişik)
+  "dayim", "deyim", "tayim", "teyim",
+  "dayiz", "deyiz", "tayiz", "teyiz",
   "a", "e", // İstanbula, Bursaya (kısa ek; sadece uzun kökte)
 ];
 

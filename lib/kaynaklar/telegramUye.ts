@@ -30,6 +30,7 @@ import { ilBul } from "@/lib/iller";
 import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
 import { araciUyuyorMu, ilgilileriSuz } from "@/lib/kaynaklar/filtre";
 import { grupOkumaArtir, grupOkumaToplu } from "@/lib/kaynaklar/grupOkumaSayac";
+import { grupIstatistikleri } from "@/lib/kaynaklar/grupTemizlik";
 import {
   elemeSebebi,
   metinHashUret,
@@ -757,6 +758,12 @@ export type GrupDurumu = {
   bekleyen: number;
   /** Gerçek ilan sayısı — sayaç değil, tablodan sayılır. */
   ilanAdedi: number;
+  /** Takipte kaç gün. */
+  takipGun: number;
+  /** Toplam çekilen ham mesaj. */
+  mesajToplam: number;
+  /** Son ilan zamanı. */
+  sonIlan: Date | null;
   /** Tek cümlelik teşhis. */
   teshis: string;
 };
@@ -824,7 +831,7 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
 
   const dun = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const ids = gruplar.map((g) => g.id);
-  const [sonGun, bekleyen, ilanlar, okumaMap] = await Promise.all([
+  const [sonGun, bekleyen, ilanlar, okumaMap, istatMap] = await Promise.all([
     prisma.hamMesaj.groupBy({
       by: ["kaynakId"],
       where: { createdAt: { gte: dun } },
@@ -840,6 +847,7 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
       _count: { _all: true },
     }),
     grupOkumaToplu(ids),
+    grupIstatistikleri(ids),
   ]);
 
   const say = (
@@ -849,6 +857,7 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
 
   return gruplar.map((g) => {
     const okuma = okumaMap.get(g.id);
+    const istat = istatMap.get(g.id);
     const mesaj24s = say(sonGun, g.id);
     const bek = say(bekleyen, g.id);
     const ilanAdedi = say(ilanlar, g.id);
@@ -881,6 +890,9 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
       elenenBugun,
       bekleyen: bek,
       ilanAdedi,
+      takipGun: istat?.takipGun ?? 0,
+      mesajToplam: istat?.mesajToplam ?? 0,
+      sonIlan: istat?.sonIlan ?? null,
       teshis: grupTeshisi(baz),
     };
   });
@@ -954,7 +966,10 @@ export async function kesifGoreviUret(): Promise<KesifGorevi> {
   }
   await ayarYaz(AYAR_ANAHTARLARI.telegramKesifZaman, new Date().toISOString());
 
-  const tumSorgular = aramaSorgulariUret(tercih.bolgeler);
+  const tumSorgular = aramaSorgulariUret(
+    tercih.bolgeler,
+    tercih.koridorIller
+  );
   const siraHam = Number(await ayarOku(AYAR_ANAHTARLARI.telegramSorguSira));
   const sira = Number.isFinite(siraHam) && siraHam > 0 ? siraHam : 0;
 

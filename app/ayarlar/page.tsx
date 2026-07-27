@@ -224,13 +224,17 @@ export default async function AyarlarSayfasi() {
                               .filter(Boolean)
                               .join(" · ")
                           : [
-                              g.sonTarama
-                                ? `son okuma: ${gecenSure(g.sonTarama)}`
-                                : "son okuma: hiç",
-                              `çekilen bugün: ${g.cekilenBugun}`,
-                              `kuyruk (24s): ${g.mesaj24s}`,
-                              g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
+                              `${g.takipGun}g takip`,
+                              `${g.mesajToplam} mesaj`,
                               `${g.ilanAdedi} ilan`,
+                              g.sonIlan
+                                ? `son ilan: ${gecenSure(g.sonIlan)}`
+                                : "son ilan: yok",
+                              g.sonTarama
+                                ? `okuma: ${gecenSure(g.sonTarama)}`
+                                : null,
+                              `çekilen bugün: ${g.cekilenBugun}`,
+                              g.bekleyen > 0 ? `${g.bekleyen} sırada` : null,
                             ]
                               .filter(Boolean)
                               .join(" · ")}

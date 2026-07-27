@@ -240,11 +240,13 @@ const YUK_TERIMLERI = [
  * Nakliye kelimesi geçse de işimize yaramayan gruplar.
  * "Evden eve" ve benzeri şahsi taşımacılık ilanları yük ilanı değildir.
  */
-const ISTENMEYEN_TERIMLER = [
+export const ISTENMEYEN_TERIMLER = [
   "evden eve", "ev tasima", "asansorlu", "oto kurtarma", "cekici hizmet",
   "personel tasima", "ogrenci", "emlak", "kripto", "hisse", "forex",
   "bahis", "iddaa", "sohbet", "arkadas", "ifsa", "film", "dizi", "muzik",
   "galatasaray", "cimbom", "fenerbahce", "besiktas", "trabzonspor",
+  "futbol", "mac sonucu", "sanal", "escort", "satis grubu", "ikinci el",
+  "alisveris", "ilan panosu", "reklam", "sponsor",
 ];
 
 const YUK_SADE = YUK_TERIMLERI.map((t) => sadelestir(t));
@@ -258,24 +260,62 @@ export function yukBasligiMi(baslik: string): boolean {
 
 /**
  * Telegram global aramasında denenecek sorgular.
- * Sorgu sayısı bilinçli sınırlı: her koşuda birkaç tanesi sırayla denenir,
- * hesap üzerinde arama baskısı oluşturmamak için.
+ * Koridor illeri varsa onlar ÖNCE gelir; genel kelimeler sonda.
  */
-export function aramaSorgulariUret(kodlar: BolgeKodu[]): string[] {
-  const sorgular: string[] = ["yük ilanları", "nakliye yük", "tır yük grubu"];
+export function aramaSorgulariUret(
+  kodlar: BolgeKodu[],
+  koridorIller: string[] = []
+): string[] {
+  const oncelikli: string[] = [];
+  const genel: string[] = ["yük ilanları", "nakliye yük", "tır yük grubu"];
+
+  // Koridor odaklı (Ankara–İstanbul hattı)
+  const sabitKoridor = [
+    "ankara yük",
+    "istanbul yük",
+    "gebze yük",
+    "bolu nakliye",
+    "ankara istanbul nakliye",
+    "kocaeli yük",
+    "sakarya nakliye",
+    "düzce yük",
+    "ankara çıkışlı",
+    "istanbul çıkışlı",
+    "anadolu yakası yük",
+    "avrupa yakası yük",
+    "kırıkkale yük",
+    "çankırı nakliye",
+  ];
+  if (koridorIller.length > 0 || sabitKoridor.length > 0) {
+    oncelikli.push(...sabitKoridor);
+    for (const il of koridorIller) {
+      oncelikli.push(`${il} yük`);
+      oncelikli.push(`${il} nakliye`);
+      oncelikli.push(`${il} çıkışlı`);
+    }
+  }
 
   const secili = kodlar.length > 0 ? kodlar : VARSAYILAN_BOLGELER;
   for (const kod of secili) {
     const bolge = KOD_HARITASI.get(kod);
     if (!bolge) continue;
-    sorgular.push(`${bolge.ad} yük`);
+    genel.push(`${bolge.ad} yük`);
     for (const merkez of bolge.merkezler) {
-      sorgular.push(`${merkez} yük`);
-      sorgular.push(`${merkez} nakliye`);
+      genel.push(`${merkez} yük`);
+      genel.push(`${merkez} nakliye`);
     }
   }
 
-  return [...new Set(sorgular)];
+  // Öncelikli önce, tekrar yok
+  const sonuc: string[] = [];
+  const gorulen = new Set<string>();
+  for (const s of [...oncelikli, ...genel]) {
+    const k = s.toLocaleLowerCase("tr-TR");
+    if (gorulen.has(k)) continue;
+    gorulen.add(k);
+    sonuc.push(s);
+  }
+  return sonuc;
 }
 
 export type GrupDegerlendirme = {

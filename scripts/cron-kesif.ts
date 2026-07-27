@@ -73,7 +73,10 @@ async function main() {
       if (aday?.baslik) adaylar.push(aday);
     }
 
-    const sorgular = aramaSorgulariUret(tercih.bolgeler).slice(0, 15);
+    const sorgular = aramaSorgulariUret(
+      tercih.bolgeler,
+      tercih.koridorIller
+    ).slice(0, 20);
     console.log(`[cron-kesif] dialog=${adaylar.length} sorgu=${sorgular.length}`);
 
     for (const sorgu of sorgular) {
@@ -99,6 +102,15 @@ async function main() {
 
   const rapor = await adaylariDegerlendir(adaylar);
   console.log(JSON.stringify({ adayHavuz: adaylar.length, ...rapor }));
+
+  // Keşif sonrası temizlik onayı (Telegram Evet/Hayır)
+  try {
+    const { cikisOnayiIste } = await import("@/lib/kaynaklar/grupTemizlik");
+    const t = await cikisOnayiIste();
+    console.log(JSON.stringify({ temizlik: t }));
+  } catch (e) {
+    console.warn("[cron-kesif] temizlik", e instanceof Error ? e.message : e);
+  }
 }
 
 main()

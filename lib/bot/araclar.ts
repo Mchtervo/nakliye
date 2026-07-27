@@ -191,7 +191,8 @@ export const BOT_ARAC_TANIMLARI = [
   {
     type: "function" as const,
     name: "ilanAra",
-    description: "Kayıtlı yük ilanlarını ara (çıkış/varış ili, tonaj, saat).",
+    description:
+      "Kayıtlı yük ilanlarını ara. cikisIl/varisIl: il veya ilçe (Ostim, Gerede, Gebze, Hadımköy). Varsayılan son 48 saat.",
     parameters: {
       type: "object",
       additionalProperties: false,
