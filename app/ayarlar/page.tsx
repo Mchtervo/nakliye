@@ -129,6 +129,7 @@ export default async function AyarlarSayfasi() {
           waSablon={tercih.waSablon}
           tdmKaraListe={tercih.tdmKaraListe}
           tdmGunlukLimit={String(tercih.tdmGunlukLimit)}
+          autoDeploy={tercih.autoDeploy}
         />
 
         <YenidenIsleButonu />

@@ -1,14 +1,42 @@
 #!/usr/bin/env bash
-# Yük Avcısı — manuel güncelleme
-# Kullanım (yukavci): ~/muhasebbe/deploy/deploy.sh
+# Manuel deploy — auto-deploy ile aynı güvenli yol (yedek .next).
+# Kullanım: bash ~/muhasebbe/deploy/deploy.sh
 set -euo pipefail
 
 REPO="${YUKAVCI_REPO:-/home/yukavci/muhasebbe}"
 cd "$REPO"
 
-echo "==> $(date -Is) git sync (origin/main)"
-# VPS'te chmod vb. lokal kirlenmeyi ez — deploy makinesi sadece remote'u çalıştırır
+echo "==> $(date -Is) manuel deploy"
+
 git fetch origin main
+LOCAL="$(git rev-parse HEAD)"
+REMOTE="$(git rev-parse origin/main)"
+if [ "$LOCAL" = "$REMOTE" ]; then
+  echo "Zaten origin/main ($(git rev-parse --short HEAD))"
+else
+  echo "Güncelleniyor: $(git rev-parse --short HEAD) → $(git rev-parse --short origin/main)"
+fi
+
+OLD_SHA="$LOCAL"
+NEXT_BAK=""
+if [ -d .next ]; then
+  NEXT_BAK=".next.bak.manual"
+  rm -rf "$NEXT_BAK"
+  cp -a .next "$NEXT_BAK"
+fi
+
+geri_al() {
+  echo "==> GERİ AL $OLD_SHA"
+  git reset --hard "$OLD_SHA"
+  npm ci
+  if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
+    rm -rf .next
+    mv "$NEXT_BAK" .next
+  else
+    npm run build
+  fi
+}
+
 git reset --hard origin/main
 
 echo "==> npm ci"
@@ -19,10 +47,17 @@ npx prisma generate
 npx prisma migrate deploy
 
 echo "==> npm run build"
-npm run build
+if ! npm run build; then
+  echo "==> BUILD HATA — eski sürüme dönülüyor"
+  geri_al
+  exit 1
+fi
+
+if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
+  rm -rf "$NEXT_BAK"
+fi
 
 echo "==> pm2 restart yukavci"
-# PORT .env / ecosystem'dan gelir; process zaten kayıtlı
 pm2 restart yukavci --update-env
 pm2 save
 
@@ -31,8 +66,6 @@ sudo /bin/systemctl restart yukavci-telegram
 
 echo "==> doğrulama"
 HATA=0
-
-# pm2 describe tablosu: "status │ online" — arada çizgi karakteri var
 PID="$(pm2 pid yukavci 2>/dev/null | head -1 | tr -d '[:space:]')"
 if [[ "$PID" =~ ^[0-9]+$ ]] && [ "$PID" -gt 0 ]; then
   echo "pm2 yukavci: online (pid $PID)"
@@ -48,7 +81,6 @@ if [ "$TG" != "active" ]; then
   HATA=1
 fi
 
-# Birkaç sn Next ayağa kalksın
 sleep 2
 HTTP="$(curl -sI -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:3200/ || echo '000')"
 echo "curl localhost:3200 -> HTTP $HTTP"
@@ -63,8 +95,10 @@ esac
 pm2 status || true
 
 if [ "$HATA" -ne 0 ]; then
-  echo "==> DEPLOY DOĞRULAMA BAŞARISIZ"
+  echo "==> DEPLOY DOĞRULAMA BAŞARISIZ — geri al"
+  geri_al
+  pm2 restart yukavci --update-env || true
   exit 1
 fi
 
-echo "==> DEPLOY OK $(date -Is)"
+echo "==> DEPLOY OK $(date -Is) $(git rev-parse --short HEAD)"

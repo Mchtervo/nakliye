@@ -21,6 +21,7 @@ export default function AiTercihForm({
   waSablon,
   tdmKaraListe,
   tdmGunlukLimit,
+  autoDeploy,
 }: {
   sehir: string;
   rotalar: string;
@@ -46,6 +47,7 @@ export default function AiTercihForm({
   };
   tdmKaraListe: string;
   tdmGunlukLimit: string;
+  autoDeploy: boolean;
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
     aiTercihKaydet,
@@ -264,6 +266,22 @@ export default function AiTercihForm({
             Telefon bildirimi (push)
           </span>
         </label>
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            name="autoDeploy"
+            value="1"
+            defaultChecked={autoDeploy}
+            className="h-5 w-5 rounded accent-[#f0a020]"
+          />
+          <span className="text-sm font-semibold text-paper">
+            Otomatik deploy (VPS)
+          </span>
+        </label>
+        <p className="text-xs text-fog pl-8">
+          Açıkken dakikada bir GitHub main kontrol edilir; yeni commit varsa
+          build + restart. Build bozulursa eski sürüm geri yüklenir.
+        </p>
       </div>
 
         <div className="space-y-3 rounded-xl border border-teal/20 bg-teal/5 p-3">

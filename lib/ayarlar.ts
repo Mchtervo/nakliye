@@ -59,6 +59,8 @@ export const AYAR_ANAHTARLARI = {
   tdmOtomatik: "tdm_otomatik",
   /** Mesaj metin şablonu: {rota} */
   waMesajSablon: "wa_mesaj_sablon",
+  /** 1 = VPS auto-deploy (git poll) açık */
+  autoDeploy: "auto_deploy",
 } as const;
 
 export type AyarAnahtari =
@@ -124,6 +126,8 @@ export type AiTercihleri = {
   };
   tdmKaraListe: string;
   tdmGunlukLimit: number;
+  /** VPS: push sonrası otomatik deploy */
+  autoDeploy: boolean;
 };
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
@@ -151,6 +155,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.tdmKaraListe,
     AYAR_ANAHTARLARI.tdmGunlukLimit,
     AYAR_ANAHTARLARI.waMesajSablon,
+    AYAR_ANAHTARLARI.autoDeploy,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
@@ -207,5 +212,6 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       if (!Number.isFinite(n) || n < 1) return 10;
       return Math.min(30, Math.round(n));
     })(),
+    autoDeploy: a[AYAR_ANAHTARLARI.autoDeploy] === "1",
   };
 }

@@ -342,6 +342,10 @@ export async function aiTercihKaydet(
     AYAR_ANAHTARLARI.telegramUyeAktif,
     formData.get("telegramUye") === "1" ? "1" : "0"
   );
+  await ayarYaz(
+    AYAR_ANAHTARLARI.autoDeploy,
+    formData.get("autoDeploy") === "1" ? "1" : "0"
+  );
 
   await ayarYaz(AYAR_ANAHTARLARI.waSablonAd, metinOku(formData.get("waAd")));
   await ayarYaz(
