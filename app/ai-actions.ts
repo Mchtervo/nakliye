@@ -70,6 +70,49 @@ export async function testBildirimGonder(): Promise<AiSonuc> {
   };
 }
 
+/** Ayarlar: Web Push test bildirimi. */
+export async function testPushGonder(): Promise<AiSonuc> {
+  const { aiTercihleriOku } = await import("@/lib/ayarlar");
+  const { pushGonder, pushKullanilabilir } = await import("@/lib/bildirim/push");
+  const { prisma } = await import("@/lib/prisma");
+
+  if (!pushKullanilabilir()) {
+    return {
+      hata: "VAPID anahtarları yok — VPS .env (npm run push:kur).",
+    };
+  }
+
+  const abone = await prisma.pushAbone.count();
+  if (abone === 0) {
+    return {
+      hata: "Kayıtlı cihaz yok — önce «Bu cihazda bildirimi aç».",
+    };
+  }
+
+  const tercih = await aiTercihleriOku();
+  if (!tercih.pushAcik) {
+    return {
+      hata: "Telefon bildirimi kapalı — ayarlardan «Telefon bildirimi (push)» aç.",
+    };
+  }
+
+  const cevap = await pushGonder({
+    baslik: "Yük Avcısı — test push",
+    metin: new Date().toLocaleString("tr-TR", {
+      timeZone: "Europe/Istanbul",
+    }),
+    url: "/ai/yukler",
+  });
+
+  revalidatePath("/ayarlar");
+  if (cevap.gonderilen === 0) {
+    return { hata: cevap.hata || "Push gönderilemedi." };
+  }
+  return {
+    bilgi: `Test push ${cevap.gonderilen} cihaza gitti — bildirime dokununca Yükler açılır.`,
+  };
+}
+
 /** AI_KAPALI iken 1 adet 10'luk test hakkı (30 dk). tavanUsd varsayılan $0.05. */
 export async function aiTestIzniVer(tavanUsd = 0.05): Promise<AiSonuc> {
   const { bitisMs, tavanUsd: tavan } = await testIzniVer(30, tavanUsd);

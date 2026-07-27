@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
+import { AYAR_ANAHTARLARI, ayarYaz } from "@/lib/ayarlar";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return Response.json({ acikAnahtar: pushAcikAnahtar() });
+  const aboneSayisi = await prisma.pushAbone.count();
+  return Response.json({
+    acikAnahtar: pushAcikAnahtar(),
+    aboneSayisi,
+  });
 }
 
 type AbonelikGovdesi = {
@@ -36,6 +41,9 @@ export async function POST(request: Request) {
     },
     update: { p256dh: keys.p256dh, auth: keys.auth },
   });
+
+  // Cihaz abone olunca tercih de açık olsun — aksi halde gönderim atlanır.
+  await ayarYaz(AYAR_ANAHTARLARI.bildirimPush, "1");
 
   return Response.json({ ok: true });
 }

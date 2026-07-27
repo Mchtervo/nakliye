@@ -1,5 +1,5 @@
 /* Nakliye Defteri — sadece statik kabuk; sayfa/API cache'lenmez */
-const CACHE = "nd-v3";
+const CACHE = "nd-v4";
 const SHELL = ["/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -53,22 +53,38 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+function mutlakUrl(hedef) {
+  if (!hedef) return self.location.origin + "/ai/yukler";
+  try {
+    return new URL(hedef, self.location.origin).href;
+  } catch {
+    return self.location.origin + "/ai/yukler";
+  }
+}
+
 /* Yeni yük bildirimi */
 self.addEventListener("push", (event) => {
-  let veri = { baslik: "Nakliye Defteri", metin: "Yeni bildirim", url: "/" };
+  let veri = {
+    baslik: "Yük Avcısı",
+    metin: "Yeni bildirim",
+    url: "/ai/yukler",
+  };
   try {
     if (event.data) veri = { ...veri, ...event.data.json() };
   } catch {
     if (event.data) veri.metin = event.data.text();
   }
 
+  const hedef = mutlakUrl(veri.url);
+
   event.waitUntil(
     self.registration.showNotification(veri.baslik, {
       body: veri.metin,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      tag: veri.url,
-      data: { url: veri.url },
+      tag: hedef,
+      renotify: true,
+      data: { url: hedef },
       vibrate: [80, 40, 80],
     })
   );
@@ -76,19 +92,27 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const hedef = event.notification.data?.url || "/";
+  const hedef = mutlakUrl(event.notification.data?.url || "/ai/yukler");
 
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((pencereler) => {
+      .then(async (pencereler) => {
         for (const pencere of pencereler) {
           if ("focus" in pencere) {
-            pencere.navigate?.(hedef);
+            try {
+              if ("navigate" in pencere && typeof pencere.navigate === "function") {
+                await pencere.navigate(hedef);
+              }
+            } catch {
+              /* navigate desteklenmeyebilir */
+            }
             return pencere.focus();
           }
         }
-        return self.clients.openWindow(hedef);
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(hedef);
+        }
       })
   );
 });

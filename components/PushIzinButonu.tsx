@@ -2,20 +2,38 @@
 
 import { useEffect, useState } from "react";
 
-type Hal = "kontrol" | "desteklenmiyor" | "kapali" | "acik" | "reddedildi" | "hata";
+type Hal =
+  | "kontrol"
+  | "desteklenmiyor"
+  | "kapali"
+  | "acik"
+  | "reddedildi"
+  | "hata";
 
-/** VAPID açık anahtarını PushManager'ın beklediği ikili biçime çevirir. */
-function base64Tampon(base64: string): ArrayBuffer {
+/** VAPID açık anahtarını PushManager'ın beklediği biçime çevirir. */
+function vapidAnahtar(base64: string): Uint8Array {
   const dolgu = "=".repeat((4 - (base64.length % 4)) % 4);
   const duz = (base64 + dolgu).replace(/-/g, "+").replace(/_/g, "/");
   const ham = atob(duz);
-  const tampon = new ArrayBuffer(ham.length);
-  const dizi = new Uint8Array(tampon);
+  const dizi = new Uint8Array(ham.length);
   for (let i = 0; i < ham.length; i++) dizi[i] = ham.charCodeAt(i);
-  return tampon;
+  return dizi;
 }
 
-export default function PushIzinButonu({ acikAnahtar }: { acikAnahtar: string | null }) {
+async function swHazir(): Promise<ServiceWorkerRegistration> {
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("Service Worker yok");
+  }
+  const mevcut = await navigator.serviceWorker.getRegistration("/");
+  if (mevcut) return mevcut;
+  return navigator.serviceWorker.register("/sw.js");
+}
+
+export default function PushIzinButonu({
+  acikAnahtar,
+}: {
+  acikAnahtar: string | null;
+}) {
   const [hal, setHal] = useState<Hal>("kontrol");
   const [mesaj, setMesaj] = useState("");
 
@@ -27,22 +45,29 @@ export default function PushIzinButonu({ acikAnahtar }: { acikAnahtar: string | 
       setMesaj(yeniMesaj);
     };
 
-    Promise.resolve().then(() => {
+    Promise.resolve().then(async () => {
       if (!acikAnahtar) {
         return uygula(
           "desteklenmiyor",
-          "Sunucuda VAPID anahtarları tanımlı değil (npm run push:kur)."
+          "Sunucuda VAPID anahtarları yok. VPS .env'e VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY ekle (npm run push:kur)."
         );
       }
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-        return uygula("desteklenmiyor", "Bu tarayıcı bildirim desteklemiyor.");
+        return uygula(
+          "desteklenmiyor",
+          "Bu tarayıcı push desteklemiyor. iPhone'da: Safari → Paylaş → Ana Ekrana Ekle, sonra oradan aç."
+        );
       }
       if (Notification.permission === "denied") return uygula("reddedildi");
 
-      return navigator.serviceWorker.ready
-        .then((kayit) => kayit.pushManager.getSubscription())
-        .then((abone) => uygula(abone ? "acik" : "kapali"))
-        .catch(() => uygula("kapali"));
+      try {
+        const kayit = await swHazir();
+        await navigator.serviceWorker.ready;
+        const abone = await kayit.pushManager.getSubscription();
+        uygula(abone ? "acik" : "kapali");
+      } catch {
+        uygula("kapali");
+      }
     });
 
     return () => {
@@ -53,25 +78,36 @@ export default function PushIzinButonu({ acikAnahtar }: { acikAnahtar: string | 
   async function ac() {
     if (!acikAnahtar) return;
     setHal("kontrol");
+    setMesaj("");
     try {
+      const kayit = await swHazir();
+      await navigator.serviceWorker.ready;
+
       const izin = await Notification.requestPermission();
       if (izin !== "granted") {
         setHal("reddedildi");
         return;
       }
 
-      const kayit = await navigator.serviceWorker.ready;
-      const abone = await kayit.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: base64Tampon(acikAnahtar),
-      });
+      let abone = await kayit.pushManager.getSubscription();
+      if (!abone) {
+        abone = await kayit.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidAnahtar(acikAnahtar) as BufferSource,
+        });
+      }
 
       const cevap = await fetch("/api/push/abone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...abone.toJSON(), cihaz: navigator.userAgent }),
       });
-      if (!cevap.ok) throw new Error("Kayıt başarısız");
+      const govde = (await cevap.json().catch(() => ({}))) as {
+        hata?: string;
+      };
+      if (!cevap.ok) {
+        throw new Error(govde.hata || "Sunucu kaydı başarısız");
+      }
 
       setHal("acik");
     } catch (hata) {
@@ -83,7 +119,7 @@ export default function PushIzinButonu({ acikAnahtar }: { acikAnahtar: string | 
   async function kapat() {
     setHal("kontrol");
     try {
-      const kayit = await navigator.serviceWorker.ready;
+      const kayit = await swHazir();
       const abone = await kayit.pushManager.getSubscription();
       if (abone) {
         await fetch(
@@ -137,6 +173,10 @@ export default function PushIzinButonu({ acikAnahtar }: { acikAnahtar: string | 
         </button>
       )}
       {hal === "hata" && <p className="text-sm text-ember">{mesaj}</p>}
+      <p className="text-[11px] text-fog">
+        Android Chrome veya iPhone (Ana Ekrana Eklenmiş) gerekir. Masaüstü de
+        çalışır.
+      </p>
     </div>
   );
 }

@@ -54,16 +54,25 @@ function DurumRozeti({ tamam, ad }: { tamam: boolean; ad: string }) {
 export default async function AyarlarSayfasi() {
   const ay = bugunAy();
 
-  const [hizliAra, tercih, tumKaynaklar, bekleyenMesaj, gruplar, maliyet, eleme] =
-    await Promise.all([
-      prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
-      aiTercihleriOku(),
-      prisma.ilanKaynagi.findMany({ orderBy: [{ tur: "asc" }, { ad: "asc" }] }),
-      prisma.hamMesaj.count({ where: { islendi: false } }),
-      grupDurumlari(),
-      aiMaliyetOzeti(),
-      elemeSayaclariOku(),
-    ]);
+  const [
+    hizliAra,
+    tercih,
+    tumKaynaklar,
+    bekleyenMesaj,
+    gruplar,
+    maliyet,
+    eleme,
+    pushAboneSayisi,
+  ] = await Promise.all([
+    prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
+    aiTercihleriOku(),
+    prisma.ilanKaynagi.findMany({ orderBy: [{ tur: "asc" }, { ad: "asc" }] }),
+    prisma.hamMesaj.count({ where: { islendi: false } }),
+    grupDurumlari(),
+    aiMaliyetOzeti(),
+    elemeSayaclariOku(),
+    prisma.pushAbone.count(),
+  ]);
 
   const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
   const adaylar = gruplar
@@ -157,6 +166,9 @@ export default async function AyarlarSayfasi() {
           </h3>
           <p className="mb-2 text-sm text-fog">
             Uygulama kapalıyken de yeni yük bildirimi gelsin.
+            {pushAboneSayisi > 0
+              ? ` · ${pushAboneSayisi} cihaz kayıtlı`
+              : " · henüz cihaz yok"}
           </p>
           <PushIzinButonu acikAnahtar={pushAcikAnahtar()} />
         </div>
