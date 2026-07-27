@@ -12,7 +12,11 @@ import {
   ayarOku,
   ayarYaz,
 } from "@/lib/ayarlar";
-import { yukBasligiMi } from "@/lib/bolgeler";
+import {
+  katilimRedSebebi,
+  koridorBaslikOnceligi,
+  yukBasligiMi,
+} from "@/lib/bolgeler";
 import { bugunAnahtar } from "@/lib/kaynaklar/elemeSayac";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 
@@ -26,6 +30,83 @@ function gunlukOku(ham: string | null): { gun: string; adet: number } {
   if (gun !== bugun) return { gun: bugun, adet: 0 };
   const adet = Number(adetHam);
   return { gun: bugun, adet: Number.isFinite(adet) ? adet : 0 };
+}
+
+/** Çöp ADAY'ları PASİF yap; koridor başlıklıları öne al. */
+async function adaySec(): Promise<{
+  id: number;
+  ad: string;
+  kullaniciAdi: string | null;
+  hedef: string;
+} | null> {
+  const adaylar = await prisma.ilanKaynagi.findMany({
+    where: {
+      tur: TELEGRAM_UYE,
+      durum: "ADAY",
+      aktif: true,
+      kullaniciAdi: { not: null },
+      OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: 50 } }],
+    },
+    orderBy: [{ oncelik: "desc" }, { uyeSayisi: "desc" }, { id: "asc" }],
+    take: 40,
+  });
+
+  const uygun: {
+    id: number;
+    ad: string;
+    kullaniciAdi: string | null;
+    hedef: string;
+    skor: number;
+  }[] = [];
+
+  for (const a of adaylar) {
+    const red = katilimRedSebebi(a.ad);
+    if (red) {
+      await prisma.ilanKaynagi.update({
+        where: { id: a.id },
+        data: {
+          aktif: false,
+          durum: "PASIF",
+          sonHata: `Katılım RED: ${red}`.slice(0, 300),
+        },
+      });
+      console.log(`[cron-katil] RED → PASIF #${a.id} (${red}): ${a.ad}`);
+      continue;
+    }
+    if (!yukBasligiMi(a.ad)) {
+      await prisma.ilanKaynagi.update({
+        where: { id: a.id },
+        data: {
+          aktif: false,
+          durum: "PASIF",
+          sonHata: "Otomatik katılım: başlık yük grubu değil → PASIF",
+        },
+      });
+      console.log(`[cron-katil] başlık elendi → PASIF #${a.id}: ${a.ad}`);
+      continue;
+    }
+    const koridor = koridorBaslikOnceligi(a.ad);
+    const skor = (a.oncelik ?? 0) + koridor * 10 + Math.min(a.uyeSayisi ?? 0, 5000) / 5000;
+    // Koridor puanı DB onceliğine yaz (panel sırası için)
+    if (koridor > 0 && (a.oncelik ?? 0) < 10 + koridor) {
+      await prisma.ilanKaynagi
+        .update({
+          where: { id: a.id },
+          data: { oncelik: 10 + koridor },
+        })
+        .catch(() => null);
+    }
+    uygun.push({
+      id: a.id,
+      ad: a.ad,
+      kullaniciAdi: a.kullaniciAdi,
+      hedef: a.hedef,
+      skor,
+    });
+  }
+
+  uygun.sort((x, y) => y.skor - x.skor);
+  return uygun[0] ?? null;
 }
 
 async function main() {
@@ -65,30 +146,9 @@ async function main() {
     return;
   }
 
-  const aday = await prisma.ilanKaynagi.findFirst({
-    where: {
-      tur: TELEGRAM_UYE,
-      durum: "ADAY",
-      aktif: true,
-      kullaniciAdi: { not: null },
-      OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: 50 } }],
-    },
-    orderBy: [{ oncelik: "desc" }, { uyeSayisi: "desc" }, { id: "asc" }],
-  });
+  const aday = await adaySec();
   if (!aday?.kullaniciAdi) {
     console.log("[cron-katil] uygun ADAY yok");
-    return;
-  }
-  if (!yukBasligiMi(aday.ad)) {
-    await prisma.ilanKaynagi.update({
-      where: { id: aday.id },
-      data: {
-        aktif: false,
-        durum: "PASIF",
-        sonHata: "Otomatik katılım: başlık yük grubu değil → PASIF",
-      },
-    });
-    console.log("[cron-katil] başlık elendi → PASIF", aday.ad);
     return;
   }
 

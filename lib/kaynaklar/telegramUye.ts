@@ -23,6 +23,7 @@ import {
   aramaSorgulariUret,
   grubuDegerlendir,
   ilinBolgesi,
+  koridorBaslikOnceligi,
   yukBasligiMi,
   type BolgeKodu,
 } from "@/lib/bolgeler";
@@ -1278,6 +1279,7 @@ export async function adaylariDegerlendir(
       continue;
     }
 
+    const koridorPuan = koridorBaslikOnceligi(baslik);
     await prisma.ilanKaynagi.create({
       data: {
         tur: TELEGRAM_UYE,
@@ -1292,7 +1294,7 @@ export async function adaylariDegerlendir(
           typeof grup.uyeSayisi === "number" && grup.uyeSayisi > 0
             ? grup.uyeSayisi
             : null,
-        oncelik: 0,
+        oncelik: koridorPuan > 0 ? 10 + koridorPuan : 0,
         hasatKaynak: "arama",
       },
     });

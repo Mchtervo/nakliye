@@ -249,10 +249,86 @@ export const ISTENMEYEN_TERIMLER = [
   "alisveris", "ilan panosu", "reklam", "sponsor",
 ];
 
+/**
+ * Otomatik katılım RED — başlıkta geçerse ADAY'a alma / katılma.
+ * "yük borsası" istisna (aşağıda özel).
+ */
+const KATILIM_RED_TERIMLER = [
+  // Özbek / Rusça Latin
+  "yukchilar", "yukchi", "toshkent", "tashkent", "haydovchi", "fura",
+  "uzb", "uzbekistan",
+  // Eğitim / iş ilanı kirliliği
+  "yuksek lisans", "universite", "lisans", "ogrenci", "sinav",
+  "yuksek ihtisas", "egitim",
+  // Spam
+  "bahis", "escort", "kripto", "forex", "bitcoin",
+  "evden eve", "ceyiz", "kurye", "motokurye", "moto kurye",
+  // Yurtdışı hat (koridor dışı)
+  "iran", "irak", "iraq", "azerbaycan", "azerbaijan",
+  "gurcistan", "kazakistan", "ozbekistan", "turkmenistan",
+  "rusya", "russia", "avrupa", "almanya", "germany",
+];
+
+/** Başlıkta geçince öncelik puanı (katılım sırası). */
+const KORIDOR_BASLIK_KELIMELER = [
+  "ankara", "istanbul", "gebze", "kocaeli", "bolu", "duzce",
+  "sakarya", "kirikkale", "cankiri", "ostim", "hadimkoy",
+  "dilovasi", "cayirova", "ikitelli", "adapazari",
+];
+
 const YUK_SADE = YUK_TERIMLERI.map((t) => sadelestir(t));
+
+/** Kiril harfi var mı? */
+function kirilVarMi(metin: string): boolean {
+  return /[\u0400-\u04FF]/.test(metin);
+}
+
+/**
+ * Katılım öncesi eleme. Sebep dönerse RED — katılma / ADAY oluşturma.
+ */
+export function katilimRedSebebi(baslik: string): string | null {
+  const ham = (baslik || "").trim();
+  if (!ham) return "Başlık boş";
+  if (kirilVarMi(ham)) return "Kiril harf";
+
+  const sade = sadelestir(ham);
+
+  // borsa — ama "yük borsası" serbest
+  if (
+    sade.includes("borsa") &&
+    !sade.includes("yuk borsa") &&
+    !sade.includes("yukborsa")
+  ) {
+    return "borsa";
+  }
+
+  for (const t of KATILIM_RED_TERIMLER) {
+    const k = sadelestir(t);
+    if (k && sade.includes(k)) return t;
+  }
+
+  for (const t of ISTENMEYEN_TERIMLER) {
+    const k = sadelestir(t);
+    if (k && sade.includes(k)) return t;
+  }
+
+  return null;
+}
+
+/** Koridor ili/semt başlıkta → 0..N (katılım önceliği). */
+export function koridorBaslikOnceligi(baslik: string): number {
+  const sade = sadelestir(baslik);
+  if (!sade) return 0;
+  let puan = 0;
+  for (const k of KORIDOR_BASLIK_KELIMELER) {
+    if (sade.includes(k)) puan += 1;
+  }
+  return puan;
+}
 
 /** Başlık otomatik takibe uygun mu? */
 export function yukBasligiMi(baslik: string): boolean {
+  if (katilimRedSebebi(baslik)) return false;
   const sade = sadelestir(baslik);
   if (!sade) return false;
   return YUK_SADE.some((terim) => sade.includes(terim));
@@ -344,10 +420,9 @@ export function grubuDegerlendir(
   const sade = sadelestir(baslik);
   if (!sade) return { uygun: false, sebep: "Başlık boş", bolge: null };
 
-  for (const kotu of ISTENMEYEN_TERIMLER) {
-    if (sade.includes(sadelestir(kotu))) {
-      return { uygun: false, sebep: `İstenmeyen terim: ${kotu}`, bolge: null };
-    }
+  const red = katilimRedSebebi(baslik);
+  if (red) {
+    return { uygun: false, sebep: `RED: ${red}`, bolge: null };
   }
 
   // Nakliye terimleri ek alabildiği için ("yükleri", "nakliyeci") parça arama.
