@@ -225,6 +225,8 @@ export async function grupDurumu() {
         })
       : [];
   const adMap = new Map(kaynakAdlar.map((k) => [k.id, k.ad]));
+  const { adayHavuzOzeti } = await import("@/lib/kaynaklar/adayHavuz");
+  const havuz = await adayHavuzOzeti();
 
   return {
     aktif,
@@ -233,6 +235,7 @@ export async function grupDurumu() {
     bugunKatilan: katilimAdet(katilimHam, gun),
     bugunCikilan: cikisGunlukOku(cikisHam?.deger ?? null).adet,
     bugunBulunanAday: bulunanBugun,
+    adayHavuz: havuz,
     enCokIsToplam: top,
     bugunEnCokIs: bugunTop.map((b) => ({
       ad: (b.kaynakId && adMap.get(b.kaynakId)) || `#${b.kaynakId}`,

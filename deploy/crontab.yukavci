@@ -17,20 +17,20 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 # Sessiz saat birikimi — sabah 07:05 özet
 5 7 * * * /bin/bash $GUVENLI sabah-ozet.sh
 
-# Grup keşfi — günde 1, 08:00
-0 8 * * * /bin/bash $GUVENLI grup-kesif.sh
+# Grup keşfi — günde 3: 08:00, 14:00, 20:00
+0 8,14,20 * * * /bin/bash $GUVENLI grup-kesif.sh
 
-# Grup temizlik onayı — keşiften 15 dk sonra (Telegram'da Evet/Hayır)
-15 8 * * * /bin/bash $GUVENLI grup-temizlik.sh
+# Grup temizlik onayı — her keşiften 15 dk sonra
+15 8,14,20 * * * /bin/bash $GUVENLI grup-temizlik.sh
 
 # Onaylı grup çıkışı — 30 dk; script günde max 3 + 30 dk ara
 */30 * * * * /bin/bash $GUVENLI grup-cik.sh
 
-# Grup katılımı — 45 dk arayla; script günde max 6 + 45 dk ara
-*/45 * * * * /bin/bash $GUVENLI grup-katil.sh
+# Grup katılımı — 30 dk arayla; script günde max 8 + 30 dk ara
+*/30 * * * * /bin/bash $GUVENLI grup-katil.sh
 
-# Günlük rapor — 20:00 TR
-0 20 * * * /bin/bash $GUVENLI gunluk-rapor.sh
+# Günlük rapor — 20:30 TR (keşif 20:00'dan sonra)
+30 20 * * * /bin/bash $GUVENLI gunluk-rapor.sh
 
 # Yedek — 03:15 TR
 15 3 * * * /bin/bash $GUVENLI yedek.sh

@@ -1,5 +1,5 @@
 /**
- * ADAY gruba otomatik katılım — günde max 6, arası ≥45 dk.
+ * ADAY gruba otomatik katılım — günde max 8, arası ≥30 dk.
  * Hasat linkleri (oncelik yüksek) önce. FloodWait → 24s kilit.
  * OpenAI yok.
  */
@@ -19,9 +19,13 @@ import {
 } from "@/lib/bolgeler";
 import { bugunAnahtar } from "@/lib/kaynaklar/elemeSayac";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+import {
+  KATILIM_ARA_MS,
+  KATILIM_GUNLUK_LIMIT,
+} from "@/lib/kaynaklar/katilimLimit";
 
-const GUNLUK_LIMIT = 6;
-const ARA_MS = 45 * 60 * 1000;
+const GUNLUK_LIMIT = KATILIM_GUNLUK_LIMIT;
+const ARA_MS = KATILIM_ARA_MS;
 
 function gunlukOku(ham: string | null): { gun: string; adet: number } {
   const bugun = bugunAnahtar();

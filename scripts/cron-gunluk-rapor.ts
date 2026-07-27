@@ -1,6 +1,6 @@
 /**
- * 20:00 TR — OpenAI'siz operasyon özeti → Telegram.
- * Ağ büyütme + servis durumları.
+ * 20:30 TR — OpenAI'siz operasyon özeti → Telegram.
+ * Ağ büyütme + hasat + ADAY havuz + servis.
  */
 import { execFileSync } from "node:child_process";
 import { prisma } from "@/lib/prisma";
@@ -14,7 +14,9 @@ import {
   GRUP_CIKIS_GUNLUK_ANAHTAR,
   cikisGunlukOku,
 } from "@/lib/kaynaklar/grupTemizlik";
+import { adayHavuzOzeti } from "@/lib/kaynaklar/adayHavuz";
 import { grupDurumlari, TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+import { KATILIM_GUNLUK_LIMIT } from "@/lib/kaynaklar/katilimLimit";
 
 function guvenliKomut(cmd: string, args: string[]): string {
   try {
@@ -58,12 +60,14 @@ async function main() {
     aktifGrup,
     adayGrup,
     bulunanBugun,
+    hasatKayitBugun,
     katilimHam,
     cikisHam,
     aiKesilme,
     aiCagriBugun,
     aiKesilmeMaliyet,
     gruplar,
+    havuz,
   ] = await Promise.all([
     elemeSayaclariOku(gun),
     prisma.hamMesaj.count({ where: { createdAt: { gte: bas } } }),
@@ -82,6 +86,13 @@ async function main() {
         createdAt: { gte: bas },
       },
     }),
+    prisma.ilanKaynagi.count({
+      where: {
+        tur: TELEGRAM_UYE,
+        hasatKaynak: { not: null },
+        createdAt: { gte: bas },
+      },
+    }),
     ayarOku(AYAR_ANAHTARLARI.telegramKatilimGunluk),
     prisma.ayar.findUnique({ where: { anahtar: GRUP_CIKIS_GUNLUK_ANAHTAR } }),
     prisma.aiCagri.count({
@@ -93,10 +104,14 @@ async function main() {
       _sum: { maliyetMikro: true },
     }),
     grupDurumlari(),
+    adayHavuzOzeti(),
   ]);
 
   const katilan = katilimAdet(katilimHam, gun);
   const cikilan = cikisGunlukOku(cikisHam?.deger ?? null).adet;
+  const hasatLink = eleme.HASAT_LINK ?? 0;
+  const hasatYeni = eleme.HASAT_YENI ?? hasatKayitBugun;
+  const hasatMevcut = eleme.HASAT_MEVCUT ?? 0;
 
   const takip = gruplar.filter((g) => g.durum === "AKTIF" && g.aktif);
   const enVerimli = [...takip].sort(
@@ -115,9 +130,10 @@ async function main() {
     Object.keys(eleme).length === 0
       ? "eleme yok"
       : Object.entries(eleme)
+          .filter(([k]) => !k.startsWith("HASAT_"))
           .sort((a, b) => b[1] - a[1])
           .map(([k, v]) => `${k}: ${v}`)
-          .join(" · ");
+          .join(" · ") || "eleme yok";
 
   const pm2Pid = guvenliKomut("pm2", ["pid", "yukavci"]).split(/\s+/)[0];
   const pm2Ok = /^[0-9]+$/.test(pm2Pid) && Number(pm2Pid) > 0;
@@ -125,7 +141,11 @@ async function main() {
   const disk = diskOzet();
 
   const agSatir =
-    `Ağ: Bulunan ${bulunanBugun} · Katılınan ${katilan} (${katilan}/6) · Çıkılan ${cikilan}` +
+    `Ağ: Bulunan ${bulunanBugun} · Katılınan ${katilan} (${katilan}/${KATILIM_GUNLUK_LIMIT}) · Çıkılan ${cikilan}` +
+    `\nHasat: ${hasatLink} link tarandı · ${hasatYeni} yeni ADAY · ${hasatMevcut} zaten vardı` +
+    `\nADAY havuz: ${havuz.toplam} · katılıma uygun ${havuz.katilimaUygun}` +
+    ` · RED ${havuz.red} · başlık elendi ${havuz.baslikEleme}` +
+    ` · @yok ${havuz.usernameYok} · üye az ${havuz.uyeAz}` +
     `\nTakipte: ${aktifGrup}` +
     (enVerimli
       ? ` · En verimli: ${htmlKacis(enVerimli.ad)} (${enVerimli.ilanHafta} ilan/7g)`

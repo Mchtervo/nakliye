@@ -187,12 +187,24 @@ export async function hasatLinkleriniKaydet(
   return rapor;
 }
 
-/** Daemon / catch-up: metinden hasat et ve kaydet. */
+/** Daemon / catch-up: metinden hasat et ve kaydet + günlük sayaç. */
 export async function mesajdanHasatEt(
   metin: string,
   kaynak: { id: number; ad: string }
 ): Promise<HasatRaporu> {
   const linkler = linkleriHasatEt(metin);
   if (linkler.length === 0) return { yeni: 0, mevcut: 0, atlanan: 0 };
-  return hasatLinkleriniKaydet(linkler, kaynak);
+  const rapor = await hasatLinkleriniKaydet(linkler, kaynak);
+  // Günlük rapor için sayaç (eleme sayaçlarıyla aynı JSON)
+  try {
+    const { elemeArtir } = await import("@/lib/kaynaklar/elemeSayac");
+    await elemeArtir({
+      HASAT_LINK: linkler.length,
+      HASAT_YENI: rapor.yeni,
+      HASAT_MEVCUT: rapor.mevcut,
+    });
+  } catch {
+    /* sayaç opsiyonel */
+  }
+  return rapor;
 }
