@@ -245,6 +245,28 @@ export async function aiTercihKaydet(
   _oncekiDurum: AiSonuc,
   formData: FormData
 ): Promise<AiSonuc> {
+  // Toggle'lar önce — koridor/şehir hatasında bile DB'ye yazılsın
+  const autoDeployAcik =
+    formData.get("autoDeploy") === "1" ||
+    formData.getAll("autoDeploy").includes("1");
+  await ayarYaz(
+    AYAR_ANAHTARLARI.bildirimTelegram,
+    formData.get("bildirimTelegram") === "1" ? "1" : "0"
+  );
+  await ayarYaz(
+    AYAR_ANAHTARLARI.bildirimPush,
+    formData.get("bildirimPush") === "1" ? "1" : "0"
+  );
+  await ayarYaz(
+    AYAR_ANAHTARLARI.telegramUyeAktif,
+    formData.get("telegramUye") === "1" ? "1" : "0"
+  );
+  await ayarYaz(AYAR_ANAHTARLARI.autoDeploy, autoDeployAcik ? "1" : "0");
+  console.log(
+    `[aiTercihKaydet] auto_deploy=${autoDeployAcik ? "1" : "0"} ` +
+      `(form=${String(formData.get("autoDeploy"))})`
+  );
+
   const sehirHam = metinOku(formData.get("sehir"));
   const sehir = sehirHam ? ilBul(sehirHam) : null;
   if (sehirHam && !sehir) {
@@ -329,22 +351,6 @@ export async function aiTercihKaydet(
   await ayarYaz(
     AYAR_ANAHTARLARI.aiKoridorIller,
     koridorCozulmus.join(",")
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.bildirimTelegram,
-    formData.get("bildirimTelegram") === "1" ? "1" : "0"
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.bildirimPush,
-    formData.get("bildirimPush") === "1" ? "1" : "0"
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.telegramUyeAktif,
-    formData.get("telegramUye") === "1" ? "1" : "0"
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.autoDeploy,
-    formData.get("autoDeploy") === "1" ? "1" : "0"
   );
 
   await ayarYaz(AYAR_ANAHTARLARI.waSablonAd, metinOku(formData.get("waAd")));
