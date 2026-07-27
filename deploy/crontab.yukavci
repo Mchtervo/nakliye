@@ -22,7 +22,7 @@ YUKAVCI_LOCKDIR=/home/yukavci/locks
 # Onaylı grup çıkışı — 30 dk; script günde max 3 + 30 dk ara
 */30 * * * * /home/yukavci/muhasebbe/deploy/cron/grup-cik.sh
 
-# Grup katılımı — 45 dk arayla dene; script günde max 4 + 45 dk ara uygular
+# Grup katılımı — 45 dk arayla; script günde max 6 + 45 dk ara
 */45 * * * * /home/yukavci/muhasebbe/deploy/cron/grup-katil.sh
 
 # Günlük rapor — 20:00 TR

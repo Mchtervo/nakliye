@@ -234,10 +234,21 @@ export default async function AyarlarSayfasi() {
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-fog">
                 {bolum.baslik} ({bolum.liste.length})
               </h3>
-              {bolum.liste.slice(0, bolum.limit).map((g) => (
+              {bolum.liste.slice(0, bolum.limit).map((g) => {
+                const dusukIsabet =
+                  g.durum === "AKTIF" &&
+                  g.aktif &&
+                  g.koridorIsabet !== null &&
+                  g.koridorIsabet < 20 &&
+                  g.mesajHafta >= 20;
+                return (
                 <div
                   key={g.id}
-                  className="rounded-xl border border-white/10 bg-white/4 px-3 py-2"
+                  className={`rounded-xl border px-3 py-2 ${
+                    dusukIsabet
+                      ? "border-ember/40 bg-ember/10"
+                      : "border-white/10 bg-white/4"
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -261,7 +272,7 @@ export default async function AyarlarSayfasi() {
                           : [
                               `${g.takipGun}g takip`,
                               `bugün ${g.cekilenBugun}çek/${g.kuyrukBugun}kuyruk`,
-                              `7g ${g.mesajHafta}kuyruk/${g.ilanHafta}ilan`,
+                              `7g ${g.mesajHafta}mesaj/${g.ilanHafta}ilan`,
                               g.koridorIsabet !== null
                                 ? `isabet %${g.koridorIsabet}`
                                 : "isabet —",
@@ -273,12 +284,8 @@ export default async function AyarlarSayfasi() {
                               .filter(Boolean)
                               .join(" · ")}
                       </div>
-                      {g.durum === "AKTIF" &&
-                        g.aktif &&
-                        g.koridorIsabet !== null &&
-                        g.koridorIsabet < 25 &&
-                        g.mesajHafta >= 5 && (
-                          <div className="mt-0.5 text-[11px] font-semibold text-ember/90">
+                      {dusukIsabet && (
+                          <div className="mt-0.5 text-[11px] font-semibold text-ember">
                             Düşük koridor isabet — çıkış adayı
                           </div>
                         )}
@@ -328,7 +335,8 @@ export default async function AyarlarSayfasi() {
                       </p>
                     )}
                 </div>
-              ))}
+                );
+              })}
               {bolum.liste.length > bolum.limit && (
                 <p className="text-xs text-fog">
                   …ve {bolum.liste.length - bolum.limit} daha.

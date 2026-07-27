@@ -1,6 +1,6 @@
 /**
  * 20:00 TR — OpenAI'siz operasyon özeti → Telegram.
- * Servis durumları + disk dahil.
+ * Ağ büyütme + servis durumları.
  */
 import { execFileSync } from "node:child_process";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,11 @@ import {
   bugunAnahtar,
   elemeSayaclariOku,
 } from "@/lib/kaynaklar/elemeSayac";
-import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+import {
+  GRUP_CIKIS_GUNLUK_ANAHTAR,
+  cikisGunlukOku,
+} from "@/lib/kaynaklar/grupTemizlik";
+import { grupDurumlari, TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 
 function guvenliKomut(cmd: string, args: string[]): string {
   try {
@@ -34,6 +38,14 @@ function diskOzet(): string {
   }
 }
 
+function katilimAdet(ham: string | null, gun: string): number {
+  if (!ham) return 0;
+  const [g, a] = ham.split(":");
+  if (g !== gun) return 0;
+  const n = Number(a);
+  return Number.isFinite(n) ? n : 0;
+}
+
 async function main() {
   const gun = bugunAnahtar();
   const bas = new Date(`${gun}T00:00:00+03:00`);
@@ -45,10 +57,13 @@ async function main() {
     ilanBugun,
     aktifGrup,
     adayGrup,
+    bulunanBugun,
     katilimHam,
+    cikisHam,
     aiKesilme,
     aiCagriBugun,
     aiKesilmeMaliyet,
+    gruplar,
   ] = await Promise.all([
     elemeSayaclariOku(gun),
     prisma.hamMesaj.count({ where: { createdAt: { gte: bas } } }),
@@ -60,7 +75,15 @@ async function main() {
     prisma.ilanKaynagi.count({
       where: { tur: TELEGRAM_UYE, durum: "ADAY" },
     }),
+    prisma.ilanKaynagi.count({
+      where: {
+        tur: TELEGRAM_UYE,
+        durum: "ADAY",
+        createdAt: { gte: bas },
+      },
+    }),
     ayarOku(AYAR_ANAHTARLARI.telegramKatilimGunluk),
+    prisma.ayar.findUnique({ where: { anahtar: GRUP_CIKIS_GUNLUK_ANAHTAR } }),
     prisma.aiCagri.count({
       where: { zaman: { gte: bas }, hata: { startsWith: "KESILDI" } },
     }),
@@ -69,7 +92,24 @@ async function main() {
       where: { zaman: { gte: bas }, hata: { startsWith: "KESILDI" } },
       _sum: { maliyetMikro: true },
     }),
+    grupDurumlari(),
   ]);
+
+  const katilan = katilimAdet(katilimHam, gun);
+  const cikilan = cikisGunlukOku(cikisHam?.deger ?? null).adet;
+
+  const takip = gruplar.filter((g) => g.durum === "AKTIF" && g.aktif);
+  const enVerimli = [...takip].sort(
+    (a, b) => b.ilanHafta - a.ilanHafta || b.ilanAdedi - a.ilanAdedi
+  )[0];
+  const enKotuler = takip
+    .filter((g) => g.koridorIsabet !== null && g.mesajHafta >= 5)
+    .sort(
+      (a, b) =>
+        (a.koridorIsabet ?? 999) - (b.koridorIsabet ?? 999) ||
+        b.mesajHafta - a.mesajHafta
+    );
+  const enKotu = enKotuler[0];
 
   const elemeSatir =
     Object.keys(eleme).length === 0
@@ -84,20 +124,28 @@ async function main() {
   const tg = guvenliKomut("systemctl", ["is-active", "yukavci-telegram"]);
   const disk = diskOzet();
 
+  const agSatir =
+    `Ağ: Bulunan ${bulunanBugun} · Katılınan ${katilan} (${katilan}/6) · Çıkılan ${cikilan}` +
+    `\nTakipte: ${aktifGrup}` +
+    (enVerimli
+      ? ` · En verimli: ${htmlKacis(enVerimli.ad)} (${enVerimli.ilanHafta} ilan/7g)`
+      : "") +
+    (enKotu && enKotu.koridorIsabet !== null
+      ? ` · En kötü: ${htmlKacis(enKotu.ad)} (%${enKotu.koridorIsabet})`
+      : "");
+
   const metin = [
     `<b>Yük Avcısı — günlük rapor</b> (${htmlKacis(gun)})`,
+    agSatir,
     `Ham mesaj bugün: ${hamBugun}`,
     `Kuyruk bekleyen: ${hamBekleyen}`,
     `İlan bugün: ${ilanBugun}`,
     `Grup AKTİF / ADAY: ${aktifGrup} / ${adayGrup}`,
-    `Katılım sayaç: ${htmlKacis(katilimHam || "0")}`,
     `Ön filtre: ${htmlKacis(elemeSatir)}`,
-    `AI çağrı bugün: ${aiCagriBugun} · kesilme (max_output/length): ${aiKesilme}` +
+    `AI çağrı bugün: ${aiCagriBugun} · kesilme: ${aiKesilme}` +
       (aiKesilme > 0
         ? ` · israf ~$${((aiKesilmeMaliyet._sum.maliyetMikro ?? 0) / 1e6).toFixed(3)}`
         : ""),
-    `Model: ${process.env.OPENAI_MODEL_HIZLI || "gpt-5.4-nano (varsayılan)"}`,
-    `AI_KAPALI: ${process.env.AI_KAPALI || "?"}`,
     `pm2 yukavci: ${pm2Ok ? `online pid ${pm2Pid}` : "SORUN"}`,
     `daemon: ${htmlKacis(tg)}`,
     `disk / : ${htmlKacis(disk)}`,

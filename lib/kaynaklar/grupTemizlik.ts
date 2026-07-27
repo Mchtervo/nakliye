@@ -163,6 +163,16 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
     void sonIlan;
   }
 
+  // 5) Düşük koridor isabet — konuşuyor ama koridor dışı
+  const isabetAday = await dusukIsabetCikisAdaylari(
+    gruplar.map((g) => g.id),
+    koridor,
+    yediGun
+  );
+  for (const a of isabetAday) {
+    if (!adaylar.some((x) => x.id === a.id)) adaylar.push(a);
+  }
+
   // Tekilleştir
   const gorulen = new Set<number>();
   return adaylar.filter((a) => {
@@ -170,6 +180,71 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
     gorulen.add(a.id);
     return true;
   });
+}
+
+/** İsabet <%20 + 7g ≥20 mesaj → çıkış adayı. */
+async function dusukIsabetCikisAdaylari(
+  kaynakIds: number[],
+  koridor: Set<string>,
+  yediGun: Date
+): Promise<CikisAdayi[]> {
+  if (kaynakIds.length === 0) return [];
+
+  const [hamHafta, gruplar] = await Promise.all([
+    prisma.hamMesaj.findMany({
+      where: { kaynakId: { in: kaynakIds }, createdAt: { gte: yediGun } },
+      select: { kaynakId: true, metin: true },
+      take: 4000,
+    }),
+    prisma.ilanKaynagi.findMany({
+      where: { id: { in: kaynakIds } },
+      select: {
+        id: true,
+        ad: true,
+        kullaniciAdi: true,
+        hedef: true,
+      },
+    }),
+  ]);
+
+  const { satirlaraBol, rotaSatiriMi } = await import(
+    "@/lib/kaynaklar/onFiltre"
+  );
+  const isabetMap = new Map<number, { hit: number; toplam: number; mesaj: number }>();
+  for (const h of hamHafta) {
+    if (!h.kaynakId) continue;
+    let slot = isabetMap.get(h.kaynakId);
+    if (!slot) {
+      slot = { hit: 0, toplam: 0, mesaj: 0 };
+      isabetMap.set(h.kaynakId, slot);
+    }
+    slot.mesaj += 1;
+    for (const satir of satirlaraBol(h.metin)) {
+      if (!rotaSatiriMi(satir) && illeriBul(satir).length < 2) continue;
+      const iller = illeriBul(satir);
+      if (iller.length < 2) continue;
+      slot.toplam += 1;
+      if (iller.some((il) => koridor.has(il))) slot.hit += 1;
+    }
+  }
+
+  const sonuc: CikisAdayi[] = [];
+  const grupMap = new Map(gruplar.map((g) => [g.id, g]));
+  for (const [id, slot] of isabetMap) {
+    if (slot.mesaj < 20 || slot.toplam < 5) continue;
+    const yuzde = Math.round((100 * slot.hit) / slot.toplam);
+    if (yuzde >= 20) continue;
+    const g = grupMap.get(id);
+    if (!g) continue;
+    sonuc.push({
+      id: g.id,
+      ad: g.ad,
+      kullaniciAdi: g.kullaniciAdi,
+      hedef: g.hedef,
+      sebep: `isabet %${yuzde} (7g ${slot.mesaj} mesaj)`,
+    });
+  }
+  return sonuc;
 }
 
 export async function cikisOnayOku(): Promise<CikisOnayKayit> {
