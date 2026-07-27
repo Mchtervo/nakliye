@@ -6,7 +6,18 @@ import { useState, useTransition } from "react";
 import { ilanDurumGuncelle, ilanSil } from "@/app/ai-actions";
 import BilgiSorButonu from "@/components/BilgiSorButonu";
 import { aracBelirsizMi } from "@/lib/arac";
+import { beklemeBuyuk } from "@/lib/ilanTazelik";
 import { fiyatGorunumu, gecenSure } from "@/lib/ilanGorunum";
+
+export type IlanKartKar = {
+  mesafe: string | null;
+  yakit: string | null;
+  hgs: string | null;
+  net: string | null;
+  tlKm: string | null;
+  uyari: string | null;
+  netPozitif?: boolean;
+};
 
 export type IlanKartVeri = {
   id: number;
@@ -33,6 +44,7 @@ export type IlanKartVeri = {
   odakli?: boolean;
   soluk?: boolean;
   vurgulu?: boolean;
+  kar?: IlanKartKar | null;
   /** Bu yükü alırsan dönüşte… */
   donusOnerileri?: {
     id: number;
@@ -54,6 +66,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
       ? new Date(ilan.createdAt)
       : ilan.createdAt;
   const iletisimVar = Boolean(ilan.gonderenUserId || ilan.telefon);
+  const bekleme = beklemeBuyuk(createdAt);
 
   const metaSatir = [
     ilan.tonaj ? `${ilan.tonaj} ton` : null,
@@ -77,6 +90,13 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
     });
   }
 
+  function alindiIsaretle() {
+    setMenuAcik(false);
+    baslat(async () => {
+      await ilanDurumGuncelle(ilan.id, "ALINDI");
+    });
+  }
+
   return (
     <article
       id={`ilan-${ilan.id}`}
@@ -88,11 +108,23 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         ilan.soluk || ilan.durum === "CEVAP_YOK" ? "opacity-45" : ""
       }`}
     >
-      {/* Rota */}
+      {/* Bekleme + rota */}
       <div className="flex items-start justify-between gap-2">
-        <h2 className="font-display text-xl font-extrabold leading-tight text-paper sm:text-2xl">
-          {rota}
-        </h2>
+        <div className="min-w-0 flex-1">
+          <p
+            className={`font-display text-2xl font-extrabold leading-none tracking-tight sm:text-3xl ${
+              ilan.soluk ? "text-fog" : "text-amber"
+            }`}
+          >
+            {bekleme}
+          </p>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-fog">
+            bekliyor
+          </p>
+          <h2 className="font-display mt-2 text-xl font-extrabold leading-tight text-paper sm:text-2xl">
+            {rota}
+          </h2>
+        </div>
         <div className="relative shrink-0">
           <button
             type="button"
@@ -112,6 +144,16 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
                 onClick={() => setMenuAcik(false)}
               />
               <div className="absolute right-0 z-20 mt-1 min-w-[10.5rem] overflow-hidden rounded-xl border border-white/15 bg-asphalt-2 py-1 shadow-xl">
+                {ilan.durum !== "ALINDI" && (
+                  <button
+                    type="button"
+                    disabled={bekliyor}
+                    onClick={alindiIsaretle}
+                    className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-teal hover:bg-white/8 disabled:opacity-50"
+                  >
+                    Alındı (dönüş ara)
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={bekliyor}
@@ -173,11 +215,17 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         </div>
       </div>
 
-      {/* Rozetler — az */}
+      {/* Rozetler */}
       {(ilan.donusTalebiId ||
         ilan.durum === "PAZARLIKTA" ||
+        ilan.durum === "ALINDI" ||
         aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod)) && (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {ilan.durum === "ALINDI" ? (
+            <span className="rounded-md bg-ok/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ok">
+              Alındı
+            </span>
+          ) : null}
           {ilan.donusTalebiId ? (
             <span className="rounded-md bg-teal/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal">
               Dönüş
@@ -196,7 +244,6 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         </div>
       )}
 
-      {/* Ton / araç / fiyat */}
       {metaSatir && (
         <p className="mt-2 text-sm font-semibold text-fog sm:text-base">
           {metaSatir}
@@ -206,7 +253,65 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         </p>
       )}
 
-      {/* Firma + tel */}
+      {/* Kâr paneli */}
+      {ilan.kar && (ilan.kar.mesafe || ilan.kar.net) && (
+        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs sm:grid-cols-4">
+            {ilan.kar.mesafe && (
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-fog">
+                  Mesafe
+                </div>
+                <div className="font-semibold text-paper">{ilan.kar.mesafe}</div>
+              </div>
+            )}
+            {ilan.kar.yakit && (
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-fog">
+                  Yakıt
+                </div>
+                <div className="font-semibold text-paper">{ilan.kar.yakit}</div>
+              </div>
+            )}
+            {ilan.kar.hgs && (
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-fog">
+                  HGS
+                </div>
+                <div className="font-semibold text-paper">{ilan.kar.hgs}</div>
+              </div>
+            )}
+            {ilan.kar.tlKm && (
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-fog">
+                  ₺/km
+                </div>
+                <div className="font-semibold text-paper">{ilan.kar.tlKm}</div>
+              </div>
+            )}
+          </div>
+          {ilan.kar.net && (
+            <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-white/8 pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-fog">
+                Net kazanç
+              </span>
+              <span
+                className={`font-display text-xl font-extrabold ${
+                  ilan.kar.netPozitif === false ? "text-ember" : "text-teal"
+                }`}
+              >
+                {ilan.kar.net}
+              </span>
+            </div>
+          )}
+          {ilan.kar.uyari && (
+            <p className="mt-2 rounded-lg border border-ember/30 bg-ember/10 px-2 py-1.5 text-[11px] font-semibold text-ember">
+              {ilan.kar.uyari}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="mt-2 space-y-0.5 text-sm text-paper/90">
         {ilan.firmaAdi && (
           <div className="truncate font-medium">{ilan.firmaAdi}</div>
@@ -221,7 +326,6 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         )}
       </div>
 
-      {/* Meta */}
       <p className="mt-2 text-xs text-fog">
         {gecenSure(createdAt)}
         {ilan.kaynakAd ? ` · ${ilan.kaynakAd}` : ""}
@@ -255,7 +359,6 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         </div>
       )}
 
-      {/* Detay (ham) */}
       <div className="mt-3">
         <button
           type="button"
@@ -271,7 +374,6 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         )}
       </div>
 
-      {/* Ana butonlar */}
       <div className="mt-4 flex gap-2">
         {iletisimVar ? (
           <div className="min-w-0 flex-1 [&_button]:w-full [&_button]:!px-3 [&_button]:!py-3 [&_button]:text-sm">

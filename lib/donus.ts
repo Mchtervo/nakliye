@@ -3,27 +3,63 @@ import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 /**
- * Yük kaydedildiğinde ters yönde dönüş yükü araması açar.
+ * Yük / ilan alındığında ters yönde dönüş yükü araması açar.
  * Aynı rota için açık talep varsa yenisini oluşturmaz.
  */
 export async function donusTalebiOlustur(
-  yukId: number,
+  yukId: number | null,
   nereden: string,
   nereye: string
-): Promise<void> {
+): Promise<number | null> {
   const cikisIl = ilBul(nereye); // dönüş, yükün bittiği yerden başlar
   const varisIl = ilBul(nereden);
-  if (!cikisIl || !varisIl || cikisIl === varisIl) return;
+  if (!cikisIl || !varisIl || cikisIl === varisIl) return null;
 
   const acikTalep = await prisma.donusTalebi.findFirst({
     where: { aktif: true, cikisIl, varisIl },
     select: { id: true },
   });
-  if (acikTalep) return;
+  if (acikTalep) return acikTalep.id;
 
-  await prisma.donusTalebi.create({
-    data: { yukId, cikis: nereye, varis: nereden, cikisIl, varisIl },
+  const talep = await prisma.donusTalebi.create({
+    data: {
+      yukId: yukId && yukId > 0 ? yukId : null,
+      cikis: nereye,
+      varis: nereden,
+      cikisIl,
+      varisIl,
+    },
   });
+  return talep.id;
+}
+
+/**
+ * İlan ALINDI → varış ilinden çıkışlı dönüş araması + mevcut eşleşmeleri bağla.
+ * Eşleşen (henüz bildirilmemiş) ilanları döner.
+ */
+export async function donusTalebiIlanAlindi(ilanId: number): Promise<{
+  talepId: number | null;
+  eslesen: KaydedilenIlan[];
+}> {
+  const ilan = await prisma.yukIlani.findUnique({
+    where: { id: ilanId },
+    select: {
+      id: true,
+      nereden: true,
+      nereye: true,
+      cikisIl: true,
+      varisIl: true,
+    },
+  });
+  if (!ilan) return { talepId: null, eslesen: [] };
+
+  const nereden = ilan.cikisIl || ilan.nereden || "";
+  const nereye = ilan.varisIl || ilan.nereye || "";
+  const talepId = await donusTalebiOlustur(null, nereden, nereye);
+  if (!talepId) return { talepId: null, eslesen: [] };
+
+  const eslesen = await donusEslesmeleriniTara();
+  return { talepId, eslesen };
 }
 
 /**
@@ -41,7 +77,7 @@ export async function donusEslesmeleriniTara(): Promise<KaydedilenIlan[]> {
   const eslesenler: KaydedilenIlan[] = [];
 
   for (const talep of talepler) {
-    const ilanlar = await prisma.yukIlani.findMany({
+    let ilanlar = await prisma.yukIlani.findMany({
       where: {
         donusTalebiId: null,
         durum: "YENI",
@@ -51,6 +87,20 @@ export async function donusEslesmeleriniTara(): Promise<KaydedilenIlan[]> {
       },
       take: 10,
     });
+
+    // Tam rota yoksa: varıştan çıkan herhangi bir YENİ yük (boş dönme)
+    if (ilanlar.length === 0) {
+      ilanlar = await prisma.yukIlani.findMany({
+        where: {
+          donusTalebiId: null,
+          durum: "YENI",
+          cikisIl: talep.cikisIl,
+          createdAt: { gte: birHaftaOnce },
+        },
+        orderBy: [{ guvenSkoru: "desc" }, { createdAt: "desc" }],
+        take: 5,
+      });
+    }
 
     if (ilanlar.length === 0) continue;
 

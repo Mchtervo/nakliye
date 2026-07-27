@@ -150,11 +150,18 @@ async function donusTalebiEslestir(
   const n = ilaniRotaNormalize(ilan);
   if (!n.cikisIl || !n.varisIl) return null;
 
-  const talep = await prisma.donusTalebi.findFirst({
+  const tam = await prisma.donusTalebi.findFirst({
     where: { aktif: true, cikisIl: n.cikisIl, varisIl: n.varisIl },
     orderBy: { createdAt: "desc" },
   });
-  return talep?.id ?? null;
+  if (tam) return tam.id;
+
+  // Soft: varıştan çıkan her yük → açık talebe bağla
+  const soft = await prisma.donusTalebi.findFirst({
+    where: { aktif: true, cikisIl: n.cikisIl },
+    orderBy: { createdAt: "desc" },
+  });
+  return soft?.id ?? null;
 }
 
 /**

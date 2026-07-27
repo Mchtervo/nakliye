@@ -138,6 +138,8 @@ const ILAN_DURUMLARI = [
   "CEVAP_YOK",
   "ELENDI",
   "YUKE_DONDU",
+  "ALINDI",
+  "ARSIV",
 ];
 
 export async function ilanDurumGuncelle(
@@ -148,6 +150,18 @@ export async function ilanDurumGuncelle(
   if (!ILAN_DURUMLARI.includes(durum)) return;
 
   await prisma.yukIlani.update({ where: { id }, data: { durum } }).catch(() => null);
+
+  if (durum === "ALINDI") {
+    try {
+      const { donusTalebiIlanAlindi } = await import("@/lib/donus");
+      const { yukIlanlariniBildir } = await import("@/lib/bildirim/gonder");
+      const r = await donusTalebiIlanAlindi(id);
+      if (r.eslesen.length > 0) await yukIlanlariniBildir(r.eslesen);
+    } catch (e) {
+      console.error("[ilanDurumGuncelle] ALINDI donus", e);
+    }
+  }
+
   revalidatePath("/ai/yukler");
   revalidatePath("/ai/donus");
 }
@@ -427,6 +441,46 @@ export async function aiTercihKaydet(
     formData.get("autoDeploy") === "1" ||
     formData.getAll("autoDeploy").includes("1");
 
+  function maliyetSayi(
+    alan: string,
+    varsayilan: number,
+    min: number,
+    max: number
+  ): number | { hata: string } {
+    const ham = metinOku(formData.get(alan));
+    if (!ham) return varsayilan;
+    const n = Number(ham.replace(",", "."));
+    if (!Number.isFinite(n) || n < min || n > max) {
+      return { hata: kaydedilmedi(`${alan} (${min}–${max})`) };
+    }
+    return n;
+  }
+
+  const { VARSAYILAN_MALIYET } = await import("@/lib/karHesap");
+  const yakitLt = maliyetSayi(
+    "yakitLt100",
+    VARSAYILAN_MALIYET.yakitLt100,
+    5,
+    80
+  );
+  if (typeof yakitLt === "object") return yakitLt;
+  const motorin = maliyetSayi(
+    "motorinTl",
+    VARSAYILAN_MALIYET.motorinTl,
+    10,
+    200
+  );
+  if (typeof motorin === "object") return motorin;
+  const sabitKm = maliyetSayi(
+    "sabitTlKm",
+    VARSAYILAN_MALIYET.sabitTlKm,
+    0,
+    50
+  );
+  if (typeof sabitKm === "object") return sabitKm;
+  const hgsKm = maliyetSayi("hgsTlKm", VARSAYILAN_MALIYET.hgsTlKm, 0, 10);
+  if (typeof hgsKm === "object") return hgsKm;
+
   // Tüm doğrulamalar geçti — tek transaction (hepsi ya hiçbiri)
   const kayitlar: { anahtar: string; deger: string }[] = [
     { anahtar: AYAR_ANAHTARLARI.aiSehir, deger: sehir || "" },
@@ -494,6 +548,22 @@ export async function aiTercihKaydet(
     {
       anahtar: AYAR_ANAHTARLARI.waMesajSablon,
       deger: metinOku(formData.get("waMesajSablon")),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.maliyetYakitLt100,
+      deger: String(yakitLt),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.maliyetMotorinTl,
+      deger: String(motorin),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.maliyetSabitTlKm,
+      deger: String(sabitKm),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.maliyetHgsTlKm,
+      deger: String(hgsKm),
     },
   ];
 

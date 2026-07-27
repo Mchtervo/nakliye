@@ -23,6 +23,7 @@ export default function AiTercihForm({
   tdmGunlukLimit,
   autoDeploy,
   autoDeployEnv = false,
+  maliyet = { yakitLt100: 32, motorinTl: 48, sabitTlKm: 2.5, hgsTlKm: 0.2 },
 }: {
   sehir: string;
   rotalar: string;
@@ -51,6 +52,12 @@ export default function AiTercihForm({
   autoDeploy: boolean;
   /** VPS AUTO_DEPLOY=1 — panel kapatsa bile açık */
   autoDeployEnv?: boolean;
+  maliyet?: {
+    yakitLt100: number;
+    motorinTl: number;
+    sabitTlKm: number;
+    hgsTlKm: number;
+  };
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
     aiTercihKaydet,
@@ -114,6 +121,74 @@ export default function AiTercihForm({
               type="text"
               placeholder="Örnek: Ankara"
               defaultValue={anaUs}
+              className="alan"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-teal/20 bg-teal/5 p-3">
+        <div className="text-xs font-bold uppercase tracking-wider text-teal">
+          Kâr hesabı
+        </div>
+        <p className="text-xs text-fog">
+          Her ilan kartında mesafe, yakıt, HGS, net kazanç ve ₺/km buna göre
+          hesaplanır. Yuk defterindeki hat ortalamasıyla karşılaştırılır.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="yakitLt100" className="etiket">
+              Yakıt (lt/100km)
+            </label>
+            <input
+              id="yakitLt100"
+              name="yakitLt100"
+              type="text"
+              inputMode="decimal"
+              placeholder="32"
+              defaultValue={String(maliyet.yakitLt100)}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="motorinTl" className="etiket">
+              Motorin (₺/lt)
+            </label>
+            <input
+              id="motorinTl"
+              name="motorinTl"
+              type="text"
+              inputMode="decimal"
+              placeholder="48"
+              defaultValue={String(maliyet.motorinTl)}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="sabitTlKm" className="etiket">
+              Sabit gider (₺/km)
+            </label>
+            <input
+              id="sabitTlKm"
+              name="sabitTlKm"
+              type="text"
+              inputMode="decimal"
+              placeholder="2.5"
+              defaultValue={String(maliyet.sabitTlKm)}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="hgsTlKm" className="etiket">
+              HGS (₺/km)
+            </label>
+            <input
+              id="hgsTlKm"
+              name="hgsTlKm"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.2"
+              defaultValue={String(maliyet.hgsTlKm)}
               className="alan"
             />
           </div>

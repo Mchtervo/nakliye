@@ -6,11 +6,21 @@ import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
 import { ilBul } from "@/lib/iller";
 import { SUPHE_SINIRI, tercihKosulu } from "@/lib/kaynaklar/filtre";
-import { eskiIlanlariTemizle, simdiTara } from "@/app/ai-actions";
+import {
+  eskiIlanlariTemizle,
+  simdiTara,
+} from "@/app/ai-actions";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import IlanAramaCubugu, { type RotaCip } from "@/components/IlanAramaCubugu";
 import IlanKart from "@/components/IlanKart";
 import { donusOnerileriBul } from "@/lib/seferPlan";
+import {
+  hatAnahtar,
+  hatOrtalamalariYukle,
+  karHesapla,
+  karOzetYazi,
+} from "@/lib/karHesap";
+import { eskiIlanlariArsivle, solukMu } from "@/lib/ilanTazelik";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +29,7 @@ const SEKMELER = [
   { kod: "YENI", ad: "Yeni" },
   { kod: "ILGILENIYOR", ad: "Takipte" },
   { kod: "DONUS", ad: "Dönüş" },
+  { kod: "MUSTERI", ad: "Müşteri" },
   { kod: "SUPHELI", ad: "Şüpheli" },
   { kod: "HEPSI", ad: "Hepsi" },
 ] as const;
@@ -88,6 +99,7 @@ function rotaCipleri(rotalar: string[]): RotaCip[] {
 }
 
 function sekmeHref(kod: string, nereden: string, nereye: string): string {
+  if (kod === "MUSTERI") return "/ai/musteriler";
   const p = new URLSearchParams();
   p.set("sekme", kod);
   if (nereden) p.set("nereden", nereden);
@@ -122,11 +134,17 @@ export default async function AiYuklerSayfasi({
 
   const tercih = await aiTercihleriOku();
 
+  // 2 saatten eski YENİ → ARSIV (hız göstergesi)
+  await eskiIlanlariArsivle().catch(() => 0);
+
   const tabanFiltre: Prisma.YukIlaniWhereInput =
     sekme === "SUPHELI"
       ? { guvenSkoru: { lt: SUPHE_SINIRI } }
       : sekme === "HEPSI"
-        ? { guvenSkoru: { gte: SUPHE_SINIRI } }
+        ? {
+            guvenSkoru: { gte: SUPHE_SINIRI },
+            durum: { notIn: ["ARSIV", "ELENDI"] },
+          }
         : sekme === "DONUS"
           ? { donusTalebiId: { not: null }, guvenSkoru: { gte: SUPHE_SINIRI } }
           : sekme === "YENI"
@@ -139,6 +157,7 @@ export default async function AiYuklerSayfasi({
                       "ILETISIME_GECILDI",
                       "PAZARLIKTA",
                       "CEVAP_YOK",
+                      "ALINDI",
                     ],
                   },
                   guvenSkoru: { gte: SUPHE_SINIRI },
@@ -155,7 +174,7 @@ export default async function AiYuklerSayfasi({
     AND: [tabanFiltre, rotaKosul],
   };
 
-  const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi] =
+  const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
     await Promise.all([
       prisma.yukIlani.findMany({
         where: filtre,
@@ -169,6 +188,7 @@ export default async function AiYuklerSayfasi({
       }),
       prisma.yukIlani.count({ where: { donusTalebiId: { not: null } } }),
       prisma.yukIlani.count({ where: { guvenSkoru: { lt: SUPHE_SINIRI } } }),
+      hatOrtalamalariYukle(),
     ]);
 
   const aiAcik = aiKullanilabilir();
@@ -187,7 +207,6 @@ export default async function AiYuklerSayfasi({
   }
 
   const iyiSayisi = sirali.filter(iyiIsMi).length;
-  const simdi = Date.now();
   const filtreOzet = [
     cikisIl
       ? `çıkış ${cikisIl}${neredenHam !== cikisIl ? ` (${neredenHam})` : ""}`
@@ -228,6 +247,18 @@ export default async function AiYuklerSayfasi({
       );
     })
   );
+
+  function karIcin(ilan: (typeof sirali)[0]) {
+    const key = hatAnahtar(ilan.cikisIl, ilan.varisIl);
+    const hat = key ? hatMap.get(key) : null;
+    const ozet = karHesapla(ilan, tercih.maliyet, hat);
+    const yazi = karOzetYazi(ozet);
+    if (!yazi.mesafe && !yazi.net) return null;
+    return {
+      ...yazi,
+      netPozitif: ozet.netTl === null ? undefined : ozet.netTl >= 0,
+    };
+  }
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -363,7 +394,6 @@ export default async function AiYuklerSayfasi({
       ) : (
         <div className="space-y-3">
           {sirali.map((ilan) => {
-            const yasMs = simdi - ilan.createdAt.getTime();
             return (
               <IlanKart
                 key={ilan.id}
@@ -391,8 +421,9 @@ export default async function AiYuklerSayfasi({
                   ucretYazi:
                     ilan.ucret !== null ? kurustanGiris(ilan.ucret) : null,
                   odakli: odak === ilan.id,
-                  soluk: yasMs > DORT_SAAT_MS,
+                  soluk: solukMu(ilan.createdAt),
                   vurgulu: iyiIsMi(ilan),
+                  kar: karIcin(ilan),
                   donusOnerileri: donusMap.get(ilan.id),
                 }}
               />

@@ -153,6 +153,7 @@ export default async function AyarlarSayfasi() {
           tdmGunlukLimit={String(tercih.tdmGunlukLimit)}
           autoDeploy={tercih.autoDeploy}
           autoDeployEnv={autoDeployEnvAcikMi()}
+          maliyet={tercih.maliyet}
         />
 
         <TestBildirimButonu />

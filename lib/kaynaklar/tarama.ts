@@ -85,6 +85,8 @@ export async function kaynaklariTara(limit = 2): Promise<TaramaRaporu> {
   }
 
   // Talep sonradan açılmış olabilir; eski ilanları da eşleştir.
+  const { eskiIlanlariArsivle } = await import("@/lib/ilanTazelik");
+  await eskiIlanlariArsivle().catch(() => 0);
   const gecEslesenler = await donusEslesmeleriniTara();
 
   const hepsi = [...yeniler];

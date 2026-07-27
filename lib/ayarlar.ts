@@ -10,6 +10,7 @@ import {
   koridorIlleriCozumle,
   VARSAYILAN_KORIDOR_ILLER,
 } from "@/lib/koridor";
+import { VARSAYILAN_MALIYET } from "@/lib/karHesap";
 
 export const AYAR_ANAHTARLARI = {
   hizliAraTelefon: "hizli_ara_telefon",
@@ -61,6 +62,14 @@ export const AYAR_ANAHTARLARI = {
   waMesajSablon: "wa_mesaj_sablon",
   /** 1 = VPS auto-deploy (git poll) açık */
   autoDeploy: "auto_deploy",
+  /** Kâr hesabı: lt / 100 km */
+  maliyetYakitLt100: "maliyet_yakit_lt100",
+  /** Motorin ₺ / litre */
+  maliyetMotorinTl: "maliyet_motorin_tl",
+  /** Km başı sabit gider ₺ */
+  maliyetSabitTlKm: "maliyet_sabit_tl_km",
+  /** Km başı HGS tahmini ₺ */
+  maliyetHgsTlKm: "maliyet_hgs_tl_km",
 } as const;
 
 export type AyarAnahtari =
@@ -137,6 +146,13 @@ export type AiTercihleri = {
   tdmGunlukLimit: number;
   /** VPS: push sonrası otomatik deploy */
   autoDeploy: boolean;
+  /** Kâr hesabı parametreleri */
+  maliyet: {
+    yakitLt100: number;
+    motorinTl: number;
+    sabitTlKm: number;
+    hgsTlKm: number;
+  };
 };
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
@@ -165,6 +181,10 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.tdmGunlukLimit,
     AYAR_ANAHTARLARI.waMesajSablon,
     AYAR_ANAHTARLARI.autoDeploy,
+    AYAR_ANAHTARLARI.maliyetYakitLt100,
+    AYAR_ANAHTARLARI.maliyetMotorinTl,
+    AYAR_ANAHTARLARI.maliyetSabitTlKm,
+    AYAR_ANAHTARLARI.maliyetHgsTlKm,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
@@ -183,6 +203,12 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       : koridorIlleriCozumle(koridorHam);
   for (const il of ekIller) {
     if (!koridorIller.includes(il)) koridorIller.push(il);
+  }
+
+  function sayiOku(ham: string | undefined, varsayilan: number): number {
+    if (ham === undefined || ham === "") return varsayilan;
+    const n = Number(String(ham).replace(",", "."));
+    return Number.isFinite(n) && n >= 0 ? n : varsayilan;
   }
 
   return {
@@ -223,5 +249,23 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     })(),
     autoDeploy:
       autoDeployEnvAcikMi() || a[AYAR_ANAHTARLARI.autoDeploy] === "1",
+    maliyet: {
+      yakitLt100: sayiOku(
+        a[AYAR_ANAHTARLARI.maliyetYakitLt100],
+        VARSAYILAN_MALIYET.yakitLt100
+      ),
+      motorinTl: sayiOku(
+        a[AYAR_ANAHTARLARI.maliyetMotorinTl],
+        VARSAYILAN_MALIYET.motorinTl
+      ),
+      sabitTlKm: sayiOku(
+        a[AYAR_ANAHTARLARI.maliyetSabitTlKm],
+        VARSAYILAN_MALIYET.sabitTlKm
+      ),
+      hgsTlKm: sayiOku(
+        a[AYAR_ANAHTARLARI.maliyetHgsTlKm],
+        VARSAYILAN_MALIYET.hgsTlKm
+      ),
+    },
   };
 }

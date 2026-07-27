@@ -74,6 +74,17 @@ const DIGER: NavOge[] = [
     ),
   },
   {
+    href: "/ai/musteriler",
+    ad: "Müşteri",
+    ikon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="3.5" />
+        <path d="M22 21v-2a3.5 3.5 0 0 0-2.5-3.3M16.5 3.6a3.5 3.5 0 0 1 0 6.8" />
+      </svg>
+    ),
+  },
+  {
     href: "/giderler",
     ad: "Giderler",
     ikon: (

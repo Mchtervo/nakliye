@@ -58,6 +58,13 @@ export default async function AiMerkeziSayfasi() {
       renk: "text-paper",
     },
     {
+      href: "/ai/musteriler",
+      baslik: "Müşteri Havuzu",
+      aciklama: "Yük sahibi / komisyoncu — ilan telefonlarından biriken doğrudan müşteri",
+      rozet: null,
+      renk: "text-teal",
+    },
+    {
       href: "/ai/analiz",
       baslik: "Analiz Merkezi",
       aciklama: "Kârlı rota, yakıt, tahsilat ve KDV üzerine günlük değerlendirme",

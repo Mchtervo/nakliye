@@ -183,7 +183,7 @@ model YukIlani {
   aracTipiKod   String? // TENTELI | FRIGO | DAMPER | KAPALI_KASA | LOWBED | SAL_DORSE | KAMYON | DIGER
   yukTipi       String?
   guvenSkoru    Int          @default(0) // 0-100
-  durum         String       @default("YENI") // YENI | ILGILENIYOR | ILETISIME_GECILDI | PAZARLIKTA | CEVAP_YOK | ELENDI | YUKE_DONDU
+  durum         String       @default("YENI") // YENI | ILGILENIYOR | ILETISIME_GECILDI | PAZARLIKTA | CEVAP_YOK | ELENDI | YUKE_DONDU | ALINDI | ARSIV
   dedupHash     String       @unique
   donusTalebiId Int?
   donusTalebi   DonusTalebi? @relation(fields: [donusTalebiId], references: [id], onDelete: SetNull)
