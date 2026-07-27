@@ -28,6 +28,7 @@ export type KaydedilenIlan = {
   kaynakAd?: string | null;
   gonderenUserId?: string | null;
   kaynakMesajId?: number | null;
+  hamMesajId?: number | null;
 };
 
 /** İlçe→il sonrası normalize (Temelli→Ankara, Gebze→Kocaeli). */
@@ -99,6 +100,7 @@ async function rotayiYenile(
   kimlik?: {
     gonderenUserId?: string | null;
     kaynakMesajId?: number | null;
+    hamMesajId?: number | null;
   }
 ): Promise<void> {
   const n = ilaniRotaNormalize(ilan);
@@ -124,15 +126,21 @@ async function rotayiYenile(
       guvenSkoru: n.guvenSkoru,
       yuklemeTarihi: n.yuklemeTarihi,
       ...(kaynakId ? { kaynakId } : {}),
-      // Dedup yenilemede userId boşsa doldur (geriye dönük kaçanlar)
       ...(kimlik?.gonderenUserId
         ? { gonderenUserId: kimlik.gonderenUserId }
         : {}),
       ...(kimlik?.kaynakMesajId != null
         ? { kaynakMesajId: kimlik.kaynakMesajId }
         : {}),
+      ...(kimlik?.hamMesajId != null ? { hamMesajId: kimlik.hamMesajId } : {}),
     },
   });
+  if (kimlik?.gonderenUserId || kimlik?.hamMesajId != null) {
+    console.log(
+      `[kaydet] yenile #${id} uid=${kimlik.gonderenUserId || "-"} ` +
+        `hamMesajId=${kimlik.hamMesajId ?? "-"} tgMsg=${kimlik.kaynakMesajId ?? "-"}`
+    );
+  }
 }
 
 /** Aktif dönüş taleplerinden bu ilana uyanı bulur. */
@@ -160,6 +168,7 @@ export async function ilanlariKaydet(
     hamMetin: string;
     gonderenUserId?: string | null;
     kaynakMesajId?: number | null;
+    hamMesajId?: number | null;
   }[]
 ): Promise<KaydedilenIlan[]> {
   const yeniler: KaydedilenIlan[] = [];
@@ -171,6 +180,7 @@ export async function ilanlariKaydet(
     hamMetin,
     gonderenUserId,
     kaynakMesajId,
+    hamMesajId,
   } of bulunanlar) {
     const ilan = ilaniRotaNormalize(hamIlan);
     if (!ilan.cikisIl || !ilan.varisIl) continue;
@@ -183,6 +193,7 @@ export async function ilanlariKaydet(
     batchRota.add(rotaKey);
 
     const dedupHash = dedupHashUret(ilan);
+    const kimlik = { gonderenUserId, kaynakMesajId, hamMesajId };
 
     const ayniHash = await prisma.yukIlani.findUnique({
       where: { dedupHash },
@@ -191,20 +202,14 @@ export async function ilanlariKaydet(
     if (ayniHash) {
       const sinir = Date.now() - DEDUP_PENCERE_MS;
       if (ayniHash.sonGorulme.getTime() >= sinir) {
-        await rotayiYenile(ayniHash.id, ilan, hamMetin, kaynakId, {
-          gonderenUserId,
-          kaynakMesajId,
-        });
+        await rotayiYenile(ayniHash.id, ilan, hamMetin, kaynakId, kimlik);
         continue;
       }
     }
 
     const yakin = await mevcutRota48s(ilan);
     if (yakin) {
-      await rotayiYenile(yakin.id, ilan, hamMetin, kaynakId, {
-        gonderenUserId,
-        kaynakMesajId,
-      });
+      await rotayiYenile(yakin.id, ilan, hamMetin, kaynakId, kimlik);
       continue;
     }
 
@@ -237,8 +242,15 @@ export async function ilanlariKaydet(
           sonGorulme: simdi,
           gonderenUserId: gonderenUserId || null,
           kaynakMesajId: kaynakMesajId ?? null,
+          hamMesajId: hamMesajId ?? null,
         },
       });
+
+      console.log(
+        `[kaydet] YENİ #${kayit.id} ${kayit.cikisIl}→${kayit.varisIl} ` +
+          `uid=${kayit.gonderenUserId || "-"} hamMesajId=${kayit.hamMesajId ?? "-"} ` +
+          `tgMsg=${kayit.kaynakMesajId ?? "-"}`
+      );
 
       if (donusTalebiId) {
         await prisma.donusTalebi.update({
@@ -267,6 +279,7 @@ export async function ilanlariKaydet(
         createdAt: kayit.createdAt,
         gonderenUserId: kayit.gonderenUserId,
         kaynakMesajId: kayit.kaynakMesajId,
+        hamMesajId: kayit.hamMesajId,
       });
     } catch {
       // Eşzamanlı taramada aynı hash — varsa yenile.
@@ -275,10 +288,7 @@ export async function ilanlariKaydet(
         select: { id: true },
       });
       if (yarisan) {
-        await rotayiYenile(yarisan.id, ilan, hamMetin, kaynakId, {
-          gonderenUserId,
-          kaynakMesajId,
-        });
+        await rotayiYenile(yarisan.id, ilan, hamMetin, kaynakId, kimlik);
       }
     }
   }

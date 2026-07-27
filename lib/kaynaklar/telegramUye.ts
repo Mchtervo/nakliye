@@ -716,6 +716,7 @@ export async function kuyrugunuCoz(
       hamMetin: string;
       gonderenUserId?: string | null;
       kaynakMesajId?: number | null;
+      hamMesajId?: number | null;
     }[]
   >();
 
@@ -730,12 +731,21 @@ export async function kuyrugunuCoz(
       continue;
     }
     const kaynakId = kaynaklar.get(anahtar) ?? null;
+    const uid = gonderenler.get(anahtar) ?? null;
+    const tgMsg = kaynakMesajlar.get(anahtar) ?? null;
+    if (!uid) {
+      console.warn(
+        `[kuyruk] uid YOK hamMesaj=#${anahtar} tgMsg=${tgMsg ?? "-"} ` +
+          `${ilan.cikisIl || "?"}→${ilan.varisIl || "?"}`
+      );
+    }
     const liste = kaynagaGore.get(kaynakId) ?? [];
     liste.push({
       ilan,
       hamMetin,
-      gonderenUserId: gonderenler.get(anahtar) ?? null,
-      kaynakMesajId: kaynakMesajlar.get(anahtar) ?? null,
+      gonderenUserId: uid,
+      kaynakMesajId: tgMsg,
+      hamMesajId: anahtar, // HamMesaj.id — kalıcı bağ
     });
     kaynagaGore.set(kaynakId, liste);
   }

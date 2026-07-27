@@ -185,8 +185,10 @@ model YukIlani {
   bildirildi    Boolean      @default(false)
   /** İlanı atan Telegram kullanıcı id (GramJS DM). */
   gonderenUserId String?
-  /** Kaynak gruptaki orijinal mesaj id. */
+  /** Kaynak gruptaki orijinal Telegram mesaj id. */
   kaynakMesajId Int?
+  /** Bu ilanı üreten HamMesaj.id — kalıcı bağ. */
+  hamMesajId    Int?
   createdAt     DateTime     @default(now())
   /** Aynı rota tekrar görünce güncellenir (dedup 48s). */
   sonGorulme    DateTime     @default(now())
@@ -196,6 +198,7 @@ model YukIlani {
   @@index([cikisIl, varisIl])
   @@index([telefon, cikisIl, varisIl, sonGorulme])
   @@index([gonderenUserId])
+  @@index([hamMesajId])
 }
 
 /// Onaylı Telegram DM (otomatik gönderim YOK — kullanıcı [Gönder] basmalı)

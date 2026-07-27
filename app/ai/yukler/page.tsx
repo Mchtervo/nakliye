@@ -253,6 +253,18 @@ export default async function AiYuklerSayfasi({
                         Cevap yok
                       </span>
                     )}
+                    {ilan.gonderenUserId ? (
+                      <span
+                        className="rounded-full border border-sky-400/40 bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-200"
+                        title={`Telegram uid: ${ilan.gonderenUserId}`}
+                      >
+                        TG DM
+                      </span>
+                    ) : ilan.telefon ? (
+                      <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-fog">
+                        WA only
+                      </span>
+                    ) : null}
                     {ilan.durum === "YUKE_DONDU" && (
                       <span className="rounded-full border border-ok/40 bg-ok/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ok">
                         Yüke çevrildi
