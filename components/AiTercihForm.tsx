@@ -408,6 +408,9 @@ export default function AiTercihForm({
           {durum.bilgi}
         </div>
       )}
+      <p className="text-[11px] text-fog">
+        Kayıt: hepsi ya hiçbiri. Bir alan hatalıysa hiçbir ayar değişmez.
+      </p>
 
       <button type="submit" disabled={bekliyor} className="btn btn-amber btn-block">
         {bekliyor ? "Kaydediliyor..." : "Tercihleri Kaydet"}

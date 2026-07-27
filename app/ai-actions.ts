@@ -245,32 +245,14 @@ export async function aiTercihKaydet(
   _oncekiDurum: AiSonuc,
   formData: FormData
 ): Promise<AiSonuc> {
-  // Toggle'lar önce — koridor/şehir hatasında bile DB'ye yazılsın
-  const autoDeployAcik =
-    formData.get("autoDeploy") === "1" ||
-    formData.getAll("autoDeploy").includes("1");
-  await ayarYaz(
-    AYAR_ANAHTARLARI.bildirimTelegram,
-    formData.get("bildirimTelegram") === "1" ? "1" : "0"
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.bildirimPush,
-    formData.get("bildirimPush") === "1" ? "1" : "0"
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.telegramUyeAktif,
-    formData.get("telegramUye") === "1" ? "1" : "0"
-  );
-  await ayarYaz(AYAR_ANAHTARLARI.autoDeploy, autoDeployAcik ? "1" : "0");
-  console.log(
-    `[aiTercihKaydet] auto_deploy=${autoDeployAcik ? "1" : "0"} ` +
-      `(form=${String(formData.get("autoDeploy"))})`
-  );
+  /** Hepsi ya hiçbiri — hata varsa DB'ye hiç yazma. */
+  const kaydedilmedi = (alan: string) =>
+    `${alan} hatalı — hiçbir ayar kaydedilmedi.`;
 
   const sehirHam = metinOku(formData.get("sehir"));
   const sehir = sehirHam ? ilBul(sehirHam) : null;
   if (sehirHam && !sehir) {
-    return { hata: "Şehri tanıyamadım. Örnek: Ankara" };
+    return { hata: kaydedilmedi("Şehir alanı") };
   }
 
   const rotalar = metinOku(formData.get("rotalar"))
@@ -283,7 +265,7 @@ export async function aiTercihKaydet(
   const minUcretHam = metinOku(formData.get("minUcret"));
   const minUcret = minUcretHam ? tlKurusaCevir(minUcretHam) : 0;
   if (minUcretHam && minUcret === null) {
-    return { hata: "Alt ücret sınırı geçersiz." };
+    return { hata: kaydedilmedi("Alt ücret sınırı") };
   }
 
   const bolgeler = bolgeCozumle(
@@ -297,13 +279,13 @@ export async function aiTercihKaydet(
   const tonajHam = metinOku(formData.get("maxTonaj"));
   const maxTonaj = tonajHam ? Number(tonajHam.replace(/\D/g, "")) : 0;
   if (tonajHam && (!Number.isFinite(maxTonaj) || maxTonaj <= 0 || maxTonaj > 50)) {
-    return { hata: "Max tonaj 1-50 arası olmalı." };
+    return { hata: kaydedilmedi("Max tonaj (1–50 olmalı)") };
   }
 
   const anaUsHam = metinOku(formData.get("anaUs"));
   const anaUs = anaUsHam ? ilBul(anaUsHam) : null;
   if (anaUsHam && !anaUs) {
-    return { hata: "Ana üs şehrini tanıyamadım. Örnek: Ankara" };
+    return { hata: kaydedilmedi("Ana üs") };
   }
 
   const ekIllerHam = metinOku(formData.get("ekIller"));
@@ -315,7 +297,9 @@ export async function aiTercihKaydet(
   const ekIllerCozulmus: string[] = [];
   for (const p of ekIllerParca) {
     const il = ilBul(p);
-    if (!il) return { hata: `Ek ili tanıyamadım: ${p}` };
+    if (!il) {
+      return { hata: kaydedilmedi(`Ek il («${p}»)`) };
+    }
     ekIllerCozulmus.push(il);
   }
 
@@ -327,71 +311,118 @@ export async function aiTercihKaydet(
     .slice(0, 40);
   const koridorCozulmus: string[] = [];
   if (koridorParca.length === 0) {
-    // Boş bırakılırsa varsayılan koridor yazılır.
     koridorCozulmus.push(...VARSAYILAN_KORIDOR_ILLER);
   } else {
     for (const p of koridorParca) {
       const il = ilBul(p);
-      if (!il) return { hata: `Koridor ilini tanıyamadım: ${p}` };
+      if (!il) {
+        return { hata: kaydedilmedi(`Koridor alanı («${p}»)`) };
+      }
       if (!koridorCozulmus.includes(il)) koridorCozulmus.push(il);
     }
   }
 
-  await ayarYaz(AYAR_ANAHTARLARI.aiSehir, sehir || "");
-  await ayarYaz(AYAR_ANAHTARLARI.aiRotalar, rotalar);
-  await ayarYaz(AYAR_ANAHTARLARI.aiMinUcret, String(minUcret ?? 0));
-  await ayarYaz(AYAR_ANAHTARLARI.aiBolgeler, bolgeler);
-  await ayarYaz(AYAR_ANAHTARLARI.aiAracTipleri, aracTipleri);
-  await ayarYaz(AYAR_ANAHTARLARI.aiMaxTonaj, String(maxTonaj || 0));
-  await ayarYaz(AYAR_ANAHTARLARI.aiAnaUs, anaUs || "");
-  await ayarYaz(
-    AYAR_ANAHTARLARI.aiEkIller,
-    [...new Set(ekIllerCozulmus)].join(",")
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.aiKoridorIller,
-    koridorCozulmus.join(",")
-  );
-
-  await ayarYaz(AYAR_ANAHTARLARI.waSablonAd, metinOku(formData.get("waAd")));
-  await ayarYaz(
-    AYAR_ANAHTARLARI.waSablonFirma,
-    metinOku(formData.get("waFirma"))
-  );
-  await ayarYaz(AYAR_ANAHTARLARI.waSablonArac, metinOku(formData.get("waArac")));
-  await ayarYaz(
-    AYAR_ANAHTARLARI.waSablonTonaj,
-    metinOku(formData.get("waTonaj"))
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.waSablonMusaitlik,
-    metinOku(formData.get("waMusaitlik"))
-  );
-  await ayarYaz(
-    AYAR_ANAHTARLARI.waSablonTonTercih,
-    metinOku(formData.get("waTonTercih"))
-  );
-  await ayarYaz(AYAR_ANAHTARLARI.waSablonImza, metinOku(formData.get("waImza")));
-  await ayarYaz(
-    AYAR_ANAHTARLARI.tdmKaraListe,
-    metinOku(formData.get("tdmKaraListe"))
-  );
   const tdmLimitHam = metinOku(formData.get("tdmGunlukLimit"));
   const tdmLimit = tdmLimitHam ? Number(tdmLimitHam.replace(/\D/g, "")) : 10;
   if (!Number.isFinite(tdmLimit) || tdmLimit < 1 || tdmLimit > 30) {
-    return { hata: "Günlük DM limiti 1–30 arası olmalı." };
+    return { hata: kaydedilmedi("Günlük DM limiti (1–30)") };
   }
-  await ayarYaz(AYAR_ANAHTARLARI.tdmGunlukLimit, String(tdmLimit));
-  // Otomatik DM kaldırıldı — anahtar kapalı kalsın
-  await ayarYaz(AYAR_ANAHTARLARI.tdmOtomatik, "0");
-  await ayarYaz(
-    AYAR_ANAHTARLARI.waMesajSablon,
-    metinOku(formData.get("waMesajSablon"))
-  );
+
+  const autoDeployAcik =
+    formData.get("autoDeploy") === "1" ||
+    formData.getAll("autoDeploy").includes("1");
+
+  // Tüm doğrulamalar geçti — tek transaction (hepsi ya hiçbiri)
+  const kayitlar: { anahtar: string; deger: string }[] = [
+    { anahtar: AYAR_ANAHTARLARI.aiSehir, deger: sehir || "" },
+    { anahtar: AYAR_ANAHTARLARI.aiRotalar, deger: rotalar },
+    { anahtar: AYAR_ANAHTARLARI.aiMinUcret, deger: String(minUcret ?? 0) },
+    { anahtar: AYAR_ANAHTARLARI.aiBolgeler, deger: bolgeler },
+    { anahtar: AYAR_ANAHTARLARI.aiAracTipleri, deger: aracTipleri },
+    { anahtar: AYAR_ANAHTARLARI.aiMaxTonaj, deger: String(maxTonaj || 0) },
+    { anahtar: AYAR_ANAHTARLARI.aiAnaUs, deger: anaUs || "" },
+    {
+      anahtar: AYAR_ANAHTARLARI.aiEkIller,
+      deger: [...new Set(ekIllerCozulmus)].join(","),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.aiKoridorIller,
+      deger: koridorCozulmus.join(","),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.bildirimTelegram,
+      deger: formData.get("bildirimTelegram") === "1" ? "1" : "0",
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.bildirimPush,
+      deger: formData.get("bildirimPush") === "1" ? "1" : "0",
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.telegramUyeAktif,
+      deger: formData.get("telegramUye") === "1" ? "1" : "0",
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.autoDeploy,
+      deger: autoDeployAcik ? "1" : "0",
+    },
+    { anahtar: AYAR_ANAHTARLARI.waSablonAd, deger: metinOku(formData.get("waAd")) },
+    {
+      anahtar: AYAR_ANAHTARLARI.waSablonFirma,
+      deger: metinOku(formData.get("waFirma")),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.waSablonArac,
+      deger: metinOku(formData.get("waArac")),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.waSablonTonaj,
+      deger: metinOku(formData.get("waTonaj")),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.waSablonMusaitlik,
+      deger: metinOku(formData.get("waMusaitlik")),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.waSablonTonTercih,
+      deger: metinOku(formData.get("waTonTercih")),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.waSablonImza,
+      deger: metinOku(formData.get("waImza")),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.tdmKaraListe,
+      deger: metinOku(formData.get("tdmKaraListe")),
+    },
+    { anahtar: AYAR_ANAHTARLARI.tdmGunlukLimit, deger: String(tdmLimit) },
+    { anahtar: AYAR_ANAHTARLARI.tdmOtomatik, deger: "0" },
+    {
+      anahtar: AYAR_ANAHTARLARI.waMesajSablon,
+      deger: metinOku(formData.get("waMesajSablon")),
+    },
+  ];
+
+  try {
+    await prisma.$transaction(
+      kayitlar.map((k) =>
+        prisma.ayar.upsert({
+          where: { anahtar: k.anahtar },
+          create: { anahtar: k.anahtar, deger: k.deger },
+          update: { deger: k.deger },
+        })
+      )
+    );
+  } catch (e) {
+    console.error("[aiTercihKaydet] transaction", e);
+    return {
+      hata:
+        "Kayıt sırasında hata oluştu — hiçbir ayar kaydedilmedi. Tekrar dene.",
+    };
+  }
 
   revalidatePath("/ayarlar");
   revalidatePath("/ai/yukler");
-  return { bilgi: "AI tercihleri kaydedildi." };
+  return { bilgi: "Tüm tercihler kaydedildi." };
 }
 
 export async function adayFirmaAra(
