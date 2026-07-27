@@ -1,41 +1,45 @@
 # Yük Avcısı — Europe/Istanbul (crontab'ta CRON_TZ)
 # Kurulum: crontab -u yukavci deploy/crontab.yukavci
+#
+# Tüm işler _guvenli.sh üzerinden: +x kaybında Telegram uyarır,
+# scripti her zaman /bin/bash ile çalıştırır (Permission denied yok).
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 CRON_TZ=Europe/Istanbul
 YUKAVCI_REPO=/home/yukavci/muhasebbe
 YUKAVCI_LOGDIR=/home/yukavci/logs
 YUKAVCI_LOCKDIR=/home/yukavci/locks
+GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 
 # AI kuyruk — 5 dk (AI_KAPALI ise script atlar)
-*/5 * * * * /home/yukavci/muhasebbe/deploy/cron/ai-kuyruk.sh
+*/5 * * * * /bin/bash $GUVENLI ai-kuyruk.sh
 
 # Sessiz saat birikimi — sabah 07:05 özet
-5 7 * * * /home/yukavci/muhasebbe/deploy/cron/sabah-ozet.sh
+5 7 * * * /bin/bash $GUVENLI sabah-ozet.sh
 
 # Grup keşfi — günde 1, 08:00
-0 8 * * * /home/yukavci/muhasebbe/deploy/cron/grup-kesif.sh
+0 8 * * * /bin/bash $GUVENLI grup-kesif.sh
 
 # Grup temizlik onayı — keşiften 15 dk sonra (Telegram'da Evet/Hayır)
-15 8 * * * /home/yukavci/muhasebbe/deploy/cron/grup-temizlik.sh
+15 8 * * * /bin/bash $GUVENLI grup-temizlik.sh
 
 # Onaylı grup çıkışı — 30 dk; script günde max 3 + 30 dk ara
-*/30 * * * * /home/yukavci/muhasebbe/deploy/cron/grup-cik.sh
+*/30 * * * * /bin/bash $GUVENLI grup-cik.sh
 
 # Grup katılımı — 45 dk arayla; script günde max 6 + 45 dk ara
-*/45 * * * * /home/yukavci/muhasebbe/deploy/cron/grup-katil.sh
+*/45 * * * * /bin/bash $GUVENLI grup-katil.sh
 
 # Günlük rapor — 20:00 TR
-0 20 * * * /home/yukavci/muhasebbe/deploy/cron/gunluk-rapor.sh
+0 20 * * * /bin/bash $GUVENLI gunluk-rapor.sh
 
 # Yedek — 03:15 TR
-15 3 * * * /home/yukavci/muhasebbe/deploy/cron/yedek.sh
+15 3 * * * /bin/bash $GUVENLI yedek.sh
 
 # Disk doluluk — saatte 1 (%80+ Telegram uyarısı)
-5 * * * * /home/yukavci/muhasebbe/deploy/cron/disk.sh
+5 * * * * /bin/bash $GUVENLI disk.sh
 
-# gonderenUserId geriye dönük (ham eşleşme + telefon yayılımı) — Pazartesi 06:10
-10 6 * * 1 /home/yukavci/muhasebbe/deploy/cron/uid-doldur.sh
+# gonderenUserId geriye dönük — Pazartesi 06:10
+10 6 * * 1 /bin/bash $GUVENLI uid-doldur.sh
 
 # Otomatik deploy — dakikada 1 (AUTO_DEPLOY=1 veya Ayarlar açık)
-* * * * * /home/yukavci/muhasebbe/deploy/cron/auto-deploy.sh
+* * * * * /bin/bash $GUVENLI auto-deploy.sh
