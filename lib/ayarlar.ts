@@ -43,6 +43,18 @@ export const AYAR_ANAHTARLARI = {
   telegramSonKatilim: "telegram_son_katilim",
   /** FloodWait bitiş ISO — dolana kadar katılım yok */
   telegramFloodBitis: "telegram_flood_bitis",
+  /** WhatsApp mesaj şablonu */
+  waSablonAd: "wa_sablon_ad",
+  waSablonFirma: "wa_sablon_firma",
+  waSablonArac: "wa_sablon_arac",
+  waSablonTonaj: "wa_sablon_tonaj",
+  waSablonMusaitlik: "wa_sablon_musaitlik",
+  waSablonTonTercih: "wa_sablon_ton_tercih",
+  waSablonImza: "wa_sablon_imza",
+  /** DM kara liste — telefon / user id, virgüllü */
+  tdmKaraListe: "tdm_kara_liste",
+  /** Günlük onaylı DM üst sınırı (varsayılan 5) */
+  tdmGunlukLimit: "tdm_gunluk_limit",
 } as const;
 
 export type AyarAnahtari =
@@ -96,6 +108,17 @@ export type AiTercihleri = {
   telegramAcik: boolean;
   pushAcik: boolean;
   telegramUyeAcik: boolean;
+  waSablon: {
+    ad: string;
+    firma: string;
+    arac: string;
+    tonaj: string;
+    musaitlik: string;
+    tonTercih: string;
+    imza: string;
+  };
+  tdmKaraListe: string;
+  tdmGunlukLimit: number;
 };
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
@@ -113,6 +136,15 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.bildirimTelegram,
     AYAR_ANAHTARLARI.bildirimPush,
     AYAR_ANAHTARLARI.telegramUyeAktif,
+    AYAR_ANAHTARLARI.waSablonAd,
+    AYAR_ANAHTARLARI.waSablonFirma,
+    AYAR_ANAHTARLARI.waSablonArac,
+    AYAR_ANAHTARLARI.waSablonTonaj,
+    AYAR_ANAHTARLARI.waSablonMusaitlik,
+    AYAR_ANAHTARLARI.waSablonTonTercih,
+    AYAR_ANAHTARLARI.waSablonImza,
+    AYAR_ANAHTARLARI.tdmKaraListe,
+    AYAR_ANAHTARLARI.tdmGunlukLimit,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
@@ -153,5 +185,20 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",
     pushAcik: a[AYAR_ANAHTARLARI.bildirimPush] !== "0",
     telegramUyeAcik: a[AYAR_ANAHTARLARI.telegramUyeAktif] !== "0",
+    waSablon: {
+      ad: a[AYAR_ANAHTARLARI.waSablonAd] || "",
+      firma: a[AYAR_ANAHTARLARI.waSablonFirma] || "",
+      arac: a[AYAR_ANAHTARLARI.waSablonArac] || "",
+      tonaj: a[AYAR_ANAHTARLARI.waSablonTonaj] || "",
+      musaitlik: a[AYAR_ANAHTARLARI.waSablonMusaitlik] || "",
+      tonTercih: a[AYAR_ANAHTARLARI.waSablonTonTercih] || "",
+      imza: a[AYAR_ANAHTARLARI.waSablonImza] || "",
+    },
+    tdmKaraListe: a[AYAR_ANAHTARLARI.tdmKaraListe] || "",
+    tdmGunlukLimit: (() => {
+      const n = Number(a[AYAR_ANAHTARLARI.tdmGunlukLimit]);
+      if (!Number.isFinite(n) || n < 1) return 5;
+      return Math.min(30, Math.round(n));
+    })(),
   };
 }

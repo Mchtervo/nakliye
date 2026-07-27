@@ -4,6 +4,11 @@ import { htmlKacis, telegramGonder, telegramKullanilabilir } from "@/lib/bildiri
 import { pushGonder, pushKullanilabilir } from "@/lib/bildirim/push";
 import { ilanKarti } from "@/lib/bot/kart";
 import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
+import {
+  fiyatTonajEksikMi,
+  tdmBildirimButonlari,
+  tdmHazirla,
+} from "@/lib/kaynaklar/telegramDm";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 export type BildirimSonucu = {
@@ -92,20 +97,54 @@ export async function yukIlanlariniBildir(
 
     const donusMu = Boolean(ilan.donusTalebiId);
     const baslik = donusMu ? "Dönüş yükü bulundu" : "Yeni yük bulundu";
-    const metin = kartMetni(ilan, donusMu);
+    let metin = kartMetni(ilan, donusMu);
+    let butonSatirlari: ReturnType<typeof tdmBildirimButonlari> | null = null;
+
+    // Fiyat/tonaj eksik → onaylı DM taslağı (otomatik gönderim YOK)
+    if (fiyatTonajEksikMi(ilan) && (ilan.gonderenUserId || ilan.telefon)) {
+      try {
+        const hazir = await tdmHazirla(ilan.id);
+        if (hazir) {
+          metin +=
+            `\n\n<b>Taslak soru</b> <i>(onaysız gitmez)</i>\n` +
+            htmlKacis(hazir.metin);
+          butonSatirlari = tdmBildirimButonlari({
+            dmId: hazir.dmId,
+            ilanId: ilan.id,
+            hedefUserId: hazir.hedefUserId,
+            telefon: hazir.telefon,
+            metin: hazir.metin,
+            detayUrl: kok
+              ? `${kok}/ai/yukler?sekme=HEPSI&id=${ilan.id}`
+              : null,
+          });
+        }
+      } catch (e) {
+        console.warn(
+          "[bildirim] tdmHazirla",
+          e instanceof Error ? e.message : e
+        );
+      }
+    }
 
     if (tercih.telegramAcik && tercih.telegramChatId && telegramKullanilabilir()) {
-      const butonlar = [];
-      if (kok) {
-        butonlar.push({
-          metin: "Detay",
-          url: `${kok}/ai/yukler?sekme=HEPSI&id=${ilan.id}`,
-        });
-      }
+      const butonlar =
+        butonSatirlari ||
+        (kok
+          ? [
+              [
+                {
+                  metin: "Detay",
+                  url: `${kok}/ai/yukler?sekme=HEPSI&id=${ilan.id}`,
+                },
+              ],
+            ]
+          : undefined);
+
       const cevap = await telegramGonder(
         tercih.telegramChatId,
         metin,
-        butonlar.length ? butonlar : undefined
+        butonlar
       );
 
       await prisma.bildirim.create({

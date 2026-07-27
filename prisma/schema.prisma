@@ -108,22 +108,25 @@ model IlanKaynagi {
 /// Gruplardan çekilen ham mesajlar. AI çözümlemesi kuyruktan yapılır;
 /// böylece okuma işi kısa sürer, çözümleme ayrı turda yapılır.
 model HamMesaj {
-  id           Int          @id @default(autoincrement())
-  kaynakId     Int?
-  kaynak       IlanKaynagi? @relation(fields: [kaynakId], references: [id], onDelete: Cascade)
-  mesajId      Int?
-  metin        String
-  metinHash    String? // birebir tekrarı AI'a göndermemek için
-  onek         String? // aynı listenin tekrarını yakalamak için başlangıç
-  islendi      Boolean      @default(false)
-  denemeSayisi Int          @default(0) // AI denemesi; 2'yi geçince kalıcı HATA
-  hata         String?
-  createdAt    DateTime     @default(now())
+  id             Int          @id @default(autoincrement())
+  kaynakId       Int?
+  kaynak         IlanKaynagi? @relation(fields: [kaynakId], references: [id], onDelete: Cascade)
+  mesajId        Int?
+  /** Telegram gönderen kullanıcı id (DM için). */
+  gonderenUserId String?
+  metin          String
+  metinHash      String? // birebir tekrarı AI'a göndermemek için
+  onek           String? // aynı listenin tekrarını yakalamak için başlangıç
+  islendi        Boolean      @default(false)
+  denemeSayisi   Int          @default(0) // AI denemesi; 2'yi geçince kalıcı HATA
+  hata           String?
+  createdAt      DateTime     @default(now())
 
   @@unique([kaynakId, mesajId])
   @@index([islendi, denemeSayisi, createdAt])
   @@index([metinHash])
   @@index([kaynakId, onek, createdAt])
+  @@index([gonderenUserId])
 }
 
 /// Her OpenAI çağrısının token / maliyet kaydı. Ölçemediğimiz şeyi yönetemeyiz.
@@ -175,18 +178,46 @@ model YukIlani {
   aracTipiKod   String? // TENTELI | FRIGO | DAMPER | KAPALI_KASA | LOWBED | SAL_DORSE | KAMYON | DIGER
   yukTipi       String?
   guvenSkoru    Int          @default(0) // 0-100
-  durum         String       @default("YENI") // YENI | ILGILENIYOR | ELENDI | YUKE_DONDU
+  durum         String       @default("YENI") // YENI | ILGILENIYOR | ILETISIME_GECILDI | ELENDI | YUKE_DONDU
   dedupHash     String       @unique
   donusTalebiId Int?
   donusTalebi   DonusTalebi? @relation(fields: [donusTalebiId], references: [id], onDelete: SetNull)
   bildirildi    Boolean      @default(false)
+  /** İlanı atan Telegram kullanıcı id (GramJS DM). */
+  gonderenUserId String?
+  /** Kaynak gruptaki orijinal mesaj id. */
+  kaynakMesajId Int?
   createdAt     DateTime     @default(now())
   /** Aynı rota tekrar görünce güncellenir (dedup 48s). */
   sonGorulme    DateTime     @default(now())
+  telegramDmler TelegramDm[]
 
   @@index([durum, createdAt])
   @@index([cikisIl, varisIl])
   @@index([telefon, cikisIl, varisIl, sonGorulme])
+  @@index([gonderenUserId])
+}
+
+/// Onaylı Telegram DM (otomatik gönderim YOK — kullanıcı [Gönder] basmalı)
+model TelegramDm {
+  id              Int       @id @default(autoincrement())
+  ilanId          Int
+  ilan            YukIlani  @relation(fields: [ilanId], references: [id], onDelete: Cascade)
+  hedefUserId     String? // Telegram user id
+  telefon         String?
+  metin           String
+  /** ONAY_BEKLIYOR | KUYRUK | GONDERILDI | ATLANDI | HATA */
+  durum           String    @default("ONAY_BEKLIYOR")
+  outboundMesajId Int? // gönderilen DM mesaj id (cevap eşlemesi)
+  gonderildiAt    DateTime?
+  cevapMetin      String?
+  cevapAt         DateTime?
+  hata            String?
+  createdAt       DateTime  @default(now())
+
+  @@index([durum, createdAt])
+  @@index([hedefUserId, durum])
+  @@index([ilanId])
 }
 
 /// Bir yük oluşturulduğunda otomatik açılan dönüş yükü araması

@@ -68,6 +68,24 @@ function aktivite() {
   sonAktivite = Date.now();
 }
 
+function gonderenUserIdBul(msg: {
+  fromId?: unknown;
+  senderId?: unknown;
+}): string | null {
+  try {
+    const raw = msg.fromId || msg.senderId;
+    if (!raw) return null;
+    if (typeof raw === "object" && raw !== null && "userId" in raw) {
+      return String((raw as { userId: unknown }).userId);
+    }
+    return String(
+      utils.getPeerId(raw as Parameters<typeof utils.getPeerId>[0])
+    );
+  } catch {
+    return null;
+  }
+}
+
 async function kaynaklariYukle(): Promise<number> {
   const satirlar = await prisma.ilanKaynagi.findMany({
     where: { tur: TELEGRAM_UYE, aktif: true, durum: "AKTIF" },
@@ -162,7 +180,11 @@ async function kacanlariYakala(client: TelegramClient) {
       });
       const metinler = mesajlar
         .filter((m) => typeof m.message === "string" && m.message.trim())
-        .map((m) => ({ mesajId: m.id, metin: m.message as string }));
+        .map((m) => ({
+          mesajId: m.id,
+          metin: m.message as string,
+          gonderenUserId: gonderenUserIdBul(m),
+        }));
       const enBuyuk = mesajlar.reduce((s, m) => (m.id > s ? m.id : s), 0);
 
       const rapor = await mesajlariKuyrugaAl([
@@ -195,6 +217,25 @@ async function mesajiIsle(event: NewMessageEvent) {
   const msg = event.message;
   if (!msg || typeof msg.message !== "string" || !msg.message.trim()) return;
 
+  const metin = msg.message.trim();
+  const fromUser = gonderenUserIdBul(msg);
+
+  // Özel sohbet cevabı (gönderdiğimiz DM'e yanıt)
+  try {
+    const peerStr = utils.getPeerId(msg.peerId);
+    const grupMu = kaynaklar.has(String(peerStr));
+    if (!grupMu && fromUser) {
+      const { tdmCevapIsle } = await import("@/lib/kaynaklar/telegramDm");
+      const r = await tdmCevapIsle(fromUser, metin);
+      if (r.islendi) {
+        log(`tdm cevap user=${fromUser}`);
+        return;
+      }
+    }
+  } catch {
+    /* peer parse */
+  }
+
   let peerId: string;
   try {
     peerId = utils.getPeerId(msg.peerId);
@@ -205,16 +246,15 @@ async function mesajiIsle(event: NewMessageEvent) {
   const k = kaynaklar.get(String(peerId));
   if (!k) return;
 
-  const metin = msg.message.trim();
   const mesajId = msg.id;
-  log(`olay grup=#${k.id} msg=${mesajId} len=${metin.length}`);
+  log(`olay grup=#${k.id} msg=${mesajId} from=${fromUser || "?"} len=${metin.length}`);
 
   try {
     const rapor = await mesajlariKuyrugaAl([
       {
         id: k.id,
         sonMesajId: mesajId,
-        mesajlar: [{ mesajId, metin }],
+        mesajlar: [{ mesajId, metin, gonderenUserId: fromUser }],
       },
     ]);
     k.sonMesajId = mesajId;
@@ -223,6 +263,53 @@ async function mesajiIsle(event: NewMessageEvent) {
     }
   } catch (e) {
     uyari("kuyruk hata", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Onaylı DM kuyruğu — otomatik değil, kullanıcı [Gönder] bastıktan sonra. */
+async function tdmKuyrukIsle(client: TelegramClient) {
+  const {
+    tdmKuyruktanAl,
+    tdmGonderildiIsaretle,
+    tdmHataIsaretle,
+  } = await import("@/lib/kaynaklar/telegramDm");
+  const { FloodWaitError } = await import("telegram/errors/index.js");
+
+  const aday = await tdmKuyruktanAl();
+  if (!aday) return;
+
+  try {
+    const entity = await client.getInputEntity(aday.hedefUserId);
+    const sent = await client.sendMessage(entity, { message: aday.metin });
+    const outId =
+      sent && typeof sent === "object" && "id" in sent
+        ? Number((sent as { id: number }).id)
+        : null;
+    await tdmGonderildiIsaretle(aday.id, Number.isFinite(outId) ? outId : null);
+    log(`tdm gönderildi dm=#${aday.id} → user=${aday.hedefUserId}`);
+  } catch (e) {
+    const mesaj = e instanceof Error ? e.message : String(e);
+    if (e instanceof FloodWaitError) {
+      const kilit = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const { ayarYaz } = await import("@/lib/ayarlar");
+      await ayarYaz(AYAR_ANAHTARLARI.telegramFloodBitis, kilit.toISOString());
+      await tdmHataIsaretle(aday.id, `FloodWait ${e.seconds}s`);
+      uyari(`tdm FloodWait ${e.seconds}s → 24s kilit`);
+      return;
+    }
+    await tdmHataIsaretle(aday.id, mesaj);
+    uyari("tdm gönderim hata", mesaj);
+    try {
+      const chatId = await ayarOku(AYAR_ANAHTARLARI.telegramChatId);
+      if (chatId) {
+        await telegramGonder(
+          chatId,
+          `DM gönderilemedi (#${aday.ilanId}): ${mesaj.slice(0, 200)}`
+        );
+      }
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -250,6 +337,13 @@ async function main() {
   await kacanlariYakala(istemci);
 
   istemci.addEventHandler(mesajiIsle, new NewMessage({ incoming: true }));
+
+  const tdmTimer = setInterval(() => {
+    if (!istemci?.connected) return;
+    tdmKuyrukIsle(istemci).catch((e) =>
+      uyari("tdm kuyruk", e instanceof Error ? e.message : e)
+    );
+  }, 30_000);
 
   const kaynakTimer = setInterval(() => {
     kaynaklariYukle()
@@ -279,6 +373,7 @@ async function main() {
     log(`${sinyal} — kapanıyor...`);
     clearInterval(kaynakTimer);
     clearInterval(saglikTimer);
+    clearInterval(tdmTimer);
     try {
       await istemci?.disconnect();
     } catch {

@@ -1,8 +1,9 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
-import { aracMetniUyuyorMu } from "@/lib/arac";
+import { aracKoduBul, aracMetniUyuyorMu } from "@/lib/arac";
 import { koridorIlKumesi, koridoraUyuyorMu } from "@/lib/koridor";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
+import { rotaSatiriniBul } from "@/lib/kaynaklar/rotaDogrula";
 
 /** Varsayılan listede gösterilmeyen, "Şüpheli" sekmesine düşen sınır. */
 export const SUPHE_SINIRI = 50;
@@ -11,21 +12,33 @@ type AracBilgisi = {
   aracTipi?: string | null;
   aracTipiKod: string | null;
   tonaj: number | null;
+  nereden?: string | null;
+  nereye?: string | null;
 };
 
 /**
  * Araç uyumu (FAZ 3):
  * - Seçili tipin kabul kelimeleri / kodu
- * - Red tip kelimeleri (frigo, damper, lowbed…) ele
+ * - Red tip kelimeleri (frigo, damper, lowbed, kısadorse…) ele
  * - Tipi yazmayan ilan elenmez (belirsiz → sarı uyarı)
+ * - hamMetin verilirse yalnızca o rotanın satırı taranır (liste karışmasın)
  */
 export function araciUyuyorMu(
   ilan: AracBilgisi,
-  tercih: AiTercihleri
+  tercih: AiTercihleri,
+  hamMetin?: string | null
 ): boolean {
-  if (
-    !aracMetniUyuyorMu(ilan.aracTipi, ilan.aracTipiKod, tercih.aracTipleri)
-  ) {
+  const satir =
+    hamMetin && ilan.nereden && ilan.nereye
+      ? rotaSatiriniBul(ilan.nereden, ilan.nereye, hamMetin)
+      : null;
+  const birlesik = [ilan.aracTipi, satir].filter(Boolean).join(" ");
+  const kod =
+    ilan.aracTipiKod ||
+    aracKoduBul(ilan.aracTipi) ||
+    (satir ? aracKoduBul(satir) : null);
+
+  if (!aracMetniUyuyorMu(birlesik || ilan.aracTipi, kod, tercih.aracTipleri)) {
     return false;
   }
   if (tercih.maxTonaj && ilan.tonaj && ilan.tonaj > tercih.maxTonaj) {

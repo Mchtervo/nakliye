@@ -126,6 +126,9 @@ export default async function AyarlarSayfasi() {
           telegramAcik={tercih.telegramAcik}
           pushAcik={tercih.pushAcik}
           telegramUyeAcik={tercih.telegramUyeAcik}
+          waSablon={tercih.waSablon}
+          tdmKaraListe={tercih.tdmKaraListe}
+          tdmGunlukLimit={String(tercih.tdmGunlukLimit)}
         />
 
         <YenidenIsleButonu />

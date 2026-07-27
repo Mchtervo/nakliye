@@ -84,6 +84,13 @@ export async function botSohbetIsle(
     return { cevaplandi: false, not: "Yetkisiz sohbet." };
   }
 
+  // DM taslak düzenleme (önce — AI'ye gitmeden)
+  const { tdmDuzenleMetinIsle } = await import("@/lib/kaynaklar/telegramDm");
+  const duzen = await tdmDuzenleMetinIsle(chatId, metin);
+  if (duzen.islendi) {
+    return { cevaplandi: true, not: duzen.mesaj || "tdm düzenle" };
+  }
+
   const kota = await botGunlukLimitMusaitMi();
   if (!kota.musait) {
     await telegramGonder(
@@ -233,6 +240,41 @@ export async function botCallbackIsle(guncelleme: {
       await telegramGonder(chatId, sonuc.mesaj);
     }
     return { cevaplandi: true, not: `gcik:${idHam}` };
+  }
+
+  // Onaylı Telegram DM: tdm:g:id | tdm:e:id | tdm:x:id
+  if (islem === "tdm") {
+    const parca = cq.data.split(":");
+    const alt = parca[1];
+    const dmId = Number(parca[2]);
+    if (!Number.isFinite(dmId) || dmId <= 0) {
+      await telegramCallbackCevapla(cq.id, "Geçersiz.");
+      return { cevaplandi: false, not: "tdm geçersiz" };
+    }
+    const {
+      tdmGonderOnayla,
+      tdmAtla,
+      tdmDuzenleBaslat,
+    } = await import("@/lib/kaynaklar/telegramDm");
+
+    if (alt === "g") {
+      const r = await tdmGonderOnayla(dmId);
+      await telegramCallbackCevapla(cq.id, r.mesaj.slice(0, 180));
+      if (r.ok) await telegramGonder(chatId, r.mesaj);
+      return { cevaplandi: true, not: `tdm:g:${dmId}` };
+    }
+    if (alt === "x") {
+      const r = await tdmAtla(dmId);
+      await telegramCallbackCevapla(cq.id, r.mesaj.slice(0, 180));
+      return { cevaplandi: true, not: `tdm:x:${dmId}` };
+    }
+    if (alt === "e") {
+      const r = await tdmDuzenleBaslat(dmId, chatId);
+      await telegramCallbackCevapla(cq.id, r.mesaj.slice(0, 180));
+      return { cevaplandi: true, not: `tdm:e:${dmId}` };
+    }
+    await telegramCallbackCevapla(cq.id, "Bilinmeyen DM işlemi.");
+    return { cevaplandi: false, not: "tdm ?" };
   }
 
   const id = Number(idHam);

@@ -18,6 +18,9 @@ export default function AiTercihForm({
   telegramAcik,
   pushAcik,
   telegramUyeAcik,
+  waSablon,
+  tdmKaraListe,
+  tdmGunlukLimit,
 }: {
   sehir: string;
   rotalar: string;
@@ -31,6 +34,17 @@ export default function AiTercihForm({
   telegramAcik: boolean;
   pushAcik: boolean;
   telegramUyeAcik: boolean;
+  waSablon: {
+    ad: string;
+    firma: string;
+    arac: string;
+    tonaj: string;
+    musaitlik: string;
+    tonTercih: string;
+    imza: string;
+  };
+  tdmKaraListe: string;
+  tdmGunlukLimit: string;
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
     aiTercihKaydet,
@@ -63,8 +77,9 @@ export default function AiTercihForm({
             ))}
           </div>
           <p className="mt-1 text-xs text-fog">
-            Tenteli / kapalı kasa seçiliyse frigo, damper, lowbed, açık dorse
-            vb. elenir. Tipi yazmayan ilanlar geçer; kartta sarı uyarı çıkar.
+            Tenteli / kapalı kasa seçiliyse frigo, damper, lowbed, kısadorse,
+            açık dorse vb. elenir. «açık veya kapalı» geçer. Tipi yazmayan
+            ilanlar geçer; kartta sarı uyarı çıkar.
           </p>
         </div>
 
@@ -248,6 +263,144 @@ export default function AiTercihForm({
             Telefon bildirimi (push)
           </span>
         </label>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-teal/20 bg-teal/5 p-3">
+        <div className="text-xs font-bold uppercase tracking-wider text-teal">
+          WhatsApp mesaj şablonu
+        </div>
+        <p className="text-xs text-fog">
+          «Mesaj Hazırla» butonu bu bilgileri kullanır. Sadece butona basınca
+          AI çağrılır.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="waAd" className="etiket">
+              Adım
+            </label>
+            <input
+              id="waAd"
+              name="waAd"
+              type="text"
+              placeholder="Mertcan"
+              defaultValue={waSablon.ad}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="waFirma" className="etiket">
+              Firma
+            </label>
+            <input
+              id="waFirma"
+              name="waFirma"
+              type="text"
+              placeholder="… Nakliyat"
+              defaultValue={waSablon.firma}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="waArac" className="etiket">
+              Araç tipim
+            </label>
+            <input
+              id="waArac"
+              name="waArac"
+              type="text"
+              placeholder="tenteli TIR"
+              defaultValue={waSablon.arac}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="waTonaj" className="etiket">
+              Tonajım
+            </label>
+            <input
+              id="waTonaj"
+              name="waTonaj"
+              type="text"
+              placeholder="24"
+              defaultValue={waSablon.tonaj}
+              className="alan"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="waMusaitlik" className="etiket">
+            Müsaitlik / üs
+          </label>
+          <input
+            id="waMusaitlik"
+            name="waMusaitlik"
+            type="text"
+            placeholder="Ankara merkezliyim, müsaitim"
+            defaultValue={waSablon.musaitlik}
+            className="alan"
+          />
+        </div>
+        <div>
+          <label htmlFor="waTonTercih" className="etiket">
+            Ton tercihi
+          </label>
+          <input
+            id="waTonTercih"
+            name="waTonTercih"
+            type="text"
+            placeholder="komple tercih ederim"
+            defaultValue={waSablon.tonTercih}
+            className="alan"
+          />
+        </div>
+        <div>
+          <label htmlFor="waImza" className="etiket">
+            İmza (isteğe bağlı)
+          </label>
+          <input
+            id="waImza"
+            name="waImza"
+            type="text"
+            placeholder="İyi çalışmalar"
+            defaultValue={waSablon.imza}
+            className="alan"
+          />
+        </div>
+        <div>
+          <label htmlFor="tdmGunlukLimit" className="etiket">
+            Günlük DM limiti
+          </label>
+          <input
+            id="tdmGunlukLimit"
+            name="tdmGunlukLimit"
+            type="text"
+            inputMode="numeric"
+            placeholder="5"
+            defaultValue={tdmGunlukLimit}
+            className="alan"
+          />
+          <p className="mt-1 text-xs text-fog">
+            İlk hafta 5 önerilir (okuyucu hesabı). 1–30. Sorunsuz giderse
+            kademeli artır.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="tdmKaraListe" className="etiket">
+            DM kara liste (telefon / user id)
+          </label>
+          <textarea
+            id="tdmKaraListe"
+            name="tdmKaraListe"
+            rows={2}
+            placeholder="0532..., 05..., telegram user id — virgülle"
+            defaultValue={tdmKaraListe}
+            className="alan"
+          />
+          <p className="mt-1 text-xs text-fog">
+            Bu numaralara / kullanıcılara Telegram DM asla gitmez. Otomatik
+            gönderim yok — her mesajda [Gönder] onayı şart.
+          </p>
+        </div>
       </div>
 
       {durum && "hata" in durum && (

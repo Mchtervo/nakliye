@@ -36,6 +36,7 @@ const TIP_KELIMELER: Record<AracTipiKodu, string[]> = {
   LOWBED: ["lowbed", "low bed", "lowbet", "havuzlu"],
   SAL_DORSE: [
     "sal dorse", "acik dorse", "acik kasa", "platform", "flatbed",
+    "kisadorse", "kisa dorse", "kisa-dorse", "kisadors",
     // "sal" tek başına çok kısa; kelime sınırı ile bakılır
   ],
   KAMYON: ["kamyonet", "kirkayak", "10 teker", "6 teker", "kamyon"],
@@ -86,6 +87,8 @@ export function aracKoduBul(metin: string | null | undefined): AracTipiKodu | nu
  * - Tip yazılmamışsa eleme (belirsiz → kartta sarı uyarı).
  * - Red kelimesi var, kabul yoksa ele.
  * - Kod seçilenlerin dışındaysa ele.
+ * - "açık veya kapalı" → tenteli/kapalı kabul edenler için OK.
+ * - kısadorse → sal dorse kabul edilmiyorsa RED.
  */
 export function aracMetniUyuyorMu(
   aracTipi: string | null | undefined,
@@ -100,6 +103,25 @@ export function aracMetniUyuyorMu(
   const sade = sadelestir(aracTipi || "");
 
   if (!sade && !kod) return true; // belirsiz — geçir
+
+  // kısadorse / kısa dorse — sal dorse değilse kesin red
+  if (
+    /(^|\s)(kisadorse|kisadors|kisa dorse|kisa-dorse)(\s|$)/.test(sade) &&
+    !kabulKodlari.includes("SAL_DORSE")
+  ) {
+    return false;
+  }
+
+  // "açık veya kapalı" / "açık/kapalı" — kapalı seçeneği var → kabul
+  if (
+    /acik\s*(veya|\/|,|\+|ve)\s*kapali|kapali\s*(veya|\/|,|\+|ve)\s*acik/.test(
+      sade
+    ) &&
+    (kabulKodlari.includes("TENTELI") ||
+      kabulKodlari.includes("KAPALI_KASA"))
+  ) {
+    return true;
+  }
 
   if (kod && !kabulKodlari.includes(kod)) return false;
 
@@ -145,6 +167,7 @@ const YER_KARA_EK = [
   "dorse", "treyler", "trailer", "cekici", "lorry",
   "mega", "jumbo", "tent", "frigo", "damper", "lowbed",
   "silobas", "tanker", "konteyner", "romork",
+  "kisadorse", "kisa dorse",
 ];
 
 let yerKaraSet: Set<string> | null = null;

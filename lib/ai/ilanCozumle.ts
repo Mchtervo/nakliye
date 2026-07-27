@@ -15,6 +15,7 @@ import {
   mesajiAiParcalarinaBol,
   rotaSatirSayisi,
 } from "@/lib/kaynaklar/onFiltre";
+import { rotaAyniSatirdaMi } from "@/lib/kaynaklar/rotaDogrula";
 import { guvenliKirp } from "@/lib/metin";
 
 /** Bir parti çağrısına en fazla bu kadar mesaj dilimi. */
@@ -36,10 +37,15 @@ Kurallar:
   "Çanakkale kırkayak" → nereye=null, aracTipi=kırkayak.
 - "Ankara > Bolu", "Ankara-Bolu", "Ankaradan Boluya" gibi yazımların hepsi
   çıkış ve varış demektir.
+- SATIR KURALI (SERT): Bir rotanın çıkışı ve varışı AYNI satırda olmalı.
+  Farklı satırlardan yer birleştirme YASAK. Örnek YANLIŞ: satır1
+  "KÜTAHYA - KIRIKKALE", satır2 "TEKİRDAĞ - BOLU 1360" iken
+  "Kırıkkale→Bolu" veya fiyatı diğer satırdan alma. Her ilanın fiyatı da
+  KENDİ satırından gelir.
 - ÇOK GÜZERGAHLI MESAJ: Bir mesajda birden çok güzergah listelenmiş olabilir
   ("ÇAN'DAN: VAN 2400+, KONYA 850+, MERSİN 1100+"). Her satırı AYRI ilan yap.
-  Ortak çıkış yerini hepsine uygula ama bir satırın varışını veya fiyatını
-  ASLA başka satıra taşıma. "İlk N rota" diye kesme — hepsini çıkar.
+  Ortak çıkış yerini (başlık satırı) hepsine uygula ama bir satırın varışını
+  veya fiyatını ASLA başka satıra taşıma. "İlk N rota" diye kesme — hepsini çıkar.
 - ORTAK BAĞLAM: Mesaj başındaki (veya "ortaktır" notunun üstündeki) firma,
   telefon ve tarih TÜM güzergah ilanlarına kopyalanır. Parça metninde
   telefon bir kez geçiyorsa listedeki her ilana yaz.
@@ -262,6 +268,18 @@ function kullanilabilirMi(i: CozulmusIlan): boolean {
   return Boolean(i.cikisIl && i.varisIl) && i.guvenSkoru >= 15;
 }
 
+/** Aynı il çifti (ilçe→il sonrası) tek kalsın. */
+function rotaNormDedup(ilanlar: CozulmusIlan[]): CozulmusIlan[] {
+  const map = new Map<string, CozulmusIlan>();
+  for (const i of ilanlar) {
+    if (!i.cikisIl || !i.varisIl) continue;
+    const k = `${i.telefon || ""}|${i.cikisIl}|${i.varisIl}`;
+    const eski = map.get(k);
+    if (!eski || i.guvenSkoru > eski.guvenSkoru) map.set(k, i);
+  }
+  return [...map.values()];
+}
+
 export type CozumFiltre = {
   /** Kayıt filtresi (çekirdek bölge). Yoksa prompt kapsamı kullanılır. */
   filtreIlleri?: string[];
@@ -297,6 +315,13 @@ async function tekParcaCozumle(
   for (const ham of cikti.ilanlar || []) {
     const ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null);
     if (!kullanilabilirMi(ilan)) continue;
+    if (!rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, parca)) {
+      console.log(
+        `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
+          `(çıkış/varış aynı satırda değil)`
+      );
+      continue;
+    }
     if (kapsamDisiMi(ilan, filtreSet)) {
       console.log(
         `[ilanCozumle] BÖLGE_ELE ${ilan.cikisIl}→${ilan.varisIl}` +
@@ -306,7 +331,7 @@ async function tekParcaCozumle(
     }
     sonuc.push(ilan);
   }
-  return sonuc;
+  return rotaNormDedup(sonuc);
 }
 
 /** Serbest metinden yük ilanlarını çıkarır. Uzun listeler 5'er rota parçalanır. */
@@ -454,6 +479,13 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
 
     const ilan = ilaniNormalize(ham, baglamlar[sira], filtre.anaUs ?? null);
     if (!kullanilabilirMi(ilan)) continue;
+    if (!rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, kaynakMesaj.metin)) {
+      console.log(
+        `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
+          `(çıkış/varış aynı satırda değil)`
+      );
+      continue;
+    }
     modelCikti += 1;
     if (kapsamDisiMi(ilan, filtreSet)) {
       bolgeElenen += 1;

@@ -27,12 +27,12 @@ const ILAN_ALANLARI: Record<string, unknown> = {
   nereden: {
     ...metinVeyaBos,
     description:
-      "Yükleme yeri (il/ilçe), METİNDE GEÇTİĞİ GİBİ. Araç tipi veya firma adı YAZMA. Yoksa null.",
+      "Yükleme yeri (il/ilçe), METİNDE GEÇTİĞİ GİBİ ve AYNI satırdaki varışla. Araç/firma adı YAZMA. Yoksa null.",
   },
   nereye: {
     ...metinVeyaBos,
     description:
-      "Boşaltma yeri (il/ilçe), METİNDE GEÇTİĞİ GİBİ. Kırkayak/damper/firma adı YAZMA. Yoksa null.",
+      "Boşaltma yeri (il/ilçe), METİNDE GEÇTİĞİ GİBİ ve AYNI satırdaki çıkışla. Kırkayak/damper/firma adı YAZMA. Yoksa null.",
   },
   yuklemeTarihi: {
     ...metinVeyaBos,
@@ -55,7 +55,8 @@ const ILAN_ALANLARI: Record<string, unknown> = {
   },
   aracTipi: {
     ...metinVeyaBos,
-    description: "tenteli, damper, frigo, kırkayak, lowbed vb. — yer adı değil",
+    description:
+      "tenteli, damper, frigo, kırkayak, lowbed, kısadorse vb. — yer adı değil",
   },
   yukTipi: { ...metinVeyaBos, description: "Taşınacak malın cinsi" },
   guvenSkoru: {

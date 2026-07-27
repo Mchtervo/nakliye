@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { ilanDurumGuncelle, ilanSil } from "@/app/ai-actions";
+import MesajHazirlaButonu from "@/components/MesajHazirlaButonu";
 
 export type IlanOzeti = {
   id: number;
@@ -42,6 +43,10 @@ export default function IlanAksiyonlari({ ilan }: { ilan: IlanOzeti }) {
         </a>
       )}
 
+      {ilan.telefon && (
+        <MesajHazirlaButonu ilanId={ilan.id} telefon={ilan.telefon} />
+      )}
+
       <button
         type="button"
         disabled={bekliyor}
@@ -51,7 +56,7 @@ export default function IlanAksiyonlari({ ilan }: { ilan: IlanOzeti }) {
         Yüke çevir
       </button>
 
-      {ilan.durum !== "ILGILENIYOR" && (
+      {ilan.durum !== "ILGILENIYOR" && ilan.durum !== "ILETISIME_GECILDI" && (
         <button
           type="button"
           disabled={bekliyor}

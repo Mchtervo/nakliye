@@ -30,10 +30,11 @@ function inlineSatir(butonlar: InlineButon[]) {
   });
 }
 
+/** Tek satır veya çok satırlı klavye. */
 export async function telegramGonder(
   chatId: string,
   metin: string,
-  butonlar?: InlineButon[]
+  butonlar?: InlineButon[] | InlineButon[][]
 ): Promise<TelegramSonuc> {
   if (!telegramKullanilabilir()) {
     return { basarili: false, hata: "TELEGRAM_BOT_TOKEN tanımlı değil." };
@@ -47,9 +48,13 @@ export async function telegramGonder(
   };
 
   if (butonlar?.length) {
-    // Telegram satırda ~3 buton rahat; WhatsApp/Takip/Elendi tek satır.
+    const satirlar = Array.isArray(butonlar[0])
+      ? (butonlar as InlineButon[][])
+      : [butonlar as InlineButon[]];
     govde.reply_markup = {
-      inline_keyboard: [inlineSatir(butonlar)],
+      inline_keyboard: satirlar
+        .filter((s) => s.length > 0)
+        .map((s) => inlineSatir(s)),
     };
   }
 

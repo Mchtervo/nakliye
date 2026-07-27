@@ -35,7 +35,13 @@ function metinOku(deger: FormDataEntryValue | null): string {
   return typeof deger === "string" ? deger.trim() : "";
 }
 
-const ILAN_DURUMLARI = ["YENI", "ILGILENIYOR", "ELENDI", "YUKE_DONDU"];
+const ILAN_DURUMLARI = [
+  "YENI",
+  "ILGILENIYOR",
+  "ILETISIME_GECILDI",
+  "ELENDI",
+  "YUKE_DONDU",
+];
 
 export async function ilanDurumGuncelle(
   id: number,
@@ -45,6 +51,38 @@ export async function ilanDurumGuncelle(
   if (!ILAN_DURUMLARI.includes(durum)) return;
 
   await prisma.yukIlani.update({ where: { id }, data: { durum } }).catch(() => null);
+  revalidatePath("/ai/yukler");
+  revalidatePath("/ai/donus");
+}
+
+/** WhatsApp mesajı üret (cache 24s). Sadece butona basınca AI. */
+export async function ilanMesajHazirla(
+  id: number
+): Promise<
+  | { ok: true; metin: string; cache: boolean; waUrl: string | null }
+  | { ok: false; hata: string }
+> {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, hata: "Geçersiz ilan." };
+  }
+  try {
+    const { ilanWhatsappMesaji } = await import("@/lib/ai/whatsappMesaj");
+    const r = await ilanWhatsappMesaji(id);
+    return { ok: true, ...r };
+  } catch (e) {
+    return {
+      ok: false,
+      hata: e instanceof Error ? e.message : "Mesaj üretilemedi.",
+    };
+  }
+}
+
+/** WhatsApp açıldı / kopyalandı → ILETISIME_GECILDI */
+export async function ilanIletisimeGecildi(id: number): Promise<void> {
+  if (!Number.isInteger(id) || id <= 0) return;
+  await prisma.yukIlani
+    .update({ where: { id }, data: { durum: "ILETISIME_GECILDI" } })
+    .catch(() => null);
   revalidatePath("/ai/yukler");
   revalidatePath("/ai/donus");
 }
@@ -236,6 +274,36 @@ export async function aiTercihKaydet(
     AYAR_ANAHTARLARI.telegramUyeAktif,
     formData.get("telegramUye") === "1" ? "1" : "0"
   );
+
+  await ayarYaz(AYAR_ANAHTARLARI.waSablonAd, metinOku(formData.get("waAd")));
+  await ayarYaz(
+    AYAR_ANAHTARLARI.waSablonFirma,
+    metinOku(formData.get("waFirma"))
+  );
+  await ayarYaz(AYAR_ANAHTARLARI.waSablonArac, metinOku(formData.get("waArac")));
+  await ayarYaz(
+    AYAR_ANAHTARLARI.waSablonTonaj,
+    metinOku(formData.get("waTonaj"))
+  );
+  await ayarYaz(
+    AYAR_ANAHTARLARI.waSablonMusaitlik,
+    metinOku(formData.get("waMusaitlik"))
+  );
+  await ayarYaz(
+    AYAR_ANAHTARLARI.waSablonTonTercih,
+    metinOku(formData.get("waTonTercih"))
+  );
+  await ayarYaz(AYAR_ANAHTARLARI.waSablonImza, metinOku(formData.get("waImza")));
+  await ayarYaz(
+    AYAR_ANAHTARLARI.tdmKaraListe,
+    metinOku(formData.get("tdmKaraListe"))
+  );
+  const tdmLimitHam = metinOku(formData.get("tdmGunlukLimit"));
+  const tdmLimit = tdmLimitHam ? Number(tdmLimitHam.replace(/\D/g, "")) : 5;
+  if (!Number.isFinite(tdmLimit) || tdmLimit < 1 || tdmLimit > 30) {
+    return { hata: "Günlük DM limiti 1–30 arası olmalı." };
+  }
+  await ayarYaz(AYAR_ANAHTARLARI.tdmGunlukLimit, String(tdmLimit));
 
   revalidatePath("/ayarlar");
   revalidatePath("/ai/yukler");

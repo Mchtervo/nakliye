@@ -45,7 +45,12 @@ export default async function AiYuklerSayfasi({
           ? { donusTalebiId: { not: null }, guvenSkoru: { gte: SUPHE_SINIRI } }
           : sekme === "YENI"
             ? { durum: "YENI", ...tercihKosulu(tercih) }
-            : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
+            : sekme === "ILGILENIYOR"
+              ? {
+                  durum: { in: ["ILGILENIYOR", "ILETISIME_GECILDI"] },
+                  guvenSkoru: { gte: SUPHE_SINIRI },
+                }
+              : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
 
   const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi] =
     await Promise.all([
@@ -222,6 +227,11 @@ export default async function AiYuklerSayfasi({
                     {ilan.durum === "ILGILENIYOR" && (
                       <span className="rounded-full border border-amber/40 bg-amber/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber">
                         Takipte
+                      </span>
+                    )}
+                    {ilan.durum === "ILETISIME_GECILDI" && (
+                      <span className="rounded-full border border-teal/40 bg-teal/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal">
+                        İletişime geçildi
                       </span>
                     )}
                     {ilan.durum === "YUKE_DONDU" && (

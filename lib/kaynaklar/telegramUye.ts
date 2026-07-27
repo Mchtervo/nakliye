@@ -105,7 +105,11 @@ export async function okumaGoreviUret(limit = 5): Promise<OkumaGorevi> {
 export type GelenGrup = {
   id: number;
   sonMesajId?: number | null;
-  mesajlar: { mesajId?: number | null; metin: string }[];
+  mesajlar: {
+    mesajId?: number | null;
+    metin: string;
+    gonderenUserId?: string | null;
+  }[];
   hata?: string | null;
 };
 
@@ -165,8 +169,12 @@ export async function mesajlariKuyrugaAl(
       grupElenen[sebep] = (grupElenen[sebep] ?? 0) + n;
     };
 
-    const adaylar: { mesajId: number | null; metin: string; hash: string }[] =
-      [];
+    const adaylar: {
+      mesajId: number | null;
+      metin: string;
+      hash: string;
+      gonderenUserId: string | null;
+    }[] = [];
 
     for (const m of grup.mesajlar.slice(0, 200)) {
       const sebep = elemeSebebi(m.metin, hedefIller);
@@ -215,6 +223,7 @@ export async function mesajlariKuyrugaAl(
         mesajId: m.mesajId ?? null,
         metin: guvenliKirp(kuyrukMetin, 2000),
         hash,
+        gonderenUserId: m.gonderenUserId || null,
       });
 
       for (const h of secim.yeniHashler) {
@@ -233,6 +242,7 @@ export async function mesajlariKuyrugaAl(
           mesajId: a.mesajId,
           metin: a.metin,
           metinHash: a.hash,
+          gonderenUserId: a.gonderenUserId,
         })),
         skipDuplicates: true,
       });
@@ -319,9 +329,10 @@ function ilanKaydaUygunMu(
   ilan: CozulmusIlan,
   tercih: AiTercihleri,
   anaUs: string | null,
-  koridorSet: Set<string>
+  koridorSet: Set<string>,
+  hamMetin?: string
 ): boolean {
-  if (!araciUyuyorMu(ilan, tercih)) return false;
+  if (!araciUyuyorMu(ilan, tercih, hamMetin)) return false;
   if (!ilan.cikisIl || !ilan.varisIl) return false;
 
   // HEM çıkış HEM varış koridorda.
@@ -448,14 +459,28 @@ async function bolerekCozumle(
  * sebeplerinden biri buydu. Sıra gruplar arasında dönüşümlü dağıtılır.
  */
 async function partiSec(limit: number): Promise<
-  { id: number; metin: string; kaynakId: number | null; denemeSayisi: number }[]
+  {
+    id: number;
+    metin: string;
+    kaynakId: number | null;
+    denemeSayisi: number;
+    gonderenUserId: string | null;
+    mesajId: number | null;
+  }[]
 > {
   const havuz = await prisma.hamMesaj.findMany({
     // denemeSayisi >= AI_MAX_DENEME → daha deneme yok.
     where: { islendi: false, denemeSayisi: { lt: AI_MAX_DENEME } },
     orderBy: { createdAt: "asc" },
     take: limit * 5,
-    select: { id: true, metin: true, kaynakId: true, denemeSayisi: true },
+    select: {
+      id: true,
+      metin: true,
+      kaynakId: true,
+      denemeSayisi: true,
+      gonderenUserId: true,
+      mesajId: true,
+    },
   });
   if (havuz.length <= limit) return havuz;
 
@@ -560,6 +585,8 @@ export async function kuyrugunuCoz(
             metin: true,
             kaynakId: true,
             denemeSayisi: true,
+            gonderenUserId: true,
+            mesajId: true,
           },
         })
       : await partiSec(hedefLimit);
@@ -592,7 +619,13 @@ export async function kuyrugunuCoz(
   }
 
   // AI öncesi rota dedup — spam listeler OpenAI'ye gitmesin.
-  const aiParti: { id: number; metin: string; kaynakId: number | null }[] = [];
+  const aiParti: {
+    id: number;
+    metin: string;
+    kaynakId: number | null;
+    gonderenUserId: string | null;
+    mesajId: number | null;
+  }[] = [];
   let onDedupAtlanan = 0;
   for (const m of parti) {
     const on = await aiOncesiHazirla(m.metin);
@@ -615,6 +648,9 @@ export async function kuyrugunuCoz(
       id: m.id,
       metin: on.metin,
       kaynakId: m.kaynakId,
+      gonderenUserId:
+        "gonderenUserId" in m ? (m.gonderenUserId as string | null) : null,
+      mesajId: "mesajId" in m ? (m.mesajId as number | null) : null,
     });
   }
   if (onDedupAtlanan > 0) {
@@ -654,28 +690,40 @@ export async function kuyrugunuCoz(
 
   const metinler = new Map(aiParti.map((m) => [m.id, m.metin]));
   const kaynaklar = new Map(aiParti.map((m) => [m.id, m.kaynakId]));
+  const gonderenler = new Map(aiParti.map((m) => [m.id, m.gonderenUserId]));
+  const kaynakMesajlar = new Map(aiParti.map((m) => [m.id, m.mesajId]));
   // Orijinal ham metin kaydı için (kısmi metin yerine tam)
   const hamTam = new Map(parti.map((m) => [m.id, m.metin]));
 
   // Aynı kaynağa ait ilanlar birlikte kaydedilir.
   const kaynagaGore = new Map<
     number | null,
-    { ilan: CozulmusIlan; hamMetin: string }[]
+    {
+      ilan: CozulmusIlan;
+      hamMetin: string;
+      gonderenUserId?: string | null;
+      kaynakMesajId?: number | null;
+    }[]
   >();
 
   const koridorSet = new Set(kapsam);
   let aracElenen = 0;
   let uzakElenen = 0;
   for (const { anahtar, ilan } of cozulenler) {
-    if (!ilanKaydaUygunMu(ilan, tercih, anaUs, koridorSet)) {
-      if (!araciUyuyorMu(ilan, tercih)) aracElenen += 1;
+    const hamMetin = hamTam.get(anahtar) ?? metinler.get(anahtar) ?? "";
+    if (!ilanKaydaUygunMu(ilan, tercih, anaUs, koridorSet, hamMetin)) {
+      if (!araciUyuyorMu(ilan, tercih, hamMetin)) aracElenen += 1;
       else uzakElenen += 1;
       continue;
     }
     const kaynakId = kaynaklar.get(anahtar) ?? null;
-    const hamMetin = hamTam.get(anahtar) ?? metinler.get(anahtar) ?? "";
     const liste = kaynagaGore.get(kaynakId) ?? [];
-    liste.push({ ilan, hamMetin });
+    liste.push({
+      ilan,
+      hamMetin,
+      gonderenUserId: gonderenler.get(anahtar) ?? null,
+      kaynakMesajId: kaynakMesajlar.get(anahtar) ?? null,
+    });
     kaynagaGore.set(kaynakId, liste);
   }
   if (aracElenen > 0) await elemeArtir({ ARAC_TIP: aracElenen });
