@@ -48,6 +48,7 @@ const TAKMA_ADLAR: Record<string, string> = {
   maslak: "İstanbul", levent: "İstanbul", halkalı: "İstanbul",
   yenibosna: "İstanbul", seyrantepe: "İstanbul", haramidere: "İstanbul",
   massit: "İstanbul", masit: "İstanbul", // İkitelli Massit
+  samandıra: "İstanbul", samandira: "İstanbul",
   oruçreis: "İstanbul", orucreis: "İstanbul", "oruc reis": "İstanbul",
   "beylikduzu sanayi": "İstanbul", "beylikdüzü sanayi": "İstanbul",
   "ikitelli sanayi": "İstanbul", "ikitelli osb": "İstanbul",
@@ -130,7 +131,7 @@ const TAKMA_ADLAR: Record<string, string> = {
   kızılcahamam: "Ankara", haymana: "Ankara", "başkent osb": "Ankara",
   şaşmaz: "Ankara", sasmaz: "Ankara", macunköy: "Ankara",
   "ankara osb": "Ankara", "ostim osb": "Ankara", "ivedik osb": "Ankara",
-  "sincan osb": "Ankara",
+  "sincan osb": "Ankara", iskitler: "Ankara",
 
   // --- İç Anadolu ---
   akşehir: "Konya", ilgın: "Konya", seydişehir: "Konya", çumra: "Konya",
@@ -150,12 +151,14 @@ const TAKMA_ADLAR: Record<string, string> = {
   sorgun: "Yozgat", yerköy: "Yozgat", boğazlıyan: "Yozgat",
   akdağmadeni: "Yozgat", sarıkaya: "Yozgat",
   yahşihan: "Kırıkkale", delice: "Kırıkkale", keskin: "Kırıkkale",
+  "kırıkkale osb": "Kırıkkale",
   kaman: "Kırşehir", mucur: "Kırşehir",
   eskil: "Aksaray", güzelyurt: "Aksaray",
   ürgüp: "Nevşehir", avanos: "Nevşehir", gülşehir: "Nevşehir",
   derinkuyu: "Nevşehir", ulukışla: "Niğde", çamardı: "Niğde",
   ermenek: "Karaman", ayrancı: "Karaman",
   çerkeş: "Çankırı", ilgaz: "Çankırı",
+  korgun: "Çankırı", şabanözü: "Çankırı", sabanozu: "Çankırı",
 
   // --- İzmir ---
   izm: "İzmir", izmir: "İzmir",

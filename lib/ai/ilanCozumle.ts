@@ -354,37 +354,32 @@ export type MesajCozumRaporu = {
 };
 
 /**
- * Çözümlemenin il kapsamı. Bir komisyoncu tek mesajda 30 rota
- * listeliyor; hepsinin JSON'unu yazdırmak çıktı token'ının çoğunu
- * ilgilenilmeyen güzergahlara harcamak demek.
- *
- * "İlk N rota" kesmiyoruz — sıralama rastgele, iyi yük kaybolur.
- * Bunun yerine sadece hedef bölge + komşulara değen rotalar çıkarılır.
+ * Çözümleme kapsamı — prompt ve sunucu AYNI liste.
+ * HEM çıkış HEM varış listede olmalı; diğer rotalar hiç yazılmasın.
  */
 function kapsamTalimati(iller: string[]): string {
   if (iller.length === 0 || iller.length >= 70) return "";
   return `
 
-KAPSAM (ZORUNLU): Sadece çıkışı VEYA varışı şu illerden birinde olan
-güzergahları çıkar. Diğer güzergahları HİÇ yazma, listeye ekleme.
-${iller.join(", ")}
+KAPSAM (ZORUNLU — KORİDOR): Sadece ÇIKIŞI VE VARIŞI şu illerden
+olan güzergahları çıkar. İki uç da listede olmalı.
+Tek uç listede olup diğeri dışarıdaysa (ör. Ankara→Antalya,
+İstanbul→İzmir) HİÇ yazma, listeye ekleme.
+İller: ${iller.join(", ")}
 İlçe/semt adı yazılmışsa bağlı olduğu ile göre değerlendir
-(ör. Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul).`;
+(ör. Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul, Yahşihan→Kırıkkale).`;
 }
 
 /**
- * İlan kapsam dışı mı? En az bir uç çekirdek kümede olmalı.
- * (Eski kural "iki uç da bilinip ikisi de dışarı" idi — tek uçlu
- * Adana→? veya komşu-il kaçakları kayda düşüyordu.)
+ * İlan kapsam dışı mı? HEM çıkış HEM varış listede olmalı.
+ * "Bir uç yeter" kaldırıldı — Ankara→Antalya elenir.
  */
 function kapsamDisiMi(ilan: CozulmusIlan, iller: Set<string>): boolean {
   if (iller.size === 0 || iller.size >= 70) return false;
   const cikis = ilan.cikisIl;
   const varis = ilan.varisIl;
-  if (!cikis && !varis) return true;
-  if (cikis && iller.has(cikis)) return false;
-  if (varis && iller.has(varis)) return false;
-  return true;
+  if (!cikis || !varis) return true;
+  return !(iller.has(cikis) && iller.has(varis));
 }
 
 /**

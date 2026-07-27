@@ -18,12 +18,12 @@ import {
 } from "@/lib/ayarlar";
 import {
   aramaSorgulariUret,
-  genisIlKumesi,
   grubuDegerlendir,
   ilinBolgesi,
   yukBasligiMi,
   type BolgeKodu,
 } from "@/lib/bolgeler";
+import { koridorIlKumesi } from "@/lib/koridor";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul } from "@/lib/iller";
@@ -142,7 +142,7 @@ export async function mesajlariKuyrugaAl(
   };
 
   const tercih = await aiTercihleriOku();
-  const hedefIller = new Set(genisIlKumesi(tercih.bolgeler, tercih.ekIller));
+  const hedefIller = new Set(koridorIlKumesi(tercih.koridorIller));
 
   // Bu turda görülen satır hash'leri (oturum içi). DB sorgusu mesaj bazında.
   const turIci = new Set<string>();
@@ -310,33 +310,24 @@ export type KuyrukRaporu = {
 
 type PartiMesaj = { id: number; metin: string };
 
-const UZAK_VARIS_BOLGE: BolgeKodu[] = ["DOGU_ANADOLU", "GUNEYDOGU"];
-
 /**
- * Kayıt öncesi: araç tipi + uzak varış (ana üs ~600km karayolu).
+ * Kayıt öncesi: araç tipi + koridor (iki uç).
  * Araç belirsiz (kod/metin yok) → geçir; sadece açık uyumsuz elenir.
  */
 function ilanKaydaUygunMu(
   ilan: CozulmusIlan,
   tercih: AiTercihleri,
   anaUs: string | null,
-  genisSet: Set<string>
+  koridorSet: Set<string>
 ): boolean {
   if (!araciUyuyorMu(ilan, tercih)) return false;
   if (!ilan.cikisIl || !ilan.varisIl) return false;
 
-  // Varış geniş kapsamda olmalı (çekirdek + yakın komşu).
-  // Aksi hâlde Çanakkale→Adana gibi "bir uç yeter" kaçakları kalır.
-  if (!genisSet.has(ilan.varisIl)) return false;
-
-  const vb = ilinBolgesi(ilan.varisIl);
-  if (
-    vb &&
-    UZAK_VARIS_BOLGE.includes(vb) &&
-    !tercih.bolgeler.includes(vb)
-  ) {
+  // HEM çıkış HEM varış koridorda.
+  if (!koridorSet.has(ilan.cikisIl) || !koridorSet.has(ilan.varisIl)) {
     return false;
   }
+
   if (anaUs) {
     const km = yaklasikKarayoluKm(anaUs, ilan.varisIl);
     if (km !== null && km > VARIS_UZA_KM) return false;
@@ -635,11 +626,9 @@ export async function kuyrugunuCoz(
   }
 
   const tercih = await aiTercihleriOku();
-  const kapsam = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
+  const kapsam = koridorIlKumesi(tercih.koridorIller);
   const anaUs = tercih.anaUs || ilBul(tercih.sehir);
-  // Prompt ve sunucu filtresi AYNI küme (çekirdek+komşu).
-  // Eskiden prompt=geniş / filtre=çekirdek idi → modelin yazdığı komşu
-  // rotaların ~yarısı BÖLGE_ELE ile çöpe gidiyordu (token israfı).
+  // Prompt ve sunucu filtresi AYNI koridor listesi (iki uç zorunlu).
   const filtre: CozumFiltre = { filtreIlleri: kapsam, anaUs };
   const bitis = Date.now() + COZUM_BUTCE_MS;
 
@@ -673,11 +662,11 @@ export async function kuyrugunuCoz(
     { ilan: CozulmusIlan; hamMetin: string }[]
   >();
 
-  const genisSet = new Set(kapsam);
+  const koridorSet = new Set(kapsam);
   let aracElenen = 0;
   let uzakElenen = 0;
   for (const { anahtar, ilan } of cozulenler) {
-    if (!ilanKaydaUygunMu(ilan, tercih, anaUs, genisSet)) {
+    if (!ilanKaydaUygunMu(ilan, tercih, anaUs, koridorSet)) {
       if (!araciUyuyorMu(ilan, tercih)) aracElenen += 1;
       else uzakElenen += 1;
       continue;

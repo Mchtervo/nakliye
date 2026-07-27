@@ -1,6 +1,6 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
 import { aracMetniUyuyorMu } from "@/lib/arac";
-import { bolgeyeUyuyorMu, cekirdekIlKumesi } from "@/lib/bolgeler";
+import { koridorIlKumesi, koridoraUyuyorMu } from "@/lib/koridor";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
@@ -37,7 +37,7 @@ export function araciUyuyorMu(
 /**
  * Kullanıcıyı gerçekten ilgilendiren ilanları seçer.
  * Dönüş yükü eşleşmesi her zaman ilgilidir.
- * Bölge: en az bir uç seçili bölge / ek ile değsin.
+ * Koridor: HEM çıkış HEM varış listede.
  */
 export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
   if (ilan.donusTalebiId) return true;
@@ -49,15 +49,8 @@ export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
     return false;
   }
 
-  // Bölge filtresi (komşular + ek iller dahil)
   if (
-    (tercih.bolgeler.length > 0 || tercih.ekIller.length > 0) &&
-    !bolgeyeUyuyorMu(
-      tercih.bolgeler,
-      ilan.cikisIl,
-      ilan.varisIl,
-      tercih.ekIller
-    )
+    !koridoraUyuyorMu(tercih.koridorIller, ilan.cikisIl, ilan.varisIl)
   ) {
     return false;
   }
@@ -77,12 +70,11 @@ export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
     }
   }
 
-  // Şehir/rota daraltması yoksa bölge eşleşmesi yeter.
+  // Koridora uyuyorsa (yukarıda geçti) şehir/rota daraltması yoksa göster.
   if (!sehir && tercih.rotalar.length === 0) return true;
 
-  // Şehir veya rota girilmiş ama bu ilan onlara uymuyor; yine de bölgeye
-  // değiyorsa göster (dönüş yükü mantığı — diğer uç serbest).
-  return tercih.bolgeler.length > 0 || tercih.ekIller.length > 0;
+  // Şehir/rota girilmiş ama uymuyor — yine de koridor içiyse göster.
+  return true;
 }
 
 export function ilgilileriSuz(
@@ -111,11 +103,11 @@ export function tercihKosulu(tercih: AiTercihleri) {
     kosullar.push({ OR: [{ tonaj: null }, { tonaj: { lte: tercih.maxTonaj } }] });
   }
 
-  if (tercih.bolgeler.length > 0 || tercih.ekIller.length > 0) {
-    const iller = cekirdekIlKumesi(tercih.bolgeler, tercih.ekIller);
-    kosullar.push({
-      OR: [{ cikisIl: { in: iller } }, { varisIl: { in: iller } }],
-    });
+  const iller = koridorIlKumesi(tercih.koridorIller);
+  if (iller.length > 0) {
+    // İki uç da koridorda — Prisma AND.
+    kosullar.push({ cikisIl: { in: iller } });
+    kosullar.push({ varisIl: { in: iller } });
   }
 
   return { AND: kosullar };

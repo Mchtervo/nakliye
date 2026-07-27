@@ -6,6 +6,10 @@ import {
   type BolgeKodu,
 } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
+import {
+  koridorIlleriCozumle,
+  VARSAYILAN_KORIDOR_ILLER,
+} from "@/lib/koridor";
 
 export const AYAR_ANAHTARLARI = {
   hizliAraTelefon: "hizli_ara_telefon",
@@ -20,6 +24,11 @@ export const AYAR_ANAHTARLARI = {
   aiAnaUs: "ai_ana_us",
   /** Bölgeye ek il (virgüllü) — kod değiştirmeden genişletme */
   aiEkIller: "ai_ek_iller",
+  /**
+   * Çalışılan koridor illeri (virgüllü). Prompt + sunucu filtresi AYNI.
+   * HEM çıkış HEM varış bu listede olmalı. Boş = varsayılan 8 il.
+   */
+  aiKoridorIller: "ai_koridor_iller",
   telegramChatId: "telegram_chat_id",
   bildirimTelegram: "bildirim_telegram",
   bildirimPush: "bildirim_push",
@@ -76,8 +85,13 @@ export type AiTercihleri = {
   aracTipleri: AracTipiKodu[];
   maxTonaj: number | null;
   anaUs: string | null;
-  /** Bölge checkbox'larına ek, elle yazılan iller */
+  /** Bölge checkbox'larına ek, elle yazılan iller (eski; koridora eklenir) */
   ekIller: string[];
+  /**
+   * Çalışılan koridor. Prompt + kayıt filtresi.
+   * İki uç da bu listede olmalı.
+   */
+  koridorIller: string[];
   telegramChatId: string | null;
   telegramAcik: boolean;
   pushAcik: boolean;
@@ -94,6 +108,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.aiMaxTonaj,
     AYAR_ANAHTARLARI.aiAnaUs,
     AYAR_ANAHTARLARI.aiEkIller,
+    AYAR_ANAHTARLARI.aiKoridorIller,
     AYAR_ANAHTARLARI.telegramChatId,
     AYAR_ANAHTARLARI.bildirimTelegram,
     AYAR_ANAHTARLARI.bildirimPush,
@@ -107,6 +122,16 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     .split(/[,\n]/)
     .map((p) => ilBul(p.trim()))
     .filter((il): il is string => Boolean(il));
+
+  // Koridor ayarı yoksa varsayılan 8 il. Varsa aynen (ek iller birleştirilir).
+  const koridorHam = a[AYAR_ANAHTARLARI.aiKoridorIller];
+  let koridorIller =
+    koridorHam === undefined
+      ? [...VARSAYILAN_KORIDOR_ILLER]
+      : koridorIlleriCozumle(koridorHam);
+  for (const il of ekIller) {
+    if (!koridorIller.includes(il)) koridorIller.push(il);
+  }
 
   return {
     sehir: a[AYAR_ANAHTARLARI.aiSehir] || null,
@@ -122,6 +147,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       Number.isFinite(tonajHam) && tonajHam > 0 ? Math.round(tonajHam) : null,
     anaUs: ilBul(a[AYAR_ANAHTARLARI.aiAnaUs]),
     ekIller: [...new Set(ekIller)],
+    koridorIller,
     telegramChatId: a[AYAR_ANAHTARLARI.telegramChatId] || null,
     // Varsayılan açık: kullanıcı kapatmadıkça bildirim gitsin.
     telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",

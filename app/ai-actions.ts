@@ -6,6 +6,7 @@ import { AYAR_ANAHTARLARI, ayarYaz } from "@/lib/ayarlar";
 import { aracKodlariCozumle } from "@/lib/arac";
 import { bolgeCozumle } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
+import { VARSAYILAN_KORIDOR_ILLER } from "@/lib/koridor";
 import { tlKurusaCevir } from "@/lib/para";
 import { kaynaklariTara } from "@/lib/kaynaklar/tarama";
 import { butceKesiminiAc } from "@/lib/ai/butce";
@@ -190,6 +191,24 @@ export async function aiTercihKaydet(
     ekIllerCozulmus.push(il);
   }
 
+  const koridorHam = metinOku(formData.get("koridorIller"));
+  const koridorParca = koridorHam
+    .split(/[,\n;]/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .slice(0, 40);
+  const koridorCozulmus: string[] = [];
+  if (koridorParca.length === 0) {
+    // Boş bırakılırsa varsayılan koridor yazılır.
+    koridorCozulmus.push(...VARSAYILAN_KORIDOR_ILLER);
+  } else {
+    for (const p of koridorParca) {
+      const il = ilBul(p);
+      if (!il) return { hata: `Koridor ilini tanıyamadım: ${p}` };
+      if (!koridorCozulmus.includes(il)) koridorCozulmus.push(il);
+    }
+  }
+
   await ayarYaz(AYAR_ANAHTARLARI.aiSehir, sehir || "");
   await ayarYaz(AYAR_ANAHTARLARI.aiRotalar, rotalar);
   await ayarYaz(AYAR_ANAHTARLARI.aiMinUcret, String(minUcret ?? 0));
@@ -200,6 +219,10 @@ export async function aiTercihKaydet(
   await ayarYaz(
     AYAR_ANAHTARLARI.aiEkIller,
     [...new Set(ekIllerCozulmus)].join(",")
+  );
+  await ayarYaz(
+    AYAR_ANAHTARLARI.aiKoridorIller,
+    koridorCozulmus.join(",")
   );
   await ayarYaz(
     AYAR_ANAHTARLARI.bildirimTelegram,

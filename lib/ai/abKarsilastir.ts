@@ -7,7 +7,7 @@ import { ilanlariCozumle } from "@/lib/ai/ilanCozumle";
 import { mikrodolarYaz } from "@/lib/ai/maliyet";
 import { aracKoduBul } from "@/lib/arac";
 import { aiTercihleriOku } from "@/lib/ayarlar";
-import { genisIlKumesi } from "@/lib/bolgeler";
+import { koridorIlKumesi } from "@/lib/koridor";
 import { illeriBul, sadelestir } from "@/lib/iller";
 import { hamRotalariCikar, telefonlariCikar } from "@/lib/kaynaklar/onDedup";
 import {
@@ -161,7 +161,7 @@ export async function modelIleCozumle(
   etiket: string
 ): Promise<{ ilanlar: Map<number, CozulmusIlan[]>; bas: Date }> {
   const tercih = await aiTercihleriOku();
-  const kapsam = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
+  const kapsam = koridorIlKumesi(tercih.koridorIller);
   const anaUs = tercih.anaUs || null;
   const bas = new Date();
   const ilanlar = new Map<number, CozulmusIlan[]>();

@@ -31,7 +31,8 @@ function tercihOzeti(t: AiTercihleri): string {
     `Ana üs: ${t.anaUs || t.sehir || "yok"}`,
     `Araç: ${araclar}`,
     `Max tonaj: ${t.maxTonaj ?? "yok"}`,
-    `Bölgeler: ${bolgeler}`,
+    `Koridor: ${t.koridorIller.join(", ") || "yok"}`,
+    `Grup keşfi bölgeleri: ${bolgeler}`,
     t.ekIller.length ? `Ek iller: ${t.ekIller.join(", ")}` : null,
     t.rotalar.length ? `Rotalar: ${t.rotalar.join(", ")}` : null,
   ]

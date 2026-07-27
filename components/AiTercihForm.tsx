@@ -14,6 +14,7 @@ export default function AiTercihForm({
   maxTonaj,
   anaUs,
   ekIller,
+  koridorIller,
   telegramAcik,
   pushAcik,
   telegramUyeAcik,
@@ -26,6 +27,7 @@ export default function AiTercihForm({
   maxTonaj: string;
   anaUs: string;
   ekIller: string;
+  koridorIller: string;
   telegramAcik: boolean;
   pushAcik: boolean;
   telegramUyeAcik: boolean;
@@ -150,7 +152,25 @@ export default function AiTercihForm({
       </div>
 
       <div>
-        <span className="etiket">Takip edilecek bölgeler</span>
+        <label htmlFor="koridorIller" className="etiket">
+          Koridor illeri (çalışma alanı)
+        </label>
+        <textarea
+          id="koridorIller"
+          name="koridorIller"
+          rows={3}
+          placeholder="Ankara, Kırıkkale, Çankırı, Bolu, Düzce, Sakarya, Kocaeli, İstanbul"
+          defaultValue={koridorIller}
+          className="alan"
+        />
+        <p className="mt-1 text-xs text-fog">
+          HEM çıkış HEM varış bu listede olmalı. Virgülle ayır. Eskişehir /
+          Bursa eklemek için listeye yazıp kaydet — kod gerekmez.
+        </p>
+      </div>
+
+      <div>
+        <span className="etiket">Grup keşfi — bölgeler</span>
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           {BOLGELER.map((b) => (
             <label
@@ -169,25 +189,25 @@ export default function AiTercihForm({
           ))}
         </div>
         <p className="mt-1 text-xs text-fog">
-          En az bir uç bu bölgelere (veya komşu illere) değsin. Hiçbirini
-          seçmezsen Türkiye geneli taranır.
+          Sadece Telegram grup araması için. İlan filtresi yukarıdaki
+          koridor listesidir.
         </p>
       </div>
 
       <div>
         <label htmlFor="ekIller" className="etiket">
-          Ek iller (bölgeye ek)
+          Koridora ek iller (kısayol)
         </label>
         <input
           id="ekIller"
           name="ekIller"
           type="text"
-          placeholder="Örnek: Afyonkarahisar, Manisa"
+          placeholder="Örnek: Eskişehir, Bilecik, Bursa"
           defaultValue={ekIller}
           className="alan"
         />
         <p className="mt-1 text-xs text-fog">
-          Kod değiştirmeden kapsam genişlet. Virgülle ayır.
+          Koridor alanına yazmak yerine buraya da ekleyebilirsin.
         </p>
       </div>
 

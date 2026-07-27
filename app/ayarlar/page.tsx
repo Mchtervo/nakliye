@@ -122,6 +122,7 @@ export default async function AyarlarSayfasi() {
           maxTonaj={tercih.maxTonaj ? String(tercih.maxTonaj) : ""}
           anaUs={tercih.anaUs || ""}
           ekIller={tercih.ekIller.join(", ")}
+          koridorIller={tercih.koridorIller.join(", ")}
           telegramAcik={tercih.telegramAcik}
           pushAcik={tercih.pushAcik}
           telegramUyeAcik={tercih.telegramUyeAcik}
