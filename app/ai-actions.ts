@@ -69,6 +69,9 @@ export async function testBildirimGonder(): Promise<AiSonuc> {
     bilgi: "Test bildirimi Telegram'a gitti — sohbetini kontrol et.",
   };
 }
+
+/** AI_KAPALI iken 1 adet 10'luk test hakkı (30 dk). tavanUsd varsayılan $0.05. */
+export async function aiTestIzniVer(tavanUsd = 0.05): Promise<AiSonuc> {
   const { bitisMs, tavanUsd: tavan } = await testIzniVer(30, tavanUsd);
   const durum = await testIzniDurum();
   revalidatePath("/ayarlar");
