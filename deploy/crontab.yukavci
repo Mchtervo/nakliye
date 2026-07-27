@@ -10,6 +10,9 @@ YUKAVCI_LOCKDIR=/home/yukavci/locks
 # AI kuyruk — 5 dk (AI_KAPALI ise script atlar)
 */5 * * * * /home/yukavci/muhasebbe/deploy/cron/ai-kuyruk.sh
 
+# Sessiz saat birikimi — sabah 07:05 özet
+5 7 * * * /home/yukavci/muhasebbe/deploy/cron/sabah-ozet.sh
+
 # Grup keşfi — günde 1, 08:00
 0 8 * * * /home/yukavci/muhasebbe/deploy/cron/grup-kesif.sh
 

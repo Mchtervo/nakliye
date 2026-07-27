@@ -85,6 +85,7 @@ export async function donusEslesmeleriniTara(): Promise<KaydedilenIlan[]> {
         guvenSkoru: i.guvenSkoru,
         hamMetin: i.hamMetin,
         donusTalebiId: talep.id,
+        createdAt: i.createdAt,
       });
     }
   }

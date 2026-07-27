@@ -181,9 +181,12 @@ model YukIlani {
   donusTalebi   DonusTalebi? @relation(fields: [donusTalebiId], references: [id], onDelete: SetNull)
   bildirildi    Boolean      @default(false)
   createdAt     DateTime     @default(now())
+  /** Aynı rota tekrar görünce güncellenir (dedup 48s). */
+  sonGorulme    DateTime     @default(now())
 
   @@index([durum, createdAt])
   @@index([cikisIl, varisIl])
+  @@index([telefon, cikisIl, varisIl, sonGorulme])
 }
 
 /// Bir yük oluşturulduğunda otomatik açılan dönüş yükü araması

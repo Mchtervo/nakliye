@@ -37,6 +37,10 @@ import {
   rotaHashleri,
   yeniSatirlariSec,
 } from "@/lib/kaynaklar/onFiltre";
+import {
+  aiOncesiHazirla,
+  sonGorulmeleriYenile,
+} from "@/lib/kaynaklar/onDedup";
 import { guvenliKirp } from "@/lib/metin";
 import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
@@ -189,7 +193,19 @@ export async function mesajlariKuyrugaAl(
         continue;
       }
 
-      const hash = metinHashUret(secim.metin);
+      // AI öncesi: telefon+rota 48s içinde tamamen kayıtlıysa kuyruğa alma.
+      const onDedup = await aiOncesiHazirla(secim.metin);
+      if (onDedup.tur === "atla") {
+        await sonGorulmeleriYenile(onDedup.yenilenen);
+        eleGrup("ROTA_DEDUP", onDedup.rotaSayisi || 1);
+        continue;
+      }
+      if (onDedup.yenilenen.length > 0) {
+        await sonGorulmeleriYenile(onDedup.yenilenen);
+      }
+
+      const kuyrukMetin = onDedup.metin;
+      const hash = metinHashUret(kuyrukMetin);
       if (adaylar.some((a) => a.hash === hash)) {
         eleGrup("TEKRAR");
         continue;
@@ -197,7 +213,7 @@ export async function mesajlariKuyrugaAl(
 
       adaylar.push({
         mesajId: m.mesajId ?? null,
-        metin: guvenliKirp(secim.metin, 2000),
+        metin: guvenliKirp(kuyrukMetin, 2000),
         hash,
       });
 
@@ -584,6 +600,41 @@ export async function kuyrugunuCoz(
     return rapor;
   }
 
+  // AI öncesi rota dedup — spam listeler OpenAI'ye gitmesin.
+  const aiParti: { id: number; metin: string; kaynakId: number | null }[] = [];
+  let onDedupAtlanan = 0;
+  for (const m of parti) {
+    const on = await aiOncesiHazirla(m.metin);
+    if (on.yenilenen.length > 0) {
+      await sonGorulmeleriYenile(on.yenilenen);
+    }
+    if (on.tur === "atla") {
+      await prisma.hamMesaj.update({
+        where: { id: m.id },
+        data: {
+          islendi: true,
+          hata: null,
+          denemeSayisi: { decrement: 1 }, // AI denemedi — sayacı geri al
+        },
+      });
+      onDedupAtlanan += 1;
+      continue;
+    }
+    aiParti.push({
+      id: m.id,
+      metin: on.metin,
+      kaynakId: m.kaynakId,
+    });
+  }
+  if (onDedupAtlanan > 0) {
+    await elemeArtir({ ROTA_DEDUP: onDedupAtlanan });
+    rapor.islenen += onDedupAtlanan;
+  }
+  if (aiParti.length === 0) {
+    rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
+    return rapor;
+  }
+
   const tercih = await aiTercihleriOku();
   const kapsam = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
   const cekirdek = cekirdekIlKumesi(tercih.bolgeler, tercih.ekIller);
@@ -592,14 +643,14 @@ export async function kuyrugunuCoz(
   const bitis = Date.now() + COZUM_BUTCE_MS;
 
   const cozum = await bolerekCozumle(
-    parti.map((m) => ({ id: m.id, metin: m.metin })),
+    aiParti.map((m) => ({ id: m.id, metin: m.metin })),
     kapsam,
     bitis,
     filtre
   );
 
   const cozulenler = cozum.sonuc;
-  rapor.islenen = cozum.basarili.length + cozum.basarisiz.length;
+  rapor.islenen += cozum.basarili.length + cozum.basarisiz.length;
   rapor.bolgeElenen = cozum.bolgeElenen;
   rapor.cagriSayisi = cozum.cagri;
 
@@ -610,8 +661,10 @@ export async function kuyrugunuCoz(
     await elemeArtir({ AI_CAGRI: cozum.cagri });
   }
 
-  const metinler = new Map(parti.map((m) => [m.id, m.metin]));
-  const kaynaklar = new Map(parti.map((m) => [m.id, m.kaynakId]));
+  const metinler = new Map(aiParti.map((m) => [m.id, m.metin]));
+  const kaynaklar = new Map(aiParti.map((m) => [m.id, m.kaynakId]));
+  // Orijinal ham metin kaydı için (kısmi metin yerine tam)
+  const hamTam = new Map(parti.map((m) => [m.id, m.metin]));
 
   // Aynı kaynağa ait ilanlar birlikte kaydedilir.
   const kaynagaGore = new Map<
@@ -629,7 +682,7 @@ export async function kuyrugunuCoz(
       continue;
     }
     const kaynakId = kaynaklar.get(anahtar) ?? null;
-    const hamMetin = metinler.get(anahtar) ?? "";
+    const hamMetin = hamTam.get(anahtar) ?? metinler.get(anahtar) ?? "";
     const liste = kaynagaGore.get(kaynakId) ?? [];
     liste.push({ ilan, hamMetin });
     kaynagaGore.set(kaynakId, liste);

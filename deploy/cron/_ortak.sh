@@ -15,6 +15,7 @@ cron_calistir() {
   shift
   local log="$LOGDIR/${ad}.log"
   local lock="$LOCKDIR/${ad}.lock"
+  local kod
 
   (
     flock -n 9 || {
@@ -22,11 +23,19 @@ cron_calistir() {
       exit 0
     }
     echo "$(date -Is) [$ad] BAŞLA" >>"$log"
-    if ( cd "$REPO" && "$@" ) >>"$log" 2>&1; then
+
+    # set -e + `local kod=$?` tuzağı: local başarılı olunca $? 0 olur,
+    # gerçek hata "exit 0" diye bildiriliyordu. Önce kodu yakala.
+    set +e
+    ( cd "$REPO" && "$@" ) >>"$log" 2>&1
+    kod=$?
+    set -e
+
+    if [ "$kod" -eq 0 ]; then
       echo "$(date -Is) [$ad] BİTTİ" >>"$log"
       exit 0
     fi
-    local kod=$?
+
     echo "$(date -Is) [$ad] HATA exit=$kod" >>"$log"
     ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts \
       "Cron HATA: ${ad} (exit ${kod}). Log: ${log}" ) >>"$log" 2>&1 || true

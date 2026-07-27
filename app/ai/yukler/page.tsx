@@ -23,12 +23,15 @@ const SEKMELER = [
 export default async function AiYuklerSayfasi({
   searchParams,
 }: {
-  searchParams: Promise<{ sekme?: string }>;
+  searchParams: Promise<{ sekme?: string; id?: string }>;
 }) {
   const sp = await searchParams;
   const sekme = SEKMELER.some((s) => s.kod === sp.sekme)
     ? (sp.sekme as string)
     : "YENI";
+  const odakId = Number(sp.id);
+  const odak =
+    Number.isInteger(odakId) && odakId > 0 ? odakId : null;
 
   const tercih = await aiTercihleriOku();
 
@@ -63,6 +66,15 @@ export default async function AiYuklerSayfasi({
   const aiAcik = aiKullanilabilir();
   const killSwitch = aiKapaliMi();
   const anahtarVar = Boolean(process.env.OPENAI_API_KEY);
+
+  // Telegram "Detay" → bu ilanı üste al
+  let sirali = ilanlar;
+  if (odak) {
+    const idx = ilanlar.findIndex((i) => i.id === odak);
+    if (idx > 0) {
+      sirali = [ilanlar[idx], ...ilanlar.filter((i) => i.id !== odak)];
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -184,14 +196,16 @@ export default async function AiYuklerSayfasi({
         </div>
       ) : (
         <div className="space-y-3">
-          {ilanlar.map((ilan, i) => {
+          {sirali.map((ilan, i) => {
             const fiyat = fiyatGorunumu(ilan);
+            const odakli = odak === ilan.id;
             return (
             <div
+              id={`ilan-${ilan.id}`}
               key={ilan.id}
               className={`kart space-y-3 p-4 sm:p-5 reveal reveal-d${Math.min(i + 1, 6)} ${
                 ilan.donusTalebiId ? "border-teal/30" : ""
-              }`}
+              } ${odakli ? "ring-2 ring-teal/50 border-teal/40" : ""}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
