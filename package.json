@@ -27,7 +27,8 @@
     "ai:koridor-uygula": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/koridor-uygula.ts",
     "bot:ilan-test": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bot-ilan-test.ts",
     "tdm:gonderen-doldur": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/gonderen-userid-doldur.ts",
-    "tdm:son-ilan": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/son-ilan-uid.ts"
+    "tdm:son-ilan": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/son-ilan-uid.ts",
+    "tdm:uid-doldur": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/cron-uid-doldur.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

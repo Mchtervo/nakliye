@@ -33,3 +33,6 @@ YUKAVCI_LOCKDIR=/home/yukavci/locks
 
 # Disk doluluk — saatte 1 (%80+ Telegram uyarısı)
 5 * * * * /home/yukavci/muhasebbe/deploy/cron/disk.sh
+
+# gonderenUserId geriye dönük (ham eşleşme + telefon yayılımı) — Pazartesi 06:10
+10 6 * * 1 /home/yukavci/muhasebbe/deploy/cron/uid-doldur.sh
