@@ -32,6 +32,13 @@ export default async function AiMerkeziSayfasi() {
       renk: "text-amber",
     },
     {
+      href: "/plan",
+      baslik: "Sefer Planlayıcı",
+      aciklama: "Ankara'dayım, 3 günlük tur — ilanlardan zincir kur",
+      rozet: null,
+      renk: "text-teal",
+    },
+    {
       href: "/ai/donus",
       baslik: "Dönüş Yükü",
       aciklama: "Boş dönmemek için açık talepler ve bulunan eşleşmeler",

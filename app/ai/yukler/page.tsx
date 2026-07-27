@@ -10,6 +10,7 @@ import { eskiIlanlariTemizle, simdiTara } from "@/app/ai-actions";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import IlanAramaCubugu, { type RotaCip } from "@/components/IlanAramaCubugu";
 import IlanKart from "@/components/IlanKart";
+import { donusOnerileriBul } from "@/lib/seferPlan";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -198,6 +199,36 @@ export default async function AiYuklerSayfasi({
     .filter(Boolean)
     .join(" · ");
 
+  // İlk kartlar için dönüş önerisi (N+1 sınırlı)
+  const donusMap = new Map<
+    number,
+    { id: number; rota: string; fiyat: string | null }[]
+  >();
+  await Promise.all(
+    sirali.slice(0, 12).map(async (ilan) => {
+      const oneriler = await donusOnerileriBul(
+        ilan.varisIl,
+        tercih.anaUs || ilan.cikisIl,
+        ilan.id,
+        2
+      );
+      if (oneriler.length === 0) return;
+      donusMap.set(
+        ilan.id,
+        oneriler.map((o) => ({
+          id: o.id,
+          rota: `${o.nereden || o.cikisIl} → ${o.nereye || o.varisIl}`,
+          fiyat:
+            o.ucret && o.ucret > 0
+              ? tlYaz(o.ucret)
+              : o.fiyatTon && o.tonaj
+                ? `~${tlYaz(o.fiyatTon * o.tonaj)}`
+                : null,
+        }))
+      );
+    })
+  );
+
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3 reveal">
@@ -362,6 +393,7 @@ export default async function AiYuklerSayfasi({
                   odakli: odak === ilan.id,
                   soluk: yasMs > DORT_SAAT_MS,
                   vurgulu: iyiIsMi(ilan),
+                  donusOnerileri: donusMap.get(ilan.id),
                 }}
               />
             );

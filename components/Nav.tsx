@@ -68,6 +68,16 @@ const LINKLER = [
 /** Masaüstü yan menüde ek bölümler. */
 const EK_LINKLER = [
   {
+    href: "/plan",
+    ad: "Plan",
+    ikon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={ikonSinif}>
+        <path d="M4 6h16M4 12h10M4 18h14" />
+        <circle cx="18" cy="12" r="2" />
+      </svg>
+    ),
+  },
+  {
     href: "/firmalar",
     ad: "Cari",
     ikon: (

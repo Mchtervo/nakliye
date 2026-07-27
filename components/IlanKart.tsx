@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ilanDurumGuncelle, ilanSil } from "@/app/ai-actions";
@@ -32,6 +33,12 @@ export type IlanKartVeri = {
   odakli?: boolean;
   soluk?: boolean;
   vurgulu?: boolean;
+  /** Bu yükü alırsan dönüşte… */
+  donusOnerileri?: {
+    id: number;
+    rota: string;
+    fiyat: string | null;
+  }[];
 };
 
 export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
@@ -220,6 +227,33 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         {ilan.kaynakAd ? ` · ${ilan.kaynakAd}` : ""}
         {` · %${ilan.guvenSkoru}`}
       </p>
+
+      {ilan.donusOnerileri && ilan.donusOnerileri.length > 0 && (
+        <div className="mt-3 rounded-xl border border-teal/25 bg-teal/8 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-teal">
+            Bu yükü alırsan dönüşte
+          </p>
+          <ul className="mt-1 space-y-1">
+            {ilan.donusOnerileri.map((d) => (
+              <li key={d.id} className="text-xs text-paper/90">
+                <Link
+                  href={`/ai/yukler?sekme=HEPSI&id=${d.id}`}
+                  className="font-semibold text-teal hover:underline"
+                >
+                  {d.rota}
+                </Link>
+                {d.fiyat ? ` · ${d.fiyat}` : ""}
+              </li>
+            ))}
+          </ul>
+          <Link
+            href={`/plan?nerede=${encodeURIComponent(ilan.varisIl || ilan.nereye || "")}`}
+            className="mt-1.5 inline-block text-[11px] font-semibold text-amber hover:underline"
+          >
+            Tur planla →
+          </Link>
+        </div>
+      )}
 
       {/* Detay (ham) */}
       <div className="mt-3">
