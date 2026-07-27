@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import {
+  BOS_BOLGE_KIRILIM,
+  bolgeKirilimTopla,
   ilanlariCozumle,
   mesajlariCozumle,
+  type BolgeEleKirilim,
   type CozumFiltre,
   type CozulmusIlan,
   type MesajIlani,
@@ -409,18 +412,33 @@ async function bolerekCozumle(
   basarili: number[];
   basarisiz: number[];
   bolgeElenen: number;
+  bolgeKirilim: BolgeEleKirilim;
   cagri: number;
 }> {
   if (parti.length === 0) {
-    return { sonuc: [], basarili: [], basarisiz: [], bolgeElenen: 0, cagri: 0 };
+    return {
+      sonuc: [],
+      basarili: [],
+      basarisiz: [],
+      bolgeElenen: 0,
+      bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
+      cagri: 0,
+    };
   }
   if (Date.now() > bitis) {
-    return { sonuc: [], basarili: [], basarisiz: [], bolgeElenen: 0, cagri: 0 };
+    return {
+      sonuc: [],
+      basarili: [],
+      basarisiz: [],
+      bolgeElenen: 0,
+      bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
+      cagri: 0,
+    };
   }
 
   if (parti.length === 1) {
     const tek = await tekMesajCozumle(parti[0], kapsam, filtre);
-    return { ...tek, bolgeElenen: 0 };
+    return { ...tek, bolgeElenen: 0, bolgeKirilim: { ...BOS_BOLGE_KIRILIM } };
   }
 
   try {
@@ -434,6 +452,7 @@ async function bolerekCozumle(
       basarili: parti.map((m) => m.id),
       basarisiz: [],
       bolgeElenen: rapor.bolgeElenen,
+      bolgeKirilim: rapor.bolgeKirilim,
       cagri: 1,
     };
   } catch (hata) {
@@ -459,6 +478,7 @@ async function bolerekCozumle(
       basarili: [...sol.basarili, ...sag.basarili],
       basarisiz: [...sol.basarisiz, ...sag.basarisiz],
       bolgeElenen: sol.bolgeElenen + sag.bolgeElenen,
+      bolgeKirilim: bolgeKirilimTopla(sol.bolgeKirilim, sag.bolgeKirilim),
       cagri: sol.cagri + sag.cagri,
     };
   }
@@ -695,7 +715,12 @@ export async function kuyrugunuCoz(
   rapor.cagriSayisi = cozum.cagri;
 
   if (cozum.bolgeElenen > 0) {
-    await elemeArtir({ BOLGE_ROTA: cozum.bolgeElenen });
+    await elemeArtir({
+      BOLGE_ROTA: cozum.bolgeElenen,
+      BOLGE_ROTA_CIKIS_DISI: cozum.bolgeKirilim.cikisDisi,
+      BOLGE_ROTA_VARIS_DISI: cozum.bolgeKirilim.varisDisi,
+      BOLGE_ROTA_IKISI_DISI: cozum.bolgeKirilim.ikisiDisi,
+    });
   }
   if (cozum.cagri > 0) {
     await elemeArtir({ AI_CAGRI: cozum.cagri });

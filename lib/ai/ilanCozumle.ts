@@ -370,10 +370,52 @@ export async function ilanlariCozumle(
 export type MesajGirdisi = { anahtar: number; metin: string };
 export type MesajIlani = { anahtar: number; ilan: CozulmusIlan };
 
+/** Koridor eleme kırılımı — günlük sayaç için. */
+export type BolgeEleKirilim = {
+  cikisDisi: number;
+  varisDisi: number;
+  ikisiDisi: number;
+};
+
+export const BOS_BOLGE_KIRILIM: BolgeEleKirilim = {
+  cikisDisi: 0,
+  varisDisi: 0,
+  ikisiDisi: 0,
+};
+
+export function bolgeKirilimTopla(
+  a: BolgeEleKirilim,
+  b: BolgeEleKirilim
+): BolgeEleKirilim {
+  return {
+    cikisDisi: a.cikisDisi + b.cikisDisi,
+    varisDisi: a.varisDisi + b.varisDisi,
+    ikisiDisi: a.ikisiDisi + b.ikisiDisi,
+  };
+}
+
+/** Çıkış/varış koridor dışı mı — hangisi? */
+export function bolgeEleTuru(
+  cikis: string | null | undefined,
+  varis: string | null | undefined,
+  iller: Set<string>
+): keyof BolgeEleKirilim | null {
+  if (iller.size === 0 || iller.size >= 70) return null;
+  if (!cikis || !varis) return "ikisiDisi";
+  const cOk = iller.has(cikis);
+  const vOk = iller.has(varis);
+  if (cOk && vOk) return null;
+  if (!cOk && !vOk) return "ikisiDisi";
+  if (!cOk) return "cikisDisi";
+  return "varisDisi";
+}
+
 export type MesajCozumRaporu = {
   ilanlar: MesajIlani[];
   /** Model yazdı ama sunucu bölge dışı diye eledi. */
   bolgeElenen: number;
+  /** BOLGE_ROTA alt kırılımı. */
+  bolgeKirilim: BolgeEleKirilim;
   /** Modelden gelen toplam ilan (elemeden önce). */
   modelCikti: number;
 };
@@ -400,11 +442,7 @@ Tek uç listede olup diğeri dışarıdaysa (ör. Ankara→Antalya,
  * "Bir uç yeter" kaldırıldı — Ankara→Antalya elenir.
  */
 function kapsamDisiMi(ilan: CozulmusIlan, iller: Set<string>): boolean {
-  if (iller.size === 0 || iller.size >= 70) return false;
-  const cikis = ilan.cikisIl;
-  const varis = ilan.varisIl;
-  if (!cikis || !varis) return true;
-  return !(iller.has(cikis) && iller.has(varis));
+  return bolgeEleTuru(ilan.cikisIl, ilan.varisIl, iller) !== null;
 }
 
 /**
@@ -470,6 +508,7 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
   const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
   const ilanlar: MesajIlani[] = [];
   let bolgeElenen = 0;
+  const bolgeKirilim: BolgeEleKirilim = { ...BOS_BOLGE_KIRILIM };
   let modelCikti = 0;
 
   for (const ham of cikti.ilanlar || []) {
@@ -487,10 +526,12 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
       continue;
     }
     modelCikti += 1;
-    if (kapsamDisiMi(ilan, filtreSet)) {
+    const eleTur = bolgeEleTuru(ilan.cikisIl, ilan.varisIl, filtreSet);
+    if (eleTur) {
       bolgeElenen += 1;
+      bolgeKirilim[eleTur] += 1;
       console.log(
-        `[ilanCozumle] BÖLGE_ELE ${ilan.cikisIl}→${ilan.varisIl}` +
+        `[ilanCozumle] BÖLGE_ELE ${eleTur} ${ilan.cikisIl}→${ilan.varisIl}` +
           ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
       );
       continue;
@@ -498,13 +539,14 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
   }
 
-  return { ilanlar, bolgeElenen, modelCikti };
+  return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti };
 }
 
 function raporBirlestir(a: MesajCozumRaporu, b: MesajCozumRaporu): MesajCozumRaporu {
   return {
     ilanlar: [...a.ilanlar, ...b.ilanlar],
     bolgeElenen: a.bolgeElenen + b.bolgeElenen,
+    bolgeKirilim: bolgeKirilimTopla(a.bolgeKirilim, b.bolgeKirilim),
     modelCikti: a.modelCikti + b.modelCikti,
   };
 }
@@ -558,11 +600,12 @@ async function paketKesilmeyeDiren(
       console.warn(
         `[ilanCozumle] KESILDI vazgeçildi ${kaynak} — ~${tahmini} rota kaybedildi`
       );
-      return { ilanlar: [], bolgeElenen: 0, modelCikti: 0 };
+      return { ilanlar: [], bolgeElenen: 0, bolgeKirilim: { ...BOS_BOLGE_KIRILIM }, modelCikti: 0 };
     }
 
     const ilanlar: MesajIlani[] = [];
     let bolgeElenen = 0;
+    let bolgeKirilim: BolgeEleKirilim = { ...BOS_BOLGE_KIRILIM };
     let modelCikti = 0;
     const hedefler = dilimler.length > 1 ? dilimler : [m.metin];
     for (let i = 0; i < hedefler.length; i++) {
@@ -588,13 +631,14 @@ async function paketKesilmeyeDiren(
           );
           ilanlar.push(...alt.ilanlar);
           bolgeElenen += alt.bolgeElenen;
+          bolgeKirilim = bolgeKirilimTopla(bolgeKirilim, alt.bolgeKirilim);
           modelCikti += alt.modelCikti;
           continue;
         }
         throw e;
       }
     }
-    return { ilanlar, bolgeElenen, modelCikti };
+    return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti };
   }
 }
 
@@ -610,12 +654,18 @@ export async function mesajlariCozumle(
 ): Promise<MesajCozumRaporu> {
   const gecerli = mesajlar.filter((m) => m.metin.trim().length >= 12);
   if (gecerli.length === 0) {
-    return { ilanlar: [], bolgeElenen: 0, modelCikti: 0 };
+    return {
+      ilanlar: [],
+      bolgeElenen: 0,
+      bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
+      modelCikti: 0,
+    };
   }
 
   const paketler = rotaPaketleri(gecerli);
   const ilanlar: MesajIlani[] = [];
   let bolgeElenen = 0;
+  let bolgeKirilim: BolgeEleKirilim = { ...BOS_BOLGE_KIRILIM };
   let modelCikti = 0;
 
   for (let i = 0; i < paketler.length; i++) {
@@ -629,15 +679,18 @@ export async function mesajlariCozumle(
     );
     ilanlar.push(...rapor.ilanlar);
     bolgeElenen += rapor.bolgeElenen;
+    bolgeKirilim = bolgeKirilimTopla(bolgeKirilim, rapor.bolgeKirilim);
     modelCikti += rapor.modelCikti;
   }
 
   if (bolgeElenen > 0) {
     console.log(
       `[ilanCozumle] bölge dışı rota elendi: ${bolgeElenen}` +
-        ` (kabul: ${ilanlar.length}, model: ${modelCikti})`
+        ` (çıkış=${bolgeKirilim.cikisDisi} varış=${bolgeKirilim.varisDisi}` +
+        ` ikisi=${bolgeKirilim.ikisiDisi}` +
+        `; kabul: ${ilanlar.length}, model: ${modelCikti})`
     );
   }
 
-  return { ilanlar, bolgeElenen, modelCikti };
+  return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti };
 }
