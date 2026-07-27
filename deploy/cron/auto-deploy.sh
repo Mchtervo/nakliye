@@ -29,7 +29,7 @@ bildir() {
   ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts "$metin" ) >>"$LOG" 2>&1 || true
 }
 
-# Ayarlar'dan kapalıysa çık
+# Ayarlar'dan kapalıysa çık — AUTO_DEPLOY=1 env varsa her zaman açık
 set +e
 ( cd "$REPO" && npm run ts -- scripts/auto-deploy-acik-mi.ts ) >>"$LOG" 2>&1
 ACIK=$?

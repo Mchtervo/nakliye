@@ -37,5 +37,5 @@ YUKAVCI_LOCKDIR=/home/yukavci/locks
 # gonderenUserId geriye dönük (ham eşleşme + telefon yayılımı) — Pazartesi 06:10
 10 6 * * 1 /home/yukavci/muhasebbe/deploy/cron/uid-doldur.sh
 
-# Otomatik deploy — dakikada 1 (Ayarlar → Otomatik deploy açık olmalı)
+# Otomatik deploy — dakikada 1 (AUTO_DEPLOY=1 veya Ayarlar açık)
 * * * * * /home/yukavci/muhasebbe/deploy/cron/auto-deploy.sh

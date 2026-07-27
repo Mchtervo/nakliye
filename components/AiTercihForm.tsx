@@ -22,6 +22,7 @@ export default function AiTercihForm({
   tdmKaraListe,
   tdmGunlukLimit,
   autoDeploy,
+  autoDeployEnv = false,
 }: {
   sehir: string;
   rotalar: string;
@@ -48,6 +49,8 @@ export default function AiTercihForm({
   tdmKaraListe: string;
   tdmGunlukLimit: string;
   autoDeploy: boolean;
+  /** VPS AUTO_DEPLOY=1 — panel kapatsa bile açık */
+  autoDeployEnv?: boolean;
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
     aiTercihKaydet,
@@ -272,12 +275,21 @@ export default function AiTercihForm({
             name="autoDeploy"
             value="1"
             defaultChecked={autoDeploy}
-            className="h-5 w-5 rounded accent-[#f0a020]"
+            disabled={autoDeployEnv}
+            className="h-5 w-5 rounded accent-[#f0a020] disabled:opacity-60"
           />
           <span className="text-sm font-semibold text-paper">
             Otomatik deploy (VPS)
+            {autoDeployEnv ? (
+              <span className="mt-0.5 block text-xs font-normal text-teal">
+                .env AUTO_DEPLOY=1 — panelden kapanmaz
+              </span>
+            ) : null}
           </span>
         </label>
+        {autoDeployEnv && (
+          <input type="hidden" name="autoDeploy" value="1" />
+        )}
         <p className="text-xs text-fog pl-8">
           Açıkken dakikada bir GitHub main kontrol edilir; yeni commit varsa
           build + restart. Build bozulursa eski sürüm geri yüklenir.

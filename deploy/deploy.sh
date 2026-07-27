@@ -6,6 +6,16 @@ set -euo pipefail
 REPO="${YUKAVCI_REPO:-/home/yukavci/muhasebbe}"
 cd "$REPO"
 
+bildir() {
+  local metin="$1"
+  ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts "$metin" ) || true
+}
+
+SHORT="$(git rev-parse --short HEAD)"
+MSG="$(git log -1 --format=%s HEAD | tr '\n' ' ' | cut -c1-120)"
+
+trap 'bildir "❌ Manuel deploy kesildi: $SHORT — $MSG"' ERR
+
 echo "==> $(date -Is) manuel deploy"
 
 git fetch origin main
@@ -38,17 +48,32 @@ geri_al() {
 }
 
 git reset --hard origin/main
+SHORT="$(git rev-parse --short HEAD)"
+MSG="$(git log -1 --format=%s HEAD | tr '\n' ' ' | cut -c1-120)"
 
 echo "==> npm ci"
-npm ci
+if ! npm ci; then
+  bildir "❌ Manuel deploy hatası (npm ci): $SHORT — $MSG"
+  geri_al
+  exit 1
+fi
 
-echo "==> prisma generate + migrate"
-npx prisma generate
-npx prisma migrate deploy
+echo "==> prisma generate + migrate deploy"
+if ! npx prisma generate; then
+  bildir "❌ Manuel deploy hatası (prisma generate): $SHORT — $MSG"
+  geri_al
+  exit 1
+fi
+if ! npx prisma migrate deploy; then
+  bildir "❌ Manuel deploy hatası (prisma migrate): $SHORT — $MSG"
+  geri_al
+  exit 1
+fi
 
 echo "==> npm run build"
 if ! npm run build; then
   echo "==> BUILD HATA — eski sürüme dönülüyor"
+  bildir "❌ Manuel deploy hatası (build): $SHORT — $MSG"
   geri_al
   exit 1
 fi
@@ -117,10 +142,17 @@ pm2 status || true
 
 if [ "$HATA" -ne 0 ]; then
   echo "==> DEPLOY DOĞRULAMA BAŞARISIZ — geri al"
+  bildir "❌ Manuel deploy hatası (doğrulama): $SHORT — $MSG"
   geri_al
   pm2 restart yukavci --update-env || true
   sudo /bin/systemctl restart yukavci-telegram || true
   exit 1
 fi
 
+trap - ERR
 echo "==> DEPLOY OK $(date -Is) $(git rev-parse --short HEAD) daemon_restart=$DAEMON_RESTART"
+if [ "$DAEMON_RESTART" -eq 1 ]; then
+  bildir "✅ Manuel deploy: $SHORT — $MSG"
+else
+  bildir "✅ Manuel deploy: $SHORT — $MSG (daemon restart yok)"
+fi

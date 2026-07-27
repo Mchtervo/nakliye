@@ -9,7 +9,7 @@ import KaynakForm from "@/components/KaynakForm";
 import PushIzinButonu from "@/components/PushIzinButonu";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import { prisma } from "@/lib/prisma";
-import { aiTercihleriOku } from "@/lib/ayarlar";
+import { aiTercihleriOku, autoDeployEnvAcikMi } from "@/lib/ayarlar";
 import { aiKullanilabilir } from "@/lib/ai/istemci";
 import { telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
@@ -152,6 +152,7 @@ export default async function AyarlarSayfasi() {
           tdmKaraListe={tercih.tdmKaraListe}
           tdmGunlukLimit={String(tercih.tdmGunlukLimit)}
           autoDeploy={tercih.autoDeploy}
+          autoDeployEnv={autoDeployEnvAcikMi()}
         />
 
         <TestBildirimButonu />

@@ -66,6 +66,15 @@ export const AYAR_ANAHTARLARI = {
 export type AyarAnahtari =
   (typeof AYAR_ANAHTARLARI)[keyof typeof AYAR_ANAHTARLARI];
 
+/**
+ * VPS .env kilidi: AUTO_DEPLOY=1|true|yes|on → panel/DB ne olursa olsun açık.
+ * Kısır döngüyü kırar (panel hatası auto_deploy'u 0 yapınca deploy kilitlenmesin).
+ */
+export function autoDeployEnvAcikMi(): boolean {
+  const v = (process.env.AUTO_DEPLOY || "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
 export async function ayarOku(anahtar: AyarAnahtari): Promise<string | null> {
   const kayit = await prisma.ayar.findUnique({ where: { anahtar } });
   return kayit?.deger ?? null;
@@ -212,6 +221,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       if (!Number.isFinite(n) || n < 1) return 10;
       return Math.min(30, Math.round(n));
     })(),
-    autoDeploy: a[AYAR_ANAHTARLARI.autoDeploy] === "1",
+    autoDeploy:
+      autoDeployEnvAcikMi() || a[AYAR_ANAHTARLARI.autoDeploy] === "1",
   };
 }
