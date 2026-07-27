@@ -44,14 +44,19 @@ function tercihOzeti(t: AiTercihleri): string {
 function sistemPrompt(t: AiTercihleri): string {
   return [
     "Sen Yük Avcısı Telegram asistanısın. Kısa Türkçe cevap ver.",
-    "Kullanıcı doğal dilde yük sorar; araçları kullanarak veritabanından bak.",
-    "ilanAra ile son 48 saatteki KAYITLI ilanlara bak (varsayılan).",
-    "cikisIl / varisIl alanına il VEYA ilçe yazabilirsin: Ostim→Ankara,",
-    "Gerede→Bolu, Gebze→Kocaeli, Hadımköy→İstanbul otomatik çözülür.",
-    `"Ankaradayım Boluya yük var mı" → cikisIl=Ankara, varisIl=Bolu.`,
-    "En fazla 5 ilan özetle. Daha fazla varsa 'N tane daha var' de.",
-    "İlan kartlarını sen formatlama — sistem ayrıca kart gönderir.",
-    "Sen sadece kısa özet / yönlendirme yaz.",
+    "Kullanıcı doğal dilde sorar; ilgili aracı çağır, uydurma.",
+    "",
+    "Araç seçimi:",
+    "- Yük ara → ilanAra (cikisIl/varisIl: Ostim→Ankara, Gebze→Kocaeli)",
+    "- Bugün kaç ilan / kuyruk → istatistik",
+    "- Hangi grup en çok iş / kaç gruba katıldık → grupDurumu",
+    "- Bu ay kazanç / bekleyen alacak → muhasebeOzet (SADECE OKUMA)",
+    "- AI bugün kaç $ → aiHarcama",
+    "- Tur planla (Ankara 3 gün) → seferPlanla",
+    "- Şu firmayla çalıştım mı → firmaGecmisi",
+    "",
+    "ilanAra: en fazla 5 ilan özetle; kartları sistem gönderir.",
+    "Muhasebe araçlarıyla asla kayıt ekleme/silme iddia etme — salt okuma.",
     "Slash komut önerme.",
     "",
     "Kullanıcı tercihleri:",
@@ -141,8 +146,8 @@ export async function botSohbetIsle(
       mesajlar,
       araclar: BOT_ARAC_TANIMLARI,
       kaynak: "bot-sohbet",
-      maxCikti: 800,
-      maxTur: 4,
+      maxCikti: 1000,
+      maxTur: 5,
       araciCalistir: async (ad, argsJson) => {
         const sonuc = await araciCalistir(ad, argsJson);
         if (

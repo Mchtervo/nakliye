@@ -82,8 +82,10 @@ export async function telegramGuncellemeIsle(
         "",
         "Bundan sonra bulunan yükler buraya düşecek.",
         "",
-        "Doğal Türkçe yazabilirsin (ör. «ankara yük var mı»).",
-        "AI kapalıysa kısa bir bilgi mesajı alırsın.",
+        "Doğal Türkçe yazabilirsin:",
+        "«ankara yük var mı» · «bugün kaç ilan» · «bu ay ne kazandım»",
+        "«AI kaç dolar yaktı» · «3 günlük tur planla»",
+        "AI kapalıysa kayıtlı ilan araması yine çalışır.",
       ].join("\n")
     );
     return { islendi: true, yeniIlanlar: [], not: "Bildirim hedefi kaydedildi." };
