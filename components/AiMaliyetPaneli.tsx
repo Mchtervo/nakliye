@@ -155,6 +155,11 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
         <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-fog">
           max_out {ozet.maxCikti} · timeout {Math.round(ozet.zamanAsimiMs / 1000)}s
         </span>
+        {ozet.kesilmeSayisi > 0 && (
+          <span className="rounded-full border border-warn/40 bg-warn/15 px-2.5 py-1 text-warn">
+            kesilme {ozet.kesilmeSayisi}
+          </span>
+        )}
       </div>
 
       {ozet.saatlik.length > 0 && (
@@ -208,7 +213,7 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
                   <td className="py-1.5 pr-2 whitespace-nowrap">{c.zamanYazi}</td>
                   <td className="py-1.5 pr-2">
                     {c.kaynak}
-                    {!c.basarili ? " · hata" : ""}
+                    {c.kesildi ? " · KESİLDİ" : !c.basarili ? " · hata" : ""}
                   </td>
                   <td className="py-1.5 pr-2 text-fog">
                     {c.girdiToken}/{c.ciktiToken}

@@ -24,6 +24,7 @@ export type SonCagriOzet = {
   reasoningToken: number;
   maliyetYazi: string;
   basarili: boolean;
+  kesildi: boolean;
 };
 
 export type AiMaliyetOzeti = {
@@ -36,6 +37,8 @@ export type AiMaliyetOzeti = {
   kalanYazi: string;
   maxCikti: number;
   zamanAsimiMs: number;
+  /** Bugün max_output_tokens / length kesilmesi */
+  kesilmeSayisi: number;
   saatlik: MaliyetDilimi[];
   gunluk: MaliyetDilimi;
   sonCagrilar: SonCagriOzet[];
@@ -72,36 +75,41 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
   const gunBas = trGunBaslangici();
   const saatBas = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [bugunMikro, butceKesildi, cagrilar, sonHam] = await Promise.all([
-    bugunHarcamaMikro(),
-    butceKesildiMi(),
-    prisma.aiCagri.findMany({
-      where: { zaman: { gte: saatBas } },
-      select: {
-        zaman: true,
-        girdiToken: true,
-        ciktiToken: true,
-        reasoningToken: true,
-        maliyetMikro: true,
-        basarili: true,
-      },
-      orderBy: { zaman: "asc" },
-    }),
-    prisma.aiCagri.findMany({
-      orderBy: { zaman: "desc" },
-      take: 8,
-      select: {
-        zaman: true,
-        kaynak: true,
-        model: true,
-        girdiToken: true,
-        ciktiToken: true,
-        reasoningToken: true,
-        maliyetMikro: true,
-        basarili: true,
-      },
-    }),
-  ]);
+  const [bugunMikro, butceKesildi, cagrilar, sonHam, kesilmeSayisi] =
+    await Promise.all([
+      bugunHarcamaMikro(),
+      butceKesildiMi(),
+      prisma.aiCagri.findMany({
+        where: { zaman: { gte: saatBas } },
+        select: {
+          zaman: true,
+          girdiToken: true,
+          ciktiToken: true,
+          reasoningToken: true,
+          maliyetMikro: true,
+          basarili: true,
+        },
+        orderBy: { zaman: "asc" },
+      }),
+      prisma.aiCagri.findMany({
+        orderBy: { zaman: "desc" },
+        take: 8,
+        select: {
+          zaman: true,
+          kaynak: true,
+          model: true,
+          girdiToken: true,
+          ciktiToken: true,
+          reasoningToken: true,
+          maliyetMikro: true,
+          basarili: true,
+          hata: true,
+        },
+      }),
+      prisma.aiCagri.count({
+        where: { zaman: { gte: gunBas }, hata: { startsWith: "KESILDI" } },
+      }),
+    ]);
 
   const limitUsd = gunlukButceUsd();
   const limitMikro = Math.round(limitUsd * 1_000_000);
@@ -155,6 +163,7 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
     reasoningToken: c.reasoningToken,
     maliyetYazi: mikrodolarYaz(c.maliyetMikro),
     basarili: c.basarili,
+    kesildi: (c.hata || "").startsWith("KESILDI"),
   }));
 
   return {
@@ -167,6 +176,7 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
     kalanYazi: mikrodolarYaz(kalanMikro),
     maxCikti: AI_MAX_CIKTI,
     zamanAsimiMs: AI_ZAMAN_ASIMI_MS,
+    kesilmeSayisi,
     saatlik,
     gunluk,
     sonCagrilar,

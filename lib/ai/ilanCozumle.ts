@@ -1,4 +1,4 @@
-import { aiJson } from "@/lib/ai/istemci";
+import { AiHatasi, aiJson } from "@/lib/ai/istemci";
 import { AI_MAX_CIKTI } from "@/lib/ai/modeller";
 import { MODEL_HIZLI } from "@/lib/ai/modeller";
 import {
@@ -16,6 +16,9 @@ import {
   rotaSatirSayisi,
 } from "@/lib/kaynaklar/onFiltre";
 import { guvenliKirp } from "@/lib/metin";
+
+/** Bir parti çağrısına en fazla bu kadar mesaj dilimi. */
+const AI_MAX_MESAJ_PARCA = Number(process.env.AI_MAX_MESAJ_PARCA || 3);
 
 const SISTEM = `Sen Türkiye'deki nakliye/yük ilanlarını okuyan bir asistansın.
 Verilen metinde kaç tane yük ilanı varsa hepsini çıkar.
@@ -289,7 +292,13 @@ async function tekParcaCozumle(
   for (const ham of cikti.ilanlar || []) {
     const ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null);
     if (!kullanilabilirMi(ilan)) continue;
-    if (kapsamDisiMi(ilan, filtreSet)) continue;
+    if (kapsamDisiMi(ilan, filtreSet)) {
+      console.log(
+        `[ilanCozumle] BÖLGE_ELE ${ilan.cikisIl}→${ilan.varisIl}` +
+          ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
+      );
+      continue;
+    }
     sonuc.push(ilan);
   }
   return sonuc;
@@ -368,8 +377,9 @@ function kapsamDisiMi(ilan: CozulmusIlan, iller: Set<string>): boolean {
 }
 
 /**
- * Chunk'ları çağrı başına en fazla AI_MAX_ROTA_PARCA rota olacak
- * şekilde paketler (bir çağrıda 30 rota JSON'u yazdırma).
+ * Chunk'ları çağrı başına en fazla AI_MAX_ROTA_PARCA rota VE
+ * AI_MAX_MESAJ_PARCA dilim olacak şekilde paketler.
+ * (Rota=0 sayılan kısa mesajlar eskiden sınırsız paketlenip 2500'e dayanıyordu.)
  */
 function rotaPaketleri(mesajlar: MesajGirdisi[]): MesajGirdisi[][] {
   const genis: MesajGirdisi[] = [];
@@ -379,12 +389,16 @@ function rotaPaketleri(mesajlar: MesajGirdisi[]): MesajGirdisi[][] {
     }
   }
 
+  const mesajLimit = Math.max(1, Math.floor(AI_MAX_MESAJ_PARCA) || 3);
   const paketler: MesajGirdisi[][] = [];
   let mevcut: MesajGirdisi[] = [];
   let rotaToplam = 0;
   for (const m of genis) {
     const r = rotaSatirSayisi(m.metin);
-    if (mevcut.length > 0 && rotaToplam + r > AI_MAX_ROTA_PARCA) {
+    const tasma =
+      mevcut.length > 0 &&
+      (rotaToplam + r > AI_MAX_ROTA_PARCA || mevcut.length >= mesajLimit);
+    if (tasma) {
       paketler.push(mevcut);
       mevcut = [];
       rotaToplam = 0;
@@ -437,12 +451,113 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     modelCikti += 1;
     if (kapsamDisiMi(ilan, filtreSet)) {
       bolgeElenen += 1;
+      console.log(
+        `[ilanCozumle] BÖLGE_ELE ${ilan.cikisIl}→${ilan.varisIl}` +
+          ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
+      );
       continue;
     }
     ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
   }
 
   return { ilanlar, bolgeElenen, modelCikti };
+}
+
+function raporBirlestir(a: MesajCozumRaporu, b: MesajCozumRaporu): MesajCozumRaporu {
+  return {
+    ilanlar: [...a.ilanlar, ...b.ilanlar],
+    bolgeElenen: a.bolgeElenen + b.bolgeElenen,
+    modelCikti: a.modelCikti + b.modelCikti,
+  };
+}
+
+/**
+ * Paket KESILDI olursa: önceki başarıyı koru, paketi böl / daha ince
+ * chunk'la yeniden dene. Tüm parti'yi baştan atma.
+ */
+async function paketKesilmeyeDiren(
+  paket: MesajGirdisi[],
+  promptIlleri: string[],
+  kaynak: string,
+  filtre: CozumFiltre,
+  derinlik = 0
+): Promise<MesajCozumRaporu> {
+  try {
+    return await partiPaketiCozumle(paket, promptIlleri, kaynak, filtre);
+  } catch (hata) {
+    if (!(hata instanceof AiHatasi) || hata.kod !== "KESILDI") throw hata;
+
+    const tahmini = paket.reduce((s, m) => s + rotaSatirSayisi(m.metin), 0);
+    console.warn(
+      `[ilanCozumle] KESILDI ${kaynak} ~${tahmini} rota / ${paket.length} dilim` +
+        ` — çıktı israf; bölünüyor (derinlik ${derinlik})`
+    );
+
+    if (paket.length >= 2) {
+      const orta = Math.ceil(paket.length / 2);
+      const sol = await paketKesilmeyeDiren(
+        paket.slice(0, orta),
+        promptIlleri,
+        `${kaynak}.a`,
+        filtre,
+        derinlik + 1
+      );
+      const sag = await paketKesilmeyeDiren(
+        paket.slice(orta),
+        promptIlleri,
+        `${kaynak}.b`,
+        filtre,
+        derinlik + 1
+      );
+      return raporBirlestir(sol, sag);
+    }
+
+    // Tek dilim: daha küçük rota chunk'larıyla tek-mesaj yoluna düş.
+    const m = paket[0];
+    const inceLimit = Math.max(2, Math.floor(AI_MAX_ROTA_PARCA / 2));
+    const dilimler = mesajiAiParcalarinaBol(m.metin, inceLimit);
+    if (dilimler.length <= 1 && derinlik >= 2) {
+      console.warn(
+        `[ilanCozumle] KESILDI vazgeçildi ${kaynak} — ~${tahmini} rota kaybedildi`
+      );
+      return { ilanlar: [], bolgeElenen: 0, modelCikti: 0 };
+    }
+
+    const ilanlar: MesajIlani[] = [];
+    let bolgeElenen = 0;
+    let modelCikti = 0;
+    const hedefler = dilimler.length > 1 ? dilimler : [m.metin];
+    for (let i = 0; i < hedefler.length; i++) {
+      try {
+        const parcaIlanlar = await tekParcaCozumle(
+          hedefler[i],
+          promptIlleri,
+          `${kaynak}.tek${i + 1}`,
+          filtre
+        );
+        modelCikti += parcaIlanlar.length;
+        for (const ilan of parcaIlanlar) {
+          ilanlar.push({ anahtar: m.anahtar, ilan });
+        }
+      } catch (e) {
+        if (e instanceof AiHatasi && e.kod === "KESILDI" && derinlik < 3) {
+          const alt = await paketKesilmeyeDiren(
+            [{ anahtar: m.anahtar, metin: hedefler[i] }],
+            promptIlleri,
+            `${kaynak}.r${i + 1}`,
+            filtre,
+            derinlik + 1
+          );
+          ilanlar.push(...alt.ilanlar);
+          bolgeElenen += alt.bolgeElenen;
+          modelCikti += alt.modelCikti;
+          continue;
+        }
+        throw e;
+      }
+    }
+    return { ilanlar, bolgeElenen, modelCikti };
+  }
 }
 
 /**
@@ -466,10 +581,12 @@ export async function mesajlariCozumle(
   let modelCikti = 0;
 
   for (let i = 0; i < paketler.length; i++) {
-    const rapor = await partiPaketiCozumle(
+    const kaynak =
+      paketler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti";
+    const rapor = await paketKesilmeyeDiren(
       paketler[i],
       kapsamIlleri,
-      paketler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti",
+      kaynak,
       filtre
     );
     ilanlar.push(...rapor.ilanlar);

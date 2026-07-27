@@ -18,7 +18,6 @@ import {
 } from "@/lib/ayarlar";
 import {
   aramaSorgulariUret,
-  cekirdekIlKumesi,
   genisIlKumesi,
   grubuDegerlendir,
   ilinBolgesi,
@@ -637,9 +636,11 @@ export async function kuyrugunuCoz(
 
   const tercih = await aiTercihleriOku();
   const kapsam = genisIlKumesi(tercih.bolgeler, tercih.ekIller);
-  const cekirdek = cekirdekIlKumesi(tercih.bolgeler, tercih.ekIller);
   const anaUs = tercih.anaUs || ilBul(tercih.sehir);
-  const filtre: CozumFiltre = { filtreIlleri: cekirdek, anaUs };
+  // Prompt ve sunucu filtresi AYNI küme (çekirdek+komşu).
+  // Eskiden prompt=geniş / filtre=çekirdek idi → modelin yazdığı komşu
+  // rotaların ~yarısı BÖLGE_ELE ile çöpe gidiyordu (token israfı).
+  const filtre: CozumFiltre = { filtreIlleri: kapsam, anaUs };
   const bitis = Date.now() + COZUM_BUTCE_MS;
 
   const cozum = await bolerekCozumle(

@@ -48,6 +48,7 @@ async function main() {
     katilimHam,
     aiKesilme,
     aiCagriBugun,
+    aiKesilmeMaliyet,
   ] = await Promise.all([
     elemeSayaclariOku(gun),
     prisma.hamMesaj.count({ where: { createdAt: { gte: bas } } }),
@@ -64,6 +65,10 @@ async function main() {
       where: { zaman: { gte: bas }, hata: { startsWith: "KESILDI" } },
     }),
     prisma.aiCagri.count({ where: { zaman: { gte: bas } } }),
+    prisma.aiCagri.aggregate({
+      where: { zaman: { gte: bas }, hata: { startsWith: "KESILDI" } },
+      _sum: { maliyetMikro: true },
+    }),
   ]);
 
   const elemeSatir =
@@ -87,7 +92,11 @@ async function main() {
     `Grup AKTİF / ADAY: ${aktifGrup} / ${adayGrup}`,
     `Katılım sayaç: ${htmlKacis(katilimHam || "0")}`,
     `Ön filtre: ${htmlKacis(elemeSatir)}`,
-    `AI çağrı bugün: ${aiCagriBugun} · kesilme: ${aiKesilme}`,
+    `AI çağrı bugün: ${aiCagriBugun} · kesilme (max_output/length): ${aiKesilme}` +
+      (aiKesilme > 0
+        ? ` · israf ~$${((aiKesilmeMaliyet._sum.maliyetMikro ?? 0) / 1e6).toFixed(3)}`
+        : ""),
+    `Model: ${process.env.OPENAI_MODEL_HIZLI || "gpt-5.4-nano (varsayılan)"}`,
     `AI_KAPALI: ${process.env.AI_KAPALI || "?"}`,
     `pm2 yukavci: ${pm2Ok ? `online pid ${pm2Pid}` : "SORUN"}`,
     `daemon: ${htmlKacis(tg)}`,

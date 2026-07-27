@@ -7,6 +7,7 @@
  * Yüksek hacimli işler: ilan çözümleme, fiş OCR.
  * gpt-5.6 ailesinde en ucuz Luna ($1/$6); basit JSON çıkarma için
  * gpt-5.4-nano ~5× ucuz ($0.20/$1.25) — varsayılan nano.
+ * Luna'ya dönmek için: OPENAI_MODEL_HIZLI=gpt-5.6-luna
  */
 export const MODEL_HIZLI = process.env.OPENAI_MODEL_HIZLI || "gpt-5.4-nano";
 
