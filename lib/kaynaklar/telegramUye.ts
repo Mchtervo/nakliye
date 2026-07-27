@@ -248,6 +248,19 @@ export async function mesajlariKuyrugaAl(
       });
       kuyrukEklenen = sonuc.count;
       rapor.kuyruga += sonuc.count;
+
+      // skipDuplicates eski satırı atlar — userId sonradan geldiyse doldur
+      for (const a of adaylar) {
+        if (!a.gonderenUserId || a.mesajId == null) continue;
+        await prisma.hamMesaj.updateMany({
+          where: {
+            kaynakId: kaynak.id,
+            mesajId: a.mesajId,
+            gonderenUserId: null,
+          },
+          data: { gonderenUserId: a.gonderenUserId },
+        });
+      }
     }
 
     // Grup bazlı teşhis: çekilen vs elenen ayrımı.

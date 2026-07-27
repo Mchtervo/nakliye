@@ -95,7 +95,11 @@ async function rotayiYenile(
   id: number,
   ilan: CozulmusIlan,
   hamMetin: string,
-  kaynakId: number | null
+  kaynakId: number | null,
+  kimlik?: {
+    gonderenUserId?: string | null;
+    kaynakMesajId?: number | null;
+  }
 ): Promise<void> {
   const n = ilaniRotaNormalize(ilan);
   await prisma.yukIlani.update({
@@ -120,6 +124,13 @@ async function rotayiYenile(
       guvenSkoru: n.guvenSkoru,
       yuklemeTarihi: n.yuklemeTarihi,
       ...(kaynakId ? { kaynakId } : {}),
+      // Dedup yenilemede userId boşsa doldur (geriye dönük kaçanlar)
+      ...(kimlik?.gonderenUserId
+        ? { gonderenUserId: kimlik.gonderenUserId }
+        : {}),
+      ...(kimlik?.kaynakMesajId != null
+        ? { kaynakMesajId: kimlik.kaynakMesajId }
+        : {}),
     },
   });
 }
@@ -180,14 +191,20 @@ export async function ilanlariKaydet(
     if (ayniHash) {
       const sinir = Date.now() - DEDUP_PENCERE_MS;
       if (ayniHash.sonGorulme.getTime() >= sinir) {
-        await rotayiYenile(ayniHash.id, ilan, hamMetin, kaynakId);
+        await rotayiYenile(ayniHash.id, ilan, hamMetin, kaynakId, {
+          gonderenUserId,
+          kaynakMesajId,
+        });
         continue;
       }
     }
 
     const yakin = await mevcutRota48s(ilan);
     if (yakin) {
-      await rotayiYenile(yakin.id, ilan, hamMetin, kaynakId);
+      await rotayiYenile(yakin.id, ilan, hamMetin, kaynakId, {
+        gonderenUserId,
+        kaynakMesajId,
+      });
       continue;
     }
 
@@ -258,7 +275,10 @@ export async function ilanlariKaydet(
         select: { id: true },
       });
       if (yarisan) {
-        await rotayiYenile(yarisan.id, ilan, hamMetin, kaynakId);
+        await rotayiYenile(yarisan.id, ilan, hamMetin, kaynakId, {
+          gonderenUserId,
+          kaynakMesajId,
+        });
       }
     }
   }
