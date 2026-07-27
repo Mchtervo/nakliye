@@ -6,7 +6,7 @@
  *   npm run telegram:daemon
  * systemd: deploy/yukavci-telegram.service
  */
-import { TelegramClient, utils, Api } from "telegram";
+import { TelegramClient, utils, Api, errors } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { NewMessage, type NewMessageEvent } from "telegram/events/index.js";
 import { prisma } from "@/lib/prisma";
@@ -260,6 +260,8 @@ async function mesajiIsle(event: NewMessageEvent) {
     k.sonMesajId = mesajId;
     if (rapor.kuyruga > 0) {
       log(`kuyruk +${rapor.kuyruga} (elenen: ${JSON.stringify(rapor.elenen)})`);
+    } else if (Object.keys(rapor.elenen).length > 0) {
+      log(`elenen (kuyruk yok): ${JSON.stringify(rapor.elenen)}`);
     }
   } catch (e) {
     uyari("kuyruk hata", e instanceof Error ? e.message : e);
@@ -273,7 +275,6 @@ async function tdmKuyrukIsle(client: TelegramClient) {
     tdmGonderildiIsaretle,
     tdmHataIsaretle,
   } = await import("@/lib/kaynaklar/telegramDm");
-  const { FloodWaitError } = await import("telegram/errors/index.js");
 
   const aday = await tdmKuyruktanAl();
   if (!aday) return;
@@ -289,7 +290,7 @@ async function tdmKuyrukIsle(client: TelegramClient) {
     log(`tdm gönderildi dm=#${aday.id} → user=${aday.hedefUserId}`);
   } catch (e) {
     const mesaj = e instanceof Error ? e.message : String(e);
-    if (e instanceof FloodWaitError) {
+    if (e instanceof errors.FloodWaitError) {
       const kilit = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const { ayarYaz } = await import("@/lib/ayarlar");
       await ayarYaz(AYAR_ANAHTARLARI.telegramFloodBitis, kilit.toISOString());
@@ -336,9 +337,10 @@ async function main() {
   );
   aktivite();
 
-  await kacanlariYakala(istemci);
-
+  // Catch-up'tan ÖNCE dinle — restart sırasında catch-up sürerken gelen
+  // canlı mesajlar kaçmasın. Çift işleme: mesajlariKuyrugaAl dedup eder.
   istemci.addEventHandler(mesajiIsle, new NewMessage({ incoming: true }));
+  await kacanlariYakala(istemci);
 
   const tdmTimer = setInterval(() => {
     if (!istemci?.connected) return;

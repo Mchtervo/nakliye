@@ -2,8 +2,7 @@
  * Onaylanmış gruplardan çık — günde max 3, arası ≥30 dk.
  * LeaveChannel + PASIF.
  */
-import { Api, TelegramClient } from "telegram";
-import { FloodWaitError } from "telegram/errors/index.js";
+import { Api, TelegramClient, errors } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { prisma } from "@/lib/prisma";
 import { AYAR_ANAHTARLARI, aiTercihleriOku, ayarOku, ayarYaz } from "@/lib/ayarlar";
@@ -143,7 +142,7 @@ async function main() {
   } catch (e) {
     const mesaj = e instanceof Error ? e.message : String(e);
 
-    if (e instanceof FloodWaitError) {
+    if (e instanceof errors.FloodWaitError) {
       const kilit = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await ayarYaz(AYAR_ANAHTARLARI.telegramFloodBitis, kilit.toISOString());
       console.error(`[grup-cik] FloodWait ${e.seconds}s → 24s kilit`);

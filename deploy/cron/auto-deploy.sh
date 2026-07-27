@@ -115,10 +115,29 @@ if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
   rm -rf "$NEXT_BAK"
 fi
 
+# Daemon yalnızca GramJS / kuyruk / prisma / bağımlılık değişince restart.
+# UI-only push → catch-up döngüsü ve mesaj kaçırma riski olmasın.
+daemon_etkilendi() {
+  local eski="$1" yeni="$2"
+  git diff --name-only "$eski" "$yeni" | grep -E \
+    '^(scripts/telegram-daemon\.ts|scripts/ts-kayit\.mjs|scripts/ts-cozucu\.mjs|scripts/cron-katil\.ts|scripts/cron-grup-cik\.ts|lib/kaynaklar/(telegram|tdm|eleme|grupOkuma|filtre|kaydet)|lib/ayarlar\.ts|lib/prisma\.ts|lib/bildirim/|lib/ai/|package(-lock)?\.json|prisma/|deploy/yukavci-telegram\.service)' \
+    >/dev/null
+}
+
+DAEMON_RESTART=0
+if daemon_etkilendi "$OLD_SHA" "HEAD"; then
+  DAEMON_RESTART=1
+  log "daemon kodu değişti → yukavci-telegram restart"
+else
+  log "daemon kodu değişmedi → yukavci-telegram dokunulmadı (catch-up atlandı)"
+fi
+
 set +e
 pm2 restart yukavci --update-env >>"$LOG" 2>&1
 pm2 save >>"$LOG" 2>&1
-sudo /bin/systemctl restart yukavci-telegram >>"$LOG" 2>&1
+if [ "$DAEMON_RESTART" -eq 1 ]; then
+  sudo /bin/systemctl restart yukavci-telegram >>"$LOG" 2>&1
+fi
 
 sleep 3
 HATA=0
@@ -147,11 +166,18 @@ if [ "$HATA" -ne 0 ]; then
   geri_al
   set +e
   pm2 restart yukavci --update-env >>"$LOG" 2>&1
+  # Geri alınca daemon da eski koda dönsün
+  sudo /bin/systemctl restart yukavci-telegram >>"$LOG" 2>&1
   set -e
   bildir "❌ Deploy hatası (doğrulama): $SHORT — $MSG (eski sürüme dönüldü)"
   exit 1
 fi
 
-log "DEPLOY OK $SHORT"
-bildir "✅ Deploy: $SHORT — $MSG"
+if [ "$DAEMON_RESTART" -eq 1 ]; then
+  log "DEPLOY OK $SHORT (daemon restart)"
+  bildir "✅ Deploy: $SHORT — $MSG"
+else
+  log "DEPLOY OK $SHORT (daemon aynı)"
+  bildir "✅ Deploy: $SHORT — $MSG (daemon restart yok)"
+fi
 exit 0

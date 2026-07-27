@@ -61,8 +61,29 @@ echo "==> pm2 restart yukavci"
 pm2 restart yukavci --update-env
 pm2 save
 
-echo "==> systemctl restart yukavci-telegram"
-sudo /bin/systemctl restart yukavci-telegram
+# Daemon yalnızca ilgili dosyalar değiştiyse restart (UI-only → atla).
+daemon_etkilendi() {
+  local eski="$1" yeni="$2"
+  git diff --name-only "$eski" "$yeni" | grep -E \
+    '^(scripts/telegram-daemon\.ts|scripts/ts-kayit\.mjs|scripts/ts-cozucu\.mjs|scripts/cron-katil\.ts|scripts/cron-grup-cik\.ts|lib/kaynaklar/(telegram|tdm|eleme|grupOkuma|filtre|kaydet)|lib/ayarlar\.ts|lib/prisma\.ts|lib/bildirim/|lib/ai/|package(-lock)?\.json|prisma/|deploy/yukavci-telegram\.service)' \
+    >/dev/null
+}
+
+DAEMON_RESTART=0
+if [ "$OLD_SHA" = "$(git rev-parse HEAD)" ]; then
+  echo "==> SHA değişmedi — daemon restart (manuel yenileme)"
+  DAEMON_RESTART=1
+elif daemon_etkilendi "$OLD_SHA" "HEAD"; then
+  echo "==> daemon kodu değişti → yukavci-telegram restart"
+  DAEMON_RESTART=1
+else
+  echo "==> daemon kodu değişmedi → yukavci-telegram dokunulmadı"
+fi
+
+if [ "$DAEMON_RESTART" -eq 1 ]; then
+  echo "==> systemctl restart yukavci-telegram"
+  sudo /bin/systemctl restart yukavci-telegram
+fi
 
 echo "==> doğrulama"
 HATA=0
@@ -98,7 +119,8 @@ if [ "$HATA" -ne 0 ]; then
   echo "==> DEPLOY DOĞRULAMA BAŞARISIZ — geri al"
   geri_al
   pm2 restart yukavci --update-env || true
+  sudo /bin/systemctl restart yukavci-telegram || true
   exit 1
 fi
 
-echo "==> DEPLOY OK $(date -Is) $(git rev-parse --short HEAD)"
+echo "==> DEPLOY OK $(date -Is) $(git rev-parse --short HEAD) daemon_restart=$DAEMON_RESTART"
