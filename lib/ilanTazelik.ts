@@ -36,26 +36,26 @@ export function arsivlikMi(tarih: Date | string): boolean {
   return beklemeDakika(tarih) >= ARSIV_DK;
 }
 
-/** 2 saatten eski YENİ ilanları ARSIV'e al. */
+/** Eski YENİ ilanları ARSIV'e al — son görülmeye göre (createdAt değil). */
 export async function eskiIlanlariArsivle(): Promise<number> {
   const sinir = new Date(Date.now() - ARSIV_DK * 60 * 1000);
   const r = await prisma.yukIlani.updateMany({
-    where: { durum: "YENI", createdAt: { lt: sinir } },
+    where: { durum: "YENI", sonGorulme: { lt: sinir } },
     data: { durum: "ARSIV" },
   });
   return r.count;
 }
 
 /**
- * Yanlışlıkla arşivlenen taze ilanları geri getir (son 36 saat, skor ≥ 40).
- * Bir kerelik / sayfa açılışında güvenli.
+ * Yanlışlıkla arşivlenen taze ilanları geri getir.
+ * sonGorulme son 36 saat + skor ≥ 40.
  */
 export async function arsivdenCanlandir(): Promise<number> {
   const sinir = new Date(Date.now() - 36 * 60 * 60 * 1000);
   const r = await prisma.yukIlani.updateMany({
     where: {
       durum: "ARSIV",
-      createdAt: { gte: sinir },
+      sonGorulme: { gte: sinir },
       guvenSkoru: { gte: 40 },
     },
     data: { durum: "YENI" },
