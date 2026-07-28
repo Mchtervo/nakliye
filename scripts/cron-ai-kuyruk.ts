@@ -21,6 +21,17 @@ async function main() {
     return;
   }
 
+  // Arşivleme burada (sayfa açılışında değil)
+  try {
+    const { eskiIlanlariArsivle, arsivdenCanlandir } = await import(
+      "@/lib/ilanTazelik"
+    );
+    await arsivdenCanlandir();
+    await eskiIlanlariArsivle();
+  } catch (e) {
+    console.warn("[cron-ai-kuyruk] arsiv", e);
+  }
+
   const rapor = await kuyrugunuCoz(22);
   console.log(JSON.stringify(rapor));
   if (rapor.kalan === 0) {

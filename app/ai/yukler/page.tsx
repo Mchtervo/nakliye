@@ -20,7 +20,7 @@ import {
   karHesapla,
   karOzetYazi,
 } from "@/lib/karHesap";
-import { arsivdenCanlandir, eskiIlanlariArsivle, solukMu } from "@/lib/ilanTazelik";
+import { arsivdenCanlandir, solukMu } from "@/lib/ilanTazelik";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -134,9 +134,9 @@ export default async function AiYuklerSayfasi({
 
   const tercih = await aiTercihleriOku();
 
-  // Arşivden taze ilanları geri getir, sonra 8s+ YENİ → ARSIV
+  // Arşivden taze ilanları geri getir. Arşivleme sadece cron'da —
+  // her sayfa açılışında arşivlemek paneli boşaltıyordu.
   await arsivdenCanlandir().catch(() => 0);
-  await eskiIlanlariArsivle().catch(() => 0);
 
   const tabanFiltre: Prisma.YukIlaniWhereInput =
     sekme === "SUPHELI"

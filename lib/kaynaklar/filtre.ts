@@ -101,14 +101,17 @@ export function ilgilileriSuz(
  * Aynı tercihlerin veritabanı karşılığı. Liste sayfası binlerce satırı
  * belleğe çekmesin diye süzme sorguda yapılır.
  */
+/**
+ * Liste sayfası filtresi.
+ * Skor 40+ yeter (50 altı eskiden paneli boşaltıyordu; şüpheli sekmesi ayrı).
+ */
 export function tercihKosulu(tercih: AiTercihleri) {
   const kosullar: Record<string, unknown>[] = [
-    { guvenSkoru: { gte: SUPHE_SINIRI } },
+    { guvenSkoru: { gte: 40 } },
   ];
 
   if (tercih.aracTipleri.length > 0) {
     // Belirsiz (null) geçsin — damper/frigo kodu olanlar zaten listede değil.
-    // Tip yazmayan ilanlar kartta sarı uyarı alır; panel boş kalmasın.
     kosullar.push({
       OR: [
         { aracTipiKod: null },
@@ -122,7 +125,6 @@ export function tercihKosulu(tercih: AiTercihleri) {
 
   const iller = koridorIlKumesi(tercih.koridorIller);
   if (iller.length > 0) {
-    // İki uç da koridorda — Prisma AND.
     kosullar.push({ cikisIl: { in: iller } });
     kosullar.push({ varisIl: { in: iller } });
   }

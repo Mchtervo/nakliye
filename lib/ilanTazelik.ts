@@ -58,7 +58,7 @@ export async function arsivdenCanlandir(): Promise<number> {
       sonGorulme: { gte: sinir },
       guvenSkoru: { gte: 40 },
     },
-    data: { durum: "YENI" },
+    data: { durum: "YENI", sonGorulme: new Date() },
   });
   return r.count;
 }
