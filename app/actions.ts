@@ -504,7 +504,8 @@ export async function kasaHareketEkle(
 
   revalidatePath("/");
   revalidatePath("/kasa");
-  redirect("/kasa");
+  revalidatePath("/para");
+  redirect("/para?sekme=kasa");
 }
 
 export async function kasaHareketSil(id: number): Promise<void> {
@@ -512,4 +513,5 @@ export async function kasaHareketSil(id: number): Promise<void> {
   await prisma.kasaHareket.delete({ where: { id } }).catch(() => null);
   revalidatePath("/");
   revalidatePath("/kasa");
+  revalidatePath("/para");
 }

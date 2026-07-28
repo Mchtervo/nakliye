@@ -43,10 +43,10 @@ export default async function FirmaDetaySayfasi({
     <div className="space-y-5">
       <div className="reveal">
         <Link
-          href="/firmalar"
+          href="/para?sekme=cari"
           className="text-sm font-medium text-fog transition-colors hover:text-amber"
         >
-          ← Firmalara dön
+          ← Para / cariler
         </Link>
         <h1 className="font-display mt-1 text-3xl font-extrabold text-paper sm:text-4xl">
           {firma.ad}

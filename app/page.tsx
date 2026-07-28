@@ -99,9 +99,9 @@ export default async function PanelSayfasi() {
       ton: "paper" as const,
     },
     {
-      href: "/kasa",
-      baslik: "Kasa",
-      alt: kasaBakiye !== 0 ? tlYaz(kasaBakiye) : "Nakit bakiyen",
+      href: "/para",
+      baslik: "Para",
+      alt: kasaBakiye !== 0 ? `Kasa ${tlYaz(kasaBakiye)}` : "Kasa & cari",
       ton: "paper" as const,
     },
   ];
@@ -224,7 +224,7 @@ export default async function PanelSayfasi() {
               </h2>
               <p className="text-xs text-fog">Açık alacaklar</p>
             </div>
-            <Link href="/firmalar" className="text-xs font-semibold text-amber">
+            <Link href="/para?sekme=cari" className="text-xs font-semibold text-amber">
               Tümü →
             </Link>
           </div>

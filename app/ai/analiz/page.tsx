@@ -215,7 +215,7 @@ export default async function AiAnalizSayfasi() {
             />
           ))}
           <Link
-            href="/firmalar"
+            href="/para?sekme=cari"
             className="inline-block pt-1 text-sm font-semibold text-amber hover:underline"
           >
             Cari hesaplara git →

@@ -103,26 +103,14 @@ const DAHA_GRUPLAR: DahaGrup[] = [
     baslik: "Para",
     ogeler: [
       {
-        href: "/kasa",
-        ad: "Kasa",
-        aciklama: "Nakit giriş-çıkış",
+        href: "/para",
+        ad: "Kasa & Cari",
+        aciklama: "Nakit + kim ne borçlu",
         ikon: (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={ikonSinif}>
             <rect x="3" y="6" width="18" height="13" rx="2" />
             <path d="M3 10h18" />
             <circle cx="12" cy="14.5" r="1.5" />
-          </svg>
-        ),
-      },
-      {
-        href: "/firmalar",
-        ad: "Cariler",
-        aciklama: "Kim ne kadar borçlu",
-        ikon: (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={ikonSinif}>
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="3.5" />
-            <path d="M22 21v-2a3.5 3.5 0 0 0-2.5-3.3M16.5 3.6a3.5 3.5 0 0 1 0 6.8" />
           </svg>
         ),
       },
@@ -239,6 +227,14 @@ function sayfaAktifMi(pathname: string, href: string): boolean {
   }
   if (href === "/giderler") {
     return pathname === "/giderler" || pathname.startsWith("/giderler/");
+  }
+  if (href === "/para") {
+    return (
+      pathname === "/para" ||
+      pathname === "/kasa" ||
+      pathname === "/firmalar" ||
+      pathname.startsWith("/firmalar/")
+    );
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
