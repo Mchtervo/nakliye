@@ -34,7 +34,8 @@ async function main() {
 
 main()
   .catch((e) => {
-    console.error(e);
+    const mesaj = e instanceof Error ? e.stack || e.message : String(e);
+    console.error(mesaj);
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());

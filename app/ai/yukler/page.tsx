@@ -20,7 +20,7 @@ import {
   karHesapla,
   karOzetYazi,
 } from "@/lib/karHesap";
-import { eskiIlanlariArsivle, solukMu } from "@/lib/ilanTazelik";
+import { arsivdenCanlandir, eskiIlanlariArsivle, solukMu } from "@/lib/ilanTazelik";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -134,7 +134,8 @@ export default async function AiYuklerSayfasi({
 
   const tercih = await aiTercihleriOku();
 
-  // 2 saatten eski YENİ → ARSIV (hız göstergesi)
+  // Arşivden taze ilanları geri getir, sonra 8s+ YENİ → ARSIV
+  await arsivdenCanlandir().catch(() => 0);
   await eskiIlanlariArsivle().catch(() => 0);
 
   const tabanFiltre: Prisma.YukIlaniWhereInput =

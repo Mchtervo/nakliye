@@ -102,8 +102,16 @@ async function rotayiYenile(
     kaynakMesajId?: number | null;
     hamMesajId?: number | null;
   }
-): Promise<void> {
+): Promise<{ revived: boolean }> {
   const n = ilaniRotaNormalize(ilan);
+  const mevcut = await prisma.yukIlani.findUnique({
+    where: { id },
+    select: { durum: true },
+  });
+  // ARSIV/ELENDI tekrar görünce YENİ'ye çek — yoksa panel boş kalır.
+  const revived =
+    mevcut?.durum === "ARSIV" || mevcut?.durum === "ELENDI";
+
   await prisma.yukIlani.update({
     where: { id },
     data: {
@@ -125,6 +133,7 @@ async function rotayiYenile(
       yukTipi: n.yukTipi ?? undefined,
       guvenSkoru: n.guvenSkoru,
       yuklemeTarihi: n.yuklemeTarihi,
+      ...(revived ? { durum: "YENI", bildirildi: false } : {}),
       ...(kaynakId ? { kaynakId } : {}),
       ...(kimlik?.gonderenUserId
         ? { gonderenUserId: kimlik.gonderenUserId }
@@ -135,12 +144,53 @@ async function rotayiYenile(
       ...(kimlik?.hamMesajId != null ? { hamMesajId: kimlik.hamMesajId } : {}),
     },
   });
-  if (kimlik?.gonderenUserId || kimlik?.hamMesajId != null) {
+  if (kimlik?.gonderenUserId || kimlik?.hamMesajId != null || revived) {
     console.log(
-      `[kaydet] yenile #${id} uid=${kimlik.gonderenUserId || "-"} ` +
-        `hamMesajId=${kimlik.hamMesajId ?? "-"} tgMsg=${kimlik.kaynakMesajId ?? "-"}`
+      `[kaydet] yenile #${id}${revived ? " ARSIV→YENI" : ""} uid=${kimlik?.gonderenUserId || "-"} ` +
+        `hamMesajId=${kimlik?.hamMesajId ?? "-"} tgMsg=${kimlik?.kaynakMesajId ?? "-"}`
     );
   }
+  return { revived };
+}
+
+async function yenileVeBelkiBildir(
+  id: number,
+  ilan: CozulmusIlan,
+  hamMetin: string,
+  kaynakId: number | null,
+  kimlik: {
+    gonderenUserId?: string | null;
+    kaynakMesajId?: number | null;
+    hamMesajId?: number | null;
+  },
+  yeniler: KaydedilenIlan[]
+): Promise<void> {
+  const { revived } = await rotayiYenile(id, ilan, hamMetin, kaynakId, kimlik);
+  if (!revived) return;
+  const kayit = await prisma.yukIlani.findUnique({ where: { id } });
+  if (!kayit) return;
+  yeniler.push({
+    id: kayit.id,
+    firmaAdi: kayit.firmaAdi,
+    ilgiliKisi: kayit.ilgiliKisi,
+    telefon: kayit.telefon,
+    nereden: kayit.nereden,
+    nereye: kayit.nereye,
+    cikisIl: kayit.cikisIl,
+    varisIl: kayit.varisIl,
+    ucret: kayit.ucret,
+    fiyatTon: kayit.fiyatTon,
+    tonaj: kayit.tonaj,
+    aracTipi: kayit.aracTipi,
+    aracTipiKod: kayit.aracTipiKod,
+    guvenSkoru: kayit.guvenSkoru,
+    hamMetin: kayit.hamMetin,
+    donusTalebiId: kayit.donusTalebiId,
+    createdAt: kayit.createdAt,
+    gonderenUserId: kayit.gonderenUserId,
+    kaynakMesajId: kayit.kaynakMesajId,
+    hamMesajId: kayit.hamMesajId,
+  });
 }
 
 /** Aktif dönüş taleplerinden bu ilana uyanı bulur. */
@@ -209,14 +259,28 @@ export async function ilanlariKaydet(
     if (ayniHash) {
       const sinir = Date.now() - DEDUP_PENCERE_MS;
       if (ayniHash.sonGorulme.getTime() >= sinir) {
-        await rotayiYenile(ayniHash.id, ilan, hamMetin, kaynakId, kimlik);
+        await yenileVeBelkiBildir(
+          ayniHash.id,
+          ilan,
+          hamMetin,
+          kaynakId,
+          kimlik,
+          yeniler
+        );
         continue;
       }
     }
 
     const yakin = await mevcutRota48s(ilan);
     if (yakin) {
-      await rotayiYenile(yakin.id, ilan, hamMetin, kaynakId, kimlik);
+      await yenileVeBelkiBildir(
+        yakin.id,
+        ilan,
+        hamMetin,
+        kaynakId,
+        kimlik,
+        yeniler
+      );
       continue;
     }
 
@@ -295,7 +359,14 @@ export async function ilanlariKaydet(
         select: { id: true },
       });
       if (yarisan) {
-        await rotayiYenile(yarisan.id, ilan, hamMetin, kaynakId, kimlik);
+        await yenileVeBelkiBildir(
+          yarisan.id,
+          ilan,
+          hamMetin,
+          kaynakId,
+          kimlik,
+          yeniler
+        );
       }
     }
   }

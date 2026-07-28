@@ -53,8 +53,11 @@ cron_calistir() {
     fi
 
     echo "$(date -Is) [$ad] HATA exit=$kod" >>"$log"
+    # Son hata satırlarını Telegram'a ekle (teşhis)
+    local ozet
+    ozet="$(tail -n 8 "$log" 2>/dev/null | tr '\n' ' ' | head -c 500)"
     ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts \
-      "Cron HATA: ${ad} (exit ${kod}). Log: ${log}" ) >>"$log" 2>&1 || true
+      "Cron HATA: ${ad} (exit ${kod}). ${ozet}" ) >>"$log" 2>&1 || true
     exit "$kod"
   ) 9>"$lock"
 }

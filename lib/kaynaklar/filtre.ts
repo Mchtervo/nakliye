@@ -107,9 +107,13 @@ export function tercihKosulu(tercih: AiTercihleri) {
   ];
 
   if (tercih.aracTipleri.length > 0) {
-    // Belirsiz (null) artık listede değil — damper/frigo kaçmasın.
+    // Belirsiz (null) geçsin — damper/frigo kodu olanlar zaten listede değil.
+    // Tip yazmayan ilanlar kartta sarı uyarı alır; panel boş kalmasın.
     kosullar.push({
-      aracTipiKod: { in: tercih.aracTipleri as string[] },
+      OR: [
+        { aracTipiKod: null },
+        { aracTipiKod: { in: tercih.aracTipleri as string[] } },
+      ],
     });
   }
   if (tercih.maxTonaj) {

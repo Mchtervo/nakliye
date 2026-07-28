@@ -6,7 +6,8 @@
 import { prisma } from "@/lib/prisma";
 
 export const SOLUK_DK = 30;
-export const ARSIV_DK = 120;
+/** 2 saat çok agresifti — panel boşalıyordu. 8 saatte arşiv. */
+export const ARSIV_DK = 8 * 60;
 
 export function beklemeDakika(tarih: Date | string): number {
   const t = typeof tarih === "string" ? new Date(tarih) : tarih;
@@ -41,6 +42,23 @@ export async function eskiIlanlariArsivle(): Promise<number> {
   const r = await prisma.yukIlani.updateMany({
     where: { durum: "YENI", createdAt: { lt: sinir } },
     data: { durum: "ARSIV" },
+  });
+  return r.count;
+}
+
+/**
+ * Yanlışlıkla arşivlenen taze ilanları geri getir (son 36 saat, skor ≥ 40).
+ * Bir kerelik / sayfa açılışında güvenli.
+ */
+export async function arsivdenCanlandir(): Promise<number> {
+  const sinir = new Date(Date.now() - 36 * 60 * 60 * 1000);
+  const r = await prisma.yukIlani.updateMany({
+    where: {
+      durum: "ARSIV",
+      createdAt: { gte: sinir },
+      guvenSkoru: { gte: 40 },
+    },
+    data: { durum: "YENI" },
   });
   return r.count;
 }
