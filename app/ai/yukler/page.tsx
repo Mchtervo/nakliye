@@ -20,14 +20,14 @@ import {
   karHesapla,
   karOzetYazi,
 } from "@/lib/karHesap";
-import { arsivdenCanlandir, solukMu } from "@/lib/ilanTazelik";
+import { solukMu } from "@/lib/ilanTazelik";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
 const SEKMELER = [
   { kod: "YENI", ad: "Yeni" },
-  { kod: "ILGILENIYOR", ad: "Takipte" },
+  { kod: "ILGILENIYOR", ad: "Takip" },
   { kod: "DONUS", ad: "Dönüş" },
   { kod: "MUSTERI", ad: "Müşteri" },
   { kod: "SUPHELI", ad: "Şüpheli" },
@@ -134,9 +134,7 @@ export default async function AiYuklerSayfasi({
 
   const tercih = await aiTercihleriOku();
 
-  // Arşivden taze ilanları geri getir. Arşivleme sadece cron'da —
-  // her sayfa açılışında arşivlemek paneli boşaltıyordu.
-  await arsivdenCanlandir().catch(() => 0);
+  // Arşiv canlandırma cron'da (ai-kuyruk) — sayfa açılışında DB yazısı paneli kilitliyordu.
 
   const tabanFiltre: Prisma.YukIlaniWhereInput =
     sekme === "SUPHELI"
@@ -180,7 +178,7 @@ export default async function AiYuklerSayfasi({
       prisma.yukIlani.findMany({
         where: filtre,
         orderBy: [{ createdAt: "desc" }],
-        take: 80,
+        take: 40,
         include: { kaynak: { select: { ad: true, tur: true } } },
       }),
       prisma.ilanKaynagi.count({ where: { aktif: true } }),
@@ -219,18 +217,18 @@ export default async function AiYuklerSayfasi({
     .filter(Boolean)
     .join(" · ");
 
-  // İlk kartlar için dönüş önerisi (N+1 sınırlı)
+  // Dönüş önerisi — sadece ilk 3 kart (eskiden 12× ayrı sorgu paneli kilitliyordu)
   const donusMap = new Map<
     number,
     { id: number; rota: string; fiyat: string | null }[]
   >();
   await Promise.all(
-    sirali.slice(0, 12).map(async (ilan) => {
+    sirali.slice(0, 3).map(async (ilan) => {
       const oneriler = await donusOnerileriBul(
         ilan.varisIl,
         tercih.anaUs || ilan.cikisIl,
         ilan.id,
-        2
+        1
       );
       if (oneriler.length === 0) return;
       donusMap.set(
@@ -265,30 +263,28 @@ export default async function AiYuklerSayfasi({
     <div className="mx-auto max-w-lg space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3 reveal">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber">
-            Yük
-          </p>
-          <h1 className="font-display text-3xl font-extrabold text-paper">
-            Bulucu
+          <p className="sayfa-eyebrow">İlanlar</p>
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-paper sm:text-4xl">
+            Yük bul
           </h1>
           {iyiSayisi > 0 ? (
-            <p className="mt-1 text-sm font-semibold text-teal">
-              Bugün {iyiSayisi} iyi iş
+            <p className="mt-1.5 text-sm font-semibold text-teal">
+              {iyiSayisi} taze iyi iş
             </p>
           ) : (
-            <p className="mt-1 text-sm text-fog">
+            <p className="mt-1.5 text-sm text-fog">
               {yeniSayisi > 0
-                ? `${yeniSayisi} yeni ilan`
+                ? `${yeniSayisi} yeni ilan hazır`
                 : kaynakSayisi > 0
-                  ? "Şu an öne çıkan yok"
-                  : "Kaynak yok — Ayarlar"}
+                  ? "Şu an öne çıkan yok — biraz bekle"
+                  : "Kaynak yok — Ayarlar’dan aç"}
             </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AksiyonButonu
             calistir={simdiTara}
-            etiket="Tara"
+            etiket="Yenile"
             bekleyenEtiket="..."
             sinif="btn btn-amber !px-3 !py-2 text-xs sm:text-sm"
           />
@@ -296,10 +292,11 @@ export default async function AiYuklerSayfasi({
             href="/ayarlar#ai"
             className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm"
           >
-            Ayarlar
+            Filtre
           </Link>
         </div>
       </div>
+      <div className="lane-strip max-w-[10rem] opacity-70" />
 
       {killSwitch && (
         <div className="rounded-xl border border-amber/30 bg-amber/10 px-3 py-2.5 text-sm text-paper">
@@ -340,7 +337,7 @@ export default async function AiYuklerSayfasi({
         <p className="text-xs text-teal">Filtre: {filtreOzet}</p>
       )}
 
-      <div className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-asphalt-2 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-[#121a26] p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {SEKMELER.map((s) => {
           const aktif = s.kod === sekme;
           const rozet =
@@ -355,8 +352,10 @@ export default async function AiYuklerSayfasi({
             <Link
               key={s.kod}
               href={sekmeHref(s.kod, neredenHam, nereyeHam)}
-              className={`shrink-0 rounded-lg px-2.5 py-2.5 text-center text-xs font-semibold sm:px-3 sm:text-sm ${
-                aktif ? "bg-white/10 text-amber" : "text-fog hover:text-paper"
+              className={`shrink-0 rounded-xl px-3 py-2.5 text-center text-xs font-bold sm:text-sm ${
+                aktif
+                  ? "bg-amber/15 text-amber"
+                  : "text-fog hover:text-paper"
               }`}
             >
               {s.ad}

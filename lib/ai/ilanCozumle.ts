@@ -16,6 +16,7 @@ import {
   rotaSatirSayisi,
 } from "@/lib/kaynaklar/onFiltre";
 import { rotaAyniSatirdaMi } from "@/lib/kaynaklar/rotaDogrula";
+import { irtibatTelefonuBul } from "@/lib/kaynaklar/onDedup";
 import { guvenliKirp } from "@/lib/metin";
 
 /** Bir parti çağrısına en fazla bu kadar mesaj dilimi. */
@@ -62,6 +63,10 @@ Kurallar:
   gibi ifadeler ARAÇ ADEDİDİR, tonaj değildir; onları tonaja yazma.
 - aracTipi: metinde geçen araç türünü yaz (damper, tenteli, frigo…).
 - Telefonu sadece rakam olarak ver (05321234567).
+- TELEFON ÖNCELİĞİ (SERT): Metinde "İRT", "İRTİBAT", "İLETİŞİM", "TEL:"
+  ile yazılan numarayı telefon alanına yaz. Bu, mesajı atan kişinin
+  numarası değil — yük sahibinin / irtibatın numarasıdır. İRT varsa
+  onu kullan; yoksa metindeki diğer telefonu yaz.
 - Uydurma bilgi ekleme; yoksa null bırak.
 - guvenSkoru: metin net bir yük ilanıysa 80-100, şüpheliyse 40-70, zayıfsa 0-39.`;
 
@@ -126,10 +131,14 @@ type HamIlan = IlanCikti["ilanlar"][number];
 const KACIS = /[.*+?^${}()|[\]\\]/g;
 
 /** Doğrulama için ham metinden bir kez çıkarılan bilgiler. */
-export type MetinBaglami = { sade: string; iller: Set<string> };
+export type MetinBaglami = { ham: string; sade: string; iller: Set<string> };
 
 export function baglamCikar(hamMetin: string): MetinBaglami {
-  return { sade: sadelestir(hamMetin), iller: new Set(illeriBul(hamMetin)) };
+  return {
+    ham: hamMetin,
+    sade: sadelestir(hamMetin),
+    iller: new Set(illeriBul(hamMetin)),
+  };
 }
 
 /**
@@ -240,10 +249,14 @@ function ilaniNormalize(
     }
   }
 
+  // İRT / irtibat satırı varsa paylaşanın değil onu kullan
+  const irtibat = irtibatTelefonuBul(baglam.ham);
+  const telefon = irtibat || telefonTemizle(i.telefon);
+
   return {
     firmaAdi,
     ilgiliKisi,
-    telefon: telefonTemizle(i.telefon),
+    telefon,
     nereden,
     nereye,
     cikisIl,

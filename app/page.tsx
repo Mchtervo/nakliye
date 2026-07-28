@@ -8,43 +8,6 @@ import AnaEkranaEkle from "@/components/AnaEkranaEkle";
 
 export const dynamic = "force-dynamic";
 
-function Metrik({
-  baslik,
-  deger,
-  alt,
-  ton = "paper",
-  delay = "",
-}: {
-  baslik: string;
-  deger: string;
-  alt?: string;
-  ton?: "paper" | "teal" | "ember" | "amber" | "ok";
-  delay?: string;
-}) {
-  const renk =
-    ton === "teal"
-      ? "text-teal"
-      : ton === "ember"
-        ? "text-ember"
-        : ton === "amber"
-          ? "text-amber"
-          : ton === "ok"
-            ? "text-ok"
-            : "text-paper";
-
-  return (
-    <div className={`kart p-4 sm:p-5 reveal ${delay}`}>
-      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-fog">
-        {baslik}
-      </div>
-      <div className={`mt-2 font-display text-2xl font-extrabold sm:text-3xl ${renk}`}>
-        {deger}
-      </div>
-      {alt && <div className="mt-1 text-xs text-fog/80">{alt}</div>}
-    </div>
-  );
-}
-
 export default async function PanelSayfasi() {
   const simdi = new Date();
   const ayBasi = new Date(simdi.getFullYear(), simdi.getMonth(), 1);
@@ -77,13 +40,10 @@ export default async function PanelSayfasi() {
 
   const gelirToplam = yukler.reduce((t, y) => t + y.toplamTutar, 0);
   const gelirNet = yukler.reduce((t, y) => t + y.netTutar, 0);
-  const toplananKdv = yukler.reduce((t, y) => t + y.kdvTutar, 0);
   const isletmeGiderleri = giderler.filter((g) => isletmeGideriMi(g.kategori));
   const giderToplam = isletmeGiderleri.reduce((t, g) => t + g.toplamTutar, 0);
   const giderNet = isletmeGiderleri.reduce((t, g) => t + g.netTutar, 0);
-  const odenenKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
   const netKar = gelirNet - giderNet;
-  const kdvFarki = toplananKdv - odenenKdv;
 
   const bekleyenAlacak = bekleyenYukler.reduce((t, y) => {
     const odenen = y.odemeler.reduce((o, p) => o + p.tutar, 0);
@@ -112,78 +72,125 @@ export default async function PanelSayfasi() {
   }
   const firmaAlacaklari = [...firmaAlacakMap.values()]
     .sort((a, b) => b.kalan - a.kalan)
-    .slice(0, 5);
+    .slice(0, 4);
 
   const ayAdi = new Intl.DateTimeFormat("tr-TR", {
     month: "long",
     year: "numeric",
   }).format(simdi);
 
+  const isler = [
+    {
+      href: "/ai/yukler",
+      baslik: "Yük bul",
+      alt: "Telegram ilanları · ara",
+      ton: "amber" as const,
+    },
+    {
+      href: "/yukler/yeni",
+      baslik: "Sefer yaz",
+      alt: "Taşıdığın yükü kaydet",
+      ton: "teal" as const,
+    },
+    {
+      href: "/giderler/yeni",
+      baslik: "Fiş çek",
+      alt: "Yakıt / bakım fotoğrafı",
+      ton: "paper" as const,
+    },
+    {
+      href: "/kasa",
+      baslik: "Kasa",
+      alt: kasaBakiye !== 0 ? tlYaz(kasaBakiye) : "Nakit bakiyen",
+      ton: "paper" as const,
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Hero */}
-      <section className="kart relative overflow-hidden p-5 sm:p-8 reveal">
-        <div
-          className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full opacity-30 blur-3xl"
-          style={{ background: "radial-gradient(circle, #f0a020, transparent 70%)" }}
-        />
-        <div
-          className="pointer-events-none absolute -bottom-24 left-10 h-48 w-48 rounded-full opacity-20 blur-3xl"
-          style={{ background: "radial-gradient(circle, #2ec4a6, transparent 70%)" }}
-        />
-
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-xl">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber">
-              {ayAdi} · yol defteri
-            </p>
-            <h1 className="font-display mt-2 text-4xl font-extrabold leading-[0.95] text-paper sm:text-5xl lg:text-6xl">
-              Bu ayın
-              <span className="block text-amber">net kârı</span>
+    <div className="space-y-5 sm:space-y-6">
+      {/* Hero — tek odak: bu ay kâr */}
+      <section className="sayfa-hero reveal">
+        <p className="sayfa-eyebrow">{ayAdi}</p>
+        <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="font-display text-[2.35rem] font-extrabold leading-[0.92] tracking-tight text-paper sm:text-5xl">
+              Bu ay
+              <span className="mt-1 block text-amber">ne kaldı?</span>
             </h1>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-fog">
-              Gelir, gider ve KDV tek bakışta. Fişleri yükle, alacakları takip et,
-              muhasebecine tek tıkla gönder.
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-fog">
+              Gelir eksi gider. Büyük rakam yeşilse ay iyi geçiyor.
             </p>
-            <div className="lane-strip mt-5 max-w-xs" />
           </div>
-
-          <div className="lg:text-right">
-            <div
-              className={`font-display text-5xl font-extrabold sm:text-6xl ${
+          <div className="sm:text-right">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-fog">
+              Net kâr
+            </p>
+            <p
+              className={`font-display text-4xl font-extrabold tabular-nums sm:text-5xl ${
                 netKar >= 0 ? "text-teal" : "text-ember"
               }`}
             >
               {tlYaz(netKar)}
-            </div>
-            <p className="mt-1 text-xs font-medium text-fog">KDV hariç net</p>
-            <div className="mt-4 flex flex-wrap gap-2 lg:justify-end">
-              <Link href="/yukler/yeni" className="btn btn-amber">
-                + Yeni yük
-              </Link>
-              <Link href="/giderler/yeni" className="btn btn-ghost">
-                + Gider
-              </Link>
-            </div>
+            </p>
           </div>
         </div>
+        <div className="lane-strip mt-6 max-w-[14rem] opacity-75" />
       </section>
 
       <AnaEkranaEkle />
 
-      <section className="kart space-y-3 border-teal/25 p-4 sm:p-5 reveal reveal-d1">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal">
-              Hızlı ara
+      {/* 4 büyük iş — baba için net */}
+      <section className="reveal reveal-d1">
+        <h2 className="sayfa-bolum">Ne yapmak istiyorsun?</h2>
+        <div className="mt-3 grid grid-cols-2 gap-2.5 sm:gap-3">
+          {isler.map((is) => (
+            <Link
+              key={is.href}
+              href={is.href}
+              className={`is-kart is-kart-${is.ton}`}
+            >
+              <span className="font-display text-xl font-bold text-paper sm:text-2xl">
+                {is.baslik}
+              </span>
+              <span className="mt-1 block text-xs text-fog sm:text-sm">{is.alt}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* 3 sayı — sade */}
+      <section className="grid grid-cols-3 gap-2 reveal reveal-d2 sm:gap-3">
+        {[
+          { etiket: "Gelir", deger: tlYaz(gelirToplam), ton: "text-teal" },
+          { etiket: "Gider", deger: tlYaz(giderToplam), ton: "text-ember" },
+          {
+            etiket: "Alacak",
+            deger: tlYaz(bekleyenAlacak),
+            ton: bekleyenAlacak > 0 ? "text-amber" : "text-ok",
+          },
+        ].map((m) => (
+          <div key={m.etiket} className="metrik-sade">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-fog">
+              {m.etiket}
             </div>
-            <h2 className="font-display text-xl font-bold text-paper">Tek tıkla ara</h2>
-            <p className="mt-1 text-sm text-fog">
-              Mobilde telefon açılır, bilgisayarda arama menüsü gelir.
-            </p>
+            <div
+              className={`mt-1.5 font-display text-base font-extrabold tabular-nums sm:text-xl ${m.ton}`}
+            >
+              {m.deger}
+            </div>
           </div>
-          <Link href="/ayarlar" className="text-sm font-semibold text-fog hover:text-amber">
-            Numara ayarla →
+        ))}
+      </section>
+
+      {/* Hızlı ara */}
+      <section className="kart space-y-3 p-4 reveal reveal-d3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="font-display text-lg font-bold text-paper">Telefon</h2>
+            <p className="text-xs text-fog">Kayıtlı numarayı tek tıkla ara</p>
+          </div>
+          <Link href="/ayarlar" className="text-xs font-semibold text-amber">
+            Ayarla
           </Link>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -194,8 +201,8 @@ export default async function PanelSayfasi() {
               buyuk
             />
           ) : (
-            <Link href="/ayarlar" className="btn btn-ghost">
-              Önce hızlı ara numarası kaydet
+            <Link href="/ayarlar" className="btn btn-ghost text-sm">
+              Numara kaydet
             </Link>
           )}
           {muhasebeciTel && (
@@ -208,85 +215,17 @@ export default async function PanelSayfasi() {
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Metrik
-          baslik="Bu ay gelir"
-          deger={tlYaz(gelirToplam)}
-          alt={`${yukler.length} yük taşındı`}
-          ton="teal"
-          delay="reveal-d1"
-        />
-        <Metrik
-          baslik="Bu ay gider"
-          deger={tlYaz(giderToplam)}
-          alt={`${isletmeGiderleri.length} işletme gideri`}
-          ton="ember"
-          delay="reveal-d2"
-        />
-        <Metrik
-          baslik="Hesaplanan KDV"
-          deger={tlYaz(toplananKdv)}
-          alt="Yük faturaları · devlete borç"
-          delay="reveal-d3"
-        />
-        <Metrik
-          baslik="İndirilecek KDV"
-          deger={tlYaz(odenenKdv)}
-          alt="Yakıt, bakım, demirbaş fatura KDV'si"
-          delay="reveal-d4"
-        />
-        <Metrik
-          baslik="Ödenecek KDV"
-          deger={tlYaz(kdvFarki)}
-          alt="Hesaplanan − indirilecek (yaklaşık)"
-          ton={kdvFarki > 0 ? "amber" : "ok"}
-          delay="reveal-d5"
-        />
-        <Metrik
-          baslik="Kasada"
-          deger={tlYaz(kasaBakiye)}
-          alt="Nakit bakiye · manuel giriş/çıkış"
-          ton={kasaBakiye >= 0 ? "teal" : "ember"}
-          delay="reveal-d6"
-        />
-        <Metrik
-          baslik="Toplam alacak"
-          deger={tlYaz(bekleyenAlacak)}
-          alt={
-            firmaAlacaklari.length > 0
-              ? `${firmaAlacaklari.length} firmada açık bakiye`
-              : "Hepsi tahsil edildi"
-          }
-          ton={bekleyenAlacak > 0 ? "amber" : "ok"}
-          delay="reveal-d6"
-        />
-      </div>
-
-      <p className="text-center text-xs text-fog/90 reveal">
-        Yakıt vb. KDV dahil tutar → içindeki KDV{" "}
-        <span className="text-paper">indirilecek KDV</span> olur; devletten geri
-        alınmaz, yük KDV borcundan düşülür.{" "}
-        <Link href="/kasa" className="font-semibold text-amber hover:underline">
-          Kasayı aç →
-        </Link>
-      </p>
-
       {firmaAlacaklari.length > 0 && (
-        <section className="kart space-y-3 p-4 sm:p-5 reveal">
-          <div className="flex flex-wrap items-end justify-between gap-2">
+        <section className="kart space-y-3 p-4 reveal reveal-d4">
+          <div className="flex items-end justify-between gap-2">
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber">
-                Kimde ne kaldı
-              </div>
-              <h2 className="font-display text-xl font-bold text-paper">
-                Açık alacaklar
+              <h2 className="font-display text-lg font-bold text-paper">
+                Kimde para kaldı?
               </h2>
+              <p className="text-xs text-fog">Açık alacaklar</p>
             </div>
-            <Link
-              href="/firmalar"
-              className="text-sm font-semibold text-fog transition-colors hover:text-amber"
-            >
-              Tüm cari →
+            <Link href="/firmalar" className="text-xs font-semibold text-amber">
+              Tümü →
             </Link>
           </div>
           <ul className="divide-y divide-white/8">
@@ -297,14 +236,14 @@ export default async function PanelSayfasi() {
               >
                 <Link
                   href={`/firmalar/${f.id}`}
-                  className="min-w-0 flex-1 font-medium text-paper transition-colors hover:text-amber"
+                  className="min-w-0 flex-1 font-semibold text-paper hover:text-amber"
                 >
                   {f.ad}
                 </Link>
                 <div className="flex items-center gap-2">
                   {f.telefon && <AraButonu telefon={f.telefon} etiket="Ara" />}
-                  <span className="font-display font-extrabold text-amber">
-                    {tlYaz(f.kalan)} kaldı
+                  <span className="font-display text-lg font-extrabold text-amber tabular-nums">
+                    {tlYaz(f.kalan)}
                   </span>
                 </div>
               </li>
@@ -313,61 +252,16 @@ export default async function PanelSayfasi() {
         </section>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          {
-            href: "/kasa",
-            baslik: "Kasa",
-            alt: "Eldeki para · giriş / çıkış",
-            ikon: "01",
-          },
-          {
-            href: "/firmalar",
-            baslik: "Firmalar / Cari",
-            alt: "Kim ne kadar ödedi / kaldı",
-            ikon: "02",
-          },
-          {
-            href: "/kdv",
-            baslik: "KDV Merkezi",
-            alt: "Bu ay ne kadar KDV ödeyeceksin",
-            ikon: "03",
-          },
-          {
-            href: "/ai",
-            baslik: "AI Merkezi",
-            alt: "Yük bulucu, dönüş yükü, analiz",
-            ikon: "04",
-          },
-          {
-            href: "/raporlar",
-            baslik: "Raporlar",
-            alt: "Aylık özet ve dağılım",
-            ikon: "05",
-          },
-          {
-            href: "/muhasebeci",
-            baslik: "Muhasebeciye gönder",
-            alt: "Fişleri toplu paylaş",
-            ikon: "06",
-          },
-        ].map((k, i) => (
-          <Link
-            key={k.href}
-            href={k.href}
-            className={`kart group p-5 reveal reveal-d${Math.min(i + 1, 6)}`}
-          >
-            <div className="flex items-start justify-between">
-              <span className="font-display text-2xl font-bold text-amber/40 transition-colors group-hover:text-amber">
-                {k.ikon}
-              </span>
-              <span className="text-fog transition-transform group-hover:translate-x-1">→</span>
-            </div>
-            <div className="mt-6 font-display text-xl font-bold text-paper">{k.baslik}</div>
-            <div className="mt-1 text-sm text-fog">{k.alt}</div>
-          </Link>
-        ))}
-      </div>
+      <p className="pb-2 text-center text-xs text-fog/80 reveal">
+        KDV detayı için{" "}
+        <Link href="/kdv" className="font-semibold text-amber">
+          KDV sayfası
+        </Link>
+        {" · "}
+        <Link href="/raporlar" className="font-semibold text-amber">
+          Raporlar
+        </Link>
+      </p>
     </div>
   );
 }

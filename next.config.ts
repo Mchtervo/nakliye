@@ -5,10 +5,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname),
   },
-  // Fiş fotoğrafı (sıkıştırılmış) server action ile gelsin; nginx de büyütülmeli.
+  // Soft navigasyon: son sayfalar bir süre hafızada kalsın (takılma azalır)
   experimental: {
     serverActions: {
       bodySizeLimit: "12mb",
+    },
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
     },
   },
 };

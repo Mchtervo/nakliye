@@ -22,7 +22,8 @@ const ILAN_ALANLARI: Record<string, unknown> = {
   },
   telefon: {
     ...metinVeyaBos,
-    description: "Sadece rakamlar, mümkünse 05xxxxxxxxx biçiminde",
+    description:
+      "Sadece rakamlar (05xxxxxxxxx). Metinde İRT/İRTİBAT/TEL: varsa ONU yaz — paylaşanın değil irtibat numarası.",
   },
   nereden: {
     ...metinVeyaBos,

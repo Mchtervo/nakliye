@@ -294,7 +294,7 @@ export async function donusOnerileriBul(
       varisIl: { not: null },
     },
     orderBy: [{ guvenSkoru: "desc" }, { ucret: "desc" }],
-    take: 30,
+    take: 15,
     select: {
       id: true,
       nereden: true,

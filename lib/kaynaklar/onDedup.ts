@@ -24,12 +24,60 @@ export function telefonlariCikar(metin: string): string[] {
     [];
   const sonuc = new Set<string>();
   for (const ham of eslesmeler) {
-    let r = ham.replace(/\D/g, "");
-    if (r.startsWith("90") && r.length >= 12) r = `0${r.slice(2)}`;
-    if (r.length === 10) r = `0${r}`;
-    if (r.length >= 11 && r.startsWith("05")) sonuc.add(r.slice(0, 11));
+    const r = telefonNormalize(ham);
+    if (r) sonuc.add(r);
   }
   return [...sonuc];
+}
+
+/** 05xxxxxxxxx biçimine çevir; geçersizse null. */
+export function telefonNormalize(ham: string | null | undefined): string | null {
+  if (!ham) return null;
+  let r = ham.replace(/\D/g, "");
+  if (r.length < 10) return null;
+  if (r.startsWith("90") && r.length >= 12) r = `0${r.slice(2)}`;
+  if (r.length === 10) r = `0${r}`;
+  if (r.length === 13 && r.startsWith("090")) r = `0${r.slice(3)}`;
+  if (r.length >= 11 && r.startsWith("05")) return r.slice(0, 11);
+  return null;
+}
+
+/**
+ * Mesajda İRT / irtibat / iletişim etiketiyle yazılan numarayı bul.
+ * Paylaşanın (Telegram) numarası değil — ilandaki irtibat tercih edilir.
+ */
+export function irtibatTelefonuBul(metin: string): string | null {
+  if (!metin) return null;
+
+  // Kelime başı: "otel 05..." yanlış eşleşmesin
+  const etiket =
+    /(?:^|[\s,;|/(\[{\n])(?:İRTİBAT|IRTIBAT|İRT|IRT|İLETİŞİM|ILETISIM|İLETISIM|TELEFON|TEL|GSM|CEP|WHATSAPP|WP)\s*[:：.\-]?\s*((?:\+?90|0)\s*5\d{2}[\s.\-]?\d{3}[\s.\-]?\d{2}[\s.\-]?\d{2})/gi;
+
+  let m: RegExpExecArray | null;
+  while ((m = etiket.exec(metin)) !== null) {
+    const t = telefonNormalize(m[1]);
+    if (t) return t;
+  }
+
+  // Sadeleştirilmiş metin: "irt 0543..."
+  const sade = metin
+    .toLocaleLowerCase("tr-TR")
+    .replaceAll("ı", "i")
+    .replaceAll("ş", "s")
+    .replaceAll("ğ", "g")
+    .replaceAll("ü", "u")
+    .replaceAll("ö", "o")
+    .replaceAll("ç", "c");
+  const sadeEs =
+    /(?:^|[^a-z0-9])(?:irtibat|irt|iletisim|telefon|tel|gsm|cep|whatsapp|wp)\s*[:.\-]?\s*((?:0|90)?5\d{9,10})/i.exec(
+      sade
+    );
+  if (sadeEs?.[1]) {
+    const t = telefonNormalize(sadeEs[1]);
+    if (t) return t;
+  }
+
+  return null;
 }
 
 /**

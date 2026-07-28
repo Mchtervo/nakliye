@@ -66,10 +66,24 @@ export async function fisKaydet(
   const buffer = Buffer.from(await dosya.arrayBuffer());
 
   if (supabaseHazirMi()) {
-    return supabaseFisKaydet(buffer, dosyaAdi, uzanti);
+    const sbSonuc = await supabaseFisKaydet(buffer, dosyaAdi, uzanti);
+    if (!("hata" in sbSonuc)) return sbSonuc;
+    // JWT / yetki hatasında yerel kayda düş — gider formu kilitlenmesin
+    const mesaj = sbSonuc.hata.toLowerCase();
+    if (
+      mesaj.includes("jws") ||
+      mesaj.includes("jwt") ||
+      mesaj.includes("signature") ||
+      mesaj.includes("unauthorized") ||
+      mesaj.includes("anahtar")
+    ) {
+      console.warn("[fis] supabase başarısız, yerel kayıt:", sbSonuc.hata);
+    } else {
+      return sbSonuc;
+    }
   }
 
-  // Yerel fallback (Supabase yoksa)
+  // Yerel fallback (Supabase yok / JWT bozuk)
   const klasor = uploadDir();
   await mkdir(klasor, { recursive: true });
   await writeFile(path.join(klasor, dosyaAdi), buffer);

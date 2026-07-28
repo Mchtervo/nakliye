@@ -34,11 +34,9 @@ export default async function YuklerSayfasi() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3 reveal">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber">
+          <p className="sayfa-eyebrow">Senin taşıdıkların</p>
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-paper sm:text-4xl">
             Seferler
-          </p>
-          <h1 className="font-display text-3xl font-extrabold text-paper sm:text-4xl">
-            Yükler
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">

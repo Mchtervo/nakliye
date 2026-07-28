@@ -5,12 +5,26 @@
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const adaylar = [
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  process.env.SUPABASE_SECRET_KEY,
+].filter(Boolean);
 const key =
-  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  adaylar.find((k) => k.startsWith("eyJ") && k.split(".").length >= 3) ||
+  adaylar[0];
 const bucket = "fisler";
 
 if (!url || !key) {
   console.error("NEXT_PUBLIC_SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY gerekli.");
+  process.exit(1);
+}
+
+if (!key.startsWith("eyJ") || key.split(".").length < 3) {
+  console.error(
+    "SUPABASE_SERVICE_ROLE_KEY JWT olmalı (eyJ…). " +
+      "sb_secret_ Storage'da Invalid Compact JWS verir. " +
+      "Dashboard → API → Legacy API Keys → service_role kopyala."
+  );
   process.exit(1);
 }
 
