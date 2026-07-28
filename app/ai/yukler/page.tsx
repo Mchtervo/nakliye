@@ -4,7 +4,7 @@ import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
-import { ilBul } from "@/lib/iller";
+import { ilBul, sehirHavzasi } from "@/lib/iller";
 import { SUPHE_SINIRI, tercihKosulu } from "@/lib/kaynaklar/filtre";
 import {
   eskiIlanlariTemizle,
@@ -181,14 +181,17 @@ export default async function AiYuklerSayfasi({
     };
   }
 
-  // Tek şehir: çıkış VEYA varış (Ankara yazıp sadece çıkışta 0 kalmasın —
-  // çoğu ilan Ankara'ya geliyor). İkisi doluysa kesin rota.
+  // Tek şehir: çıkış VEYA varış. İkisi dolu: havza (Gebze=Kocaeli → İstanbul
+  // aramasına girsin; aksi halde Ankara→İstanbul chip’i sürekli boş kalır).
   let rotaKosul: Prisma.YukIlaniWhereInput = {};
   if (neredenHata || nereyeHata) {
     if (neredenHata) rotaKosul.cikisIl = "__yok__";
     if (nereyeHata) rotaKosul.varisIl = "__yok__";
   } else if (cikisIl && varisIl) {
-    rotaKosul = { cikisIl, varisIl };
+    rotaKosul = {
+      cikisIl: { in: sehirHavzasi(cikisIl) },
+      varisIl: { in: sehirHavzasi(varisIl) },
+    };
   } else if (cikisIl && !nereyeHam) {
     rotaKosul = { OR: [{ cikisIl }, { varisIl: cikisIl }] };
   } else if (varisIl && !neredenHam) {
@@ -231,6 +234,16 @@ export default async function AiYuklerSayfasi({
   const cipler = rotaCipleri(tercih.rotalar);
 
   let sirali = [...ilanlar].sort((a, b) => {
+    // İki şehir: tam rota üstte, sonra aynı çıkış/varış, havza en sonda
+    if (cikisIl && varisIl) {
+      const puan = (i: (typeof ilanlar)[0]) => {
+        if (i.cikisIl === cikisIl && i.varisIl === varisIl) return 3;
+        if (i.cikisIl === cikisIl || i.varisIl === varisIl) return 2;
+        return 1;
+      };
+      const d = puan(b) - puan(a);
+      if (d !== 0) return d;
+    }
     // Nereden dolu → önce o ilden çıkanlar (Ankara aramada Pamukova→Ankara üste binmesin)
     if (cikisIl && !nereyeHam) {
       const aC = a.cikisIl === cikisIl ? 1 : 0;
@@ -252,19 +265,25 @@ export default async function AiYuklerSayfasi({
   }
 
   const iyiSayisi = sirali.filter(iyiIsMi).length;
+  const cikisHavza =
+    cikisIl && varisIl ? sehirHavzasi(cikisIl) : cikisIl ? [cikisIl] : [];
+  const varisHavza =
+    cikisIl && varisIl ? sehirHavzasi(varisIl) : varisIl ? [varisIl] : [];
   const filtreOzet = tekSehirArama
     ? `${tekSehirAd} (çıkış veya varış · aktif ilanlar)`
-    : [
-        cikisIl
-          ? `çıkış ${cikisIl}${neredenHam !== cikisIl ? ` (${neredenHam})` : ""}`
-          : null,
-        varisIl
-          ? `varış ${varisIl}${nereyeHam !== varisIl ? ` (${nereyeHam})` : ""}`
-          : null,
-        rotaFiltresiVar ? "aktif ilanlar" : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
+    : cikisIl && varisIl
+      ? `çıkış ${cikisHavza.join("/")} · varış ${varisHavza.join("/")} · aktif`
+      : [
+          cikisIl
+            ? `çıkış ${cikisIl}${neredenHam !== cikisIl ? ` (${neredenHam})` : ""}`
+            : null,
+          varisIl
+            ? `varış ${varisIl}${nereyeHam !== varisIl ? ` (${nereyeHam})` : ""}`
+            : null,
+          rotaFiltresiVar ? "aktif ilanlar" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   // Dönüş önerisi listede ekstra 3 sorgu yapıyordu — kart menüsüne bırakıldı.
   const donusMap = new Map<

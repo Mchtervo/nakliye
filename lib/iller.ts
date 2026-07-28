@@ -498,3 +498,27 @@ export function ayniIlMi(a: string | null, b: string | null): boolean {
   const ilB = ilBul(b);
   return Boolean(ilA && ilB && ilA === ilB);
 }
+
+/**
+ * Rota aramasında metropol havzası.
+ * Gebze → Kocaeli kaydedilir; şoför «Ankara→İstanbul» deyince
+ * Ankara→Gebze / Kırıkkale→Tuzla da gelsin.
+ */
+const SEHIR_HAVZA: Record<string, readonly string[]> = {
+  İstanbul: ["İstanbul", "Kocaeli", "Tekirdağ", "Yalova"],
+  Kocaeli: ["Kocaeli", "İstanbul", "Yalova", "Sakarya"],
+  Tekirdağ: ["Tekirdağ", "İstanbul", "Kırklareli"],
+  Yalova: ["Yalova", "Kocaeli", "Bursa"],
+  Sakarya: ["Sakarya", "Kocaeli", "Düzce"],
+  Ankara: ["Ankara", "Kırıkkale"],
+  Kırıkkale: ["Kırıkkale", "Ankara"],
+  Bursa: ["Bursa", "Yalova"],
+};
+
+/** İl + yakın yük havzası (yoksa sadece kendisi). */
+export function sehirHavzasi(il: string | null | undefined): string[] {
+  if (!il) return [];
+  const kanonik = ilBul(il) || il;
+  const h = SEHIR_HAVZA[kanonik];
+  return h ? [...h] : [kanonik];
+}
