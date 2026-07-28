@@ -4,37 +4,7 @@ import { useActionState, useState } from "react";
 import { giderEkle, giderGuncelle, type FormSonuc } from "@/app/actions";
 import TutarKdvGirisi from "@/components/TutarKdvGirisi";
 import FisYukle from "@/components/FisYukle";
-import { giderKategoriGruplari, kategoriAdi } from "@/lib/sabitler";
-import { gorseliKucult } from "@/lib/gorsel";
-import { tlGirisBicimle } from "@/lib/para";
-
-type OcrYanit = {
-  okunabildi: boolean;
-  firmaAdi: string | null;
-  tarih: string | null;
-  toplamTutarTl: number | null;
-  kdvTutarTl: number | null;
-  kdvDahilMi: boolean;
-  kategori: string;
-  litre: number | null;
-  aciklama: string | null;
-  guvenSkoru: number;
-};
-
-type OcrDegerleri = {
-  tutarYazi: string;
-  kdvli: boolean;
-  kdvDahilMi: boolean;
-  tarih: string | null;
-  aciklama: string | null;
-  litre: string | null;
-};
-
-type OcrDurum =
-  | { hal: "bos" }
-  | { hal: "okuyor" }
-  | { hal: "hata"; mesaj: string }
-  | { hal: "tamam"; kategori: string; guven: number };
+import { giderKategoriGruplari } from "@/lib/sabitler";
 
 export type GiderFormBaslangic = {
   id: number;
@@ -49,44 +19,12 @@ export type GiderFormBaslangic = {
   fisResmi: string | null;
 };
 
-function OcrRozeti({ durum }: { durum: OcrDurum }) {
-  if (durum.hal === "bos") return null;
-
-  if (durum.hal === "okuyor") {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-amber/25 bg-amber/10 px-3 py-2 text-sm font-semibold text-amber">
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-amber border-t-transparent" />
-        Fiş okunuyor...
-      </div>
-    );
-  }
-
-  if (durum.hal === "hata") {
-    return (
-      <div className="rounded-lg border border-white/12 bg-white/5 px-3 py-2 text-sm text-fog">
-        {durum.mesaj}
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-ok/30 bg-ok/10 px-3 py-2 text-sm font-semibold text-ok">
-      Fiş okundu · {kategoriAdi(durum.kategori)}
-      {durum.guven < 70 && " · kontrol et"}
-      <span className="ml-1 font-medium text-fog">— alanları düzeltebilirsin</span>
-    </div>
-  );
-}
-
 export default function GiderForm({
   bugunTarih,
   baslangic,
-  aiOcr = true,
 }: {
   bugunTarih: string;
   baslangic?: GiderFormBaslangic;
-  /** AI_KAPALI iken false — sadece kayıt, OCR yok. */
-  aiOcr?: boolean;
 }) {
   const duzenle = Boolean(baslangic);
   const [durum, aksiyon, bekliyor] = useActionState<FormSonuc, FormData>(
@@ -95,86 +33,11 @@ export default function GiderForm({
   );
   const [kategori, setKategori] = useState(baslangic?.kategori || "YAKIT");
   const [fisSil, setFisSil] = useState(false);
-  const [ocrDurum, setOcrDurum] = useState<OcrDurum>({ hal: "bos" });
-  const [ocr, setOcr] = useState<OcrDegerleri | null>(null);
-  const [ocrSayac, setOcrSayac] = useState(0);
 
   const demirbas = kategori === "DEMIRBAS";
   const kredi = kategori === "KREDI_ODEME";
   const varsayilanKdvli =
     baslangic?.kdvli !== undefined ? baslangic.kdvli : !kredi;
-
-  async function fisiOku(dosya: File | null) {
-    if (!dosya) {
-      setOcrDurum({ hal: "bos" });
-      return;
-    }
-
-    // AI kapalıyken OCR çağırma — fotoğraf yine kayda gider.
-    if (!aiOcr) {
-      setOcrDurum({
-        hal: "hata",
-        mesaj: "AI kapalı — tutarı elle gir, fiş yine kaydolur.",
-      });
-      return;
-    }
-
-    setOcrDurum({ hal: "okuyor" });
-    try {
-      // FisYukle zaten küçülttü; yine de emniyet için.
-      const kucuk = await gorseliKucult(dosya);
-      const govde = new FormData();
-      govde.append("fis", kucuk, "fis.jpg");
-
-      const cevap = await fetch("/api/ai/fis-oku", {
-        method: "POST",
-        body: govde,
-      });
-      const veri = (await cevap.json().catch(() => ({}))) as {
-        hata?: string;
-        sonuc?: OcrYanit;
-      };
-
-      if (!cevap.ok) {
-        setOcrDurum({
-          hal: "hata",
-          mesaj: veri?.hata || "Fiş okunamadı — elle doldur, kayıt çalışır.",
-        });
-        return;
-      }
-
-      const s = veri.sonuc as OcrYanit;
-      if (!s?.okunabildi || s.toplamTutarTl === null) {
-        setOcrDurum({
-          hal: "hata",
-          mesaj: "Fiş net okunamadı, bilgileri elle gir.",
-        });
-        return;
-      }
-
-      const degerler: OcrDegerleri = {
-        tutarYazi: tlGirisBicimle(
-          s.toplamTutarTl.toFixed(2).replace(".", ",").replace(/,00$/, "")
-        ),
-        kdvli: s.kdvTutarTl === null ? true : s.kdvTutarTl > 0,
-        kdvDahilMi: s.kdvDahilMi !== false,
-        tarih: s.tarih && /^\d{4}-\d{2}-\d{2}$/.test(s.tarih) ? s.tarih : null,
-        aciklama: [s.firmaAdi, s.aciklama].filter(Boolean).join(" - ") || null,
-        litre: s.litre ? String(s.litre).replace(".", ",") : null,
-      };
-
-      setKategori(s.kategori);
-      setOcr(degerler);
-      setOcrSayac((n) => n + 1);
-      setOcrDurum({
-        hal: "tamam",
-        kategori: s.kategori,
-        guven: s.guvenSkoru,
-      });
-    } catch {
-      setOcrDurum({ hal: "hata", mesaj: "Fiş okunurken bağlantı hatası." });
-    }
-  }
 
   return (
     <form action={aksiyon} className="space-y-4" encType="multipart/form-data">
@@ -186,12 +49,11 @@ export default function GiderForm({
           Tarih
         </label>
         <input
-          key={`tarih-${ocrSayac}`}
           id="tarih"
           name="tarih"
           type="date"
           required
-          defaultValue={ocr?.tarih || baslangic?.tarih || bugunTarih}
+          defaultValue={baslangic?.tarih || bugunTarih}
           className="alan"
         />
       </div>
@@ -234,12 +96,12 @@ export default function GiderForm({
       )}
 
       <TutarKdvGirisi
-        key={`${kategori}-${baslangic?.id || "yeni"}-${ocrSayac}`}
+        key={`${kategori}-${baslangic?.id || "yeni"}`}
         etiket={demirbas ? "Alım tutarı" : kredi ? "Ödeme tutarı" : "Gider tutarı"}
         varsayilanKdvli={varsayilanKdvli}
-        baslangicTutar={ocr?.tutarYazi || baslangic?.tutarYazi || ""}
-        baslangicKdvli={ocr ? ocr.kdvli : baslangic?.kdvli}
-        baslangicKdvDahilMi={ocr ? ocr.kdvDahilMi : (baslangic?.kdvDahilMi ?? true)}
+        baslangicTutar={baslangic?.tutarYazi || ""}
+        baslangicKdvli={baslangic?.kdvli}
+        baslangicKdvDahilMi={baslangic?.kdvDahilMi ?? true}
         kdvEtiketi="İndirilecek KDV"
         kdvNotu="Bu KDV’yi devlete ekstra ödemezsin; yüklerden gelen KDV borcundan düşülür."
       />
@@ -251,13 +113,12 @@ export default function GiderForm({
               Litre (isteğe bağlı)
             </label>
             <input
-              key={`litre-${ocrSayac}`}
               id="litre"
               name="litre"
               type="text"
               inputMode="decimal"
               placeholder="Örnek: 350"
-              defaultValue={ocr?.litre || baslangic?.litre || ""}
+              defaultValue={baslangic?.litre || ""}
               className="alan"
             />
           </div>
@@ -283,7 +144,6 @@ export default function GiderForm({
           Açıklama {demirbas ? "(ör. plaka / model)" : "(isteğe bağlı)"}
         </label>
         <input
-          key={`aciklama-${ocrSayac}`}
           id="aciklama"
           name="aciklama"
           type="text"
@@ -294,7 +154,7 @@ export default function GiderForm({
                 ? "Örnek: Garanti — tır kredisi 3. taksit"
                 : "Örnek: Opet - E5 üzeri"
           }
-          defaultValue={ocr?.aciklama || baslangic?.aciklama || ""}
+          defaultValue={baslangic?.aciklama || ""}
           className="alan"
         />
       </div>
@@ -324,7 +184,6 @@ export default function GiderForm({
 
       <FisYukle
         vurgulu={demirbas || kredi}
-        onDosya={fisiOku}
         baslik={
           baslangic?.fisResmi && !fisSil
             ? "Yeni fatura / fiş (değiştirmek için)"
@@ -334,12 +193,7 @@ export default function GiderForm({
                 ? "Dekont / makbuz fotoğrafı"
                 : "Fatura / fiş fotoğrafı"
         }
-        aciklama={
-          demirbas
-            ? "Tır faturasını çek — Muhasebeciye Gönder sayfasından iletirsin."
-            : "Fotoğrafı çek, yapay zekâ tutarı ve KDV'yi kendi doldursun."
-        }
-        altBilgi={<OcrRozeti durum={ocrDurum} />}
+        aciklama="Çek veya seç — tutarı elle gir, fiş olduğu gibi kaydolur. AI okuma yok."
       />
 
       {durum?.hata && (

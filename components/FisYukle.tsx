@@ -51,13 +51,20 @@ export default function FisYukle({
 
     setHazirlaniyor(true);
     try {
-      // Büyük telefon fotoğrafı / HEIC sekme çökertmesin: önce küçült.
-      const blob = await gorseliKucult(ham, 1600, 0.8);
-      const dosya = new File(
-        [blob],
-        ham.name.replace(/\.[^.]+$/, "") + ".jpg",
-        { type: "image/jpeg" }
-      );
+      // Büyük telefon fotoğrafı sekme çökertmesin: küçültmeyi dene.
+      // Başarısız olursa orijinal dosyayı olduğu gibi kullan (AI yok).
+      let dosya: File = ham;
+      try {
+        const blob = await gorseliKucult(ham, 1920, 0.85);
+        dosya = new File(
+          [blob],
+          ham.name.replace(/\.[^.]+$/, "") + ".jpg",
+          { type: "image/jpeg" }
+        );
+      } catch (e) {
+        console.warn("[fis-yukle] kucultme atlandi", e);
+        dosya = ham;
+      }
 
       if (inputRef.current) inputaDosyaKoy(inputRef.current, dosya);
 
@@ -66,11 +73,20 @@ export default function FisYukle({
       onDosya?.(dosya);
     } catch (e) {
       console.error("[fis-yukle]", e);
-      setOnizleme(null);
-      setDosyaAdi(null);
-      setHata("Fotoğraf işlenemedi. Daha küçük bir görsel dene veya tekrar çek.");
-      if (inputRef.current) inputRef.current.value = "";
-      onDosya?.(null);
+      // Son çare: ham dosyayı doğrudan koy
+      try {
+        if (inputRef.current) inputaDosyaKoy(inputRef.current, ham);
+        setDosyaAdi(ham.name);
+        setOnizleme(URL.createObjectURL(ham));
+        onDosya?.(ham);
+        setHata(null);
+      } catch {
+        setOnizleme(null);
+        setDosyaAdi(null);
+        setHata("Fotoğraf yüklenemedi. Tekrar dene veya JPG olarak kaydet.");
+        if (inputRef.current) inputRef.current.value = "";
+        onDosya?.(null);
+      }
     } finally {
       setHazirlaniyor(false);
     }

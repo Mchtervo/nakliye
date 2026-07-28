@@ -1,6 +1,5 @@
 import Link from "next/link";
 import GiderForm from "@/components/GiderForm";
-import { aiKullanilabilir } from "@/lib/ai/istemci";
 import { bugunTarihStr } from "@/lib/tarih";
 
 export default function YeniGiderSayfasi() {
@@ -13,10 +12,7 @@ export default function YeniGiderSayfasi() {
         <h1 className="font-display text-3xl font-extrabold text-paper">Yeni Gider</h1>
       </div>
       <div className="kart-paper p-4 sm:p-6 reveal reveal-d1">
-        <GiderForm
-          bugunTarih={bugunTarihStr()}
-          aiOcr={aiKullanilabilir()}
-        />
+        <GiderForm bugunTarih={bugunTarihStr()} />
       </div>
       <Link
         href="/giderler"

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import GiderForm from "@/components/GiderForm";
-import { aiKullanilabilir } from "@/lib/ai/istemci";
 import { kurustanGiris } from "@/lib/para";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +44,6 @@ export default async function GiderDuzenleSayfasi({
       <div className="kart-paper p-4 sm:p-6 reveal reveal-d1">
         <GiderForm
           bugunTarih={tarihInput(gider.tarih)}
-          aiOcr={aiKullanilabilir()}
           baslangic={{
             id: gider.id,
             tarih: tarihInput(gider.tarih),
