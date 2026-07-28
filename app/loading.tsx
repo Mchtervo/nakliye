@@ -13,7 +13,7 @@ export default function Yukleniyor() {
         <div className="h-28 animate-pulse rounded-2xl bg-white/6" />
         <div className="h-28 animate-pulse rounded-2xl bg-white/6" />
       </div>
-      <p className="pt-2 text-center text-xs font-semibold text-fog">
+      <p className="pt-2 text-center text-sm font-bold text-amber">
         Açılıyor…
       </p>
     </div>

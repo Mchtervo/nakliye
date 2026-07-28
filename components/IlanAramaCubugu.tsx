@@ -2,13 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 export type RotaCip = {
   etiket: string;
   nereden: string;
   nereye: string;
 };
+
+function gezinmeBaslat() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("gezinme-basla"));
+  }
+}
 
 /** NEREDEN / NEREYE arama — URL'ye yazar (GET). */
 export default function IlanAramaCubugu({
@@ -23,8 +29,14 @@ export default function IlanAramaCubugu({
   cipler: RotaCip[];
 }) {
   const router = useRouter();
+  const [bekliyor, baslat] = useTransition();
   const [from, setFrom] = useState(nereden);
   const [to, setTo] = useState(nereye);
+
+  useEffect(() => {
+    setFrom(nereden);
+    setTo(nereye);
+  }, [nereden, nereye]);
 
   function ara(e?: React.FormEvent) {
     e?.preventDefault();
@@ -34,20 +46,40 @@ export default function IlanAramaCubugu({
     const v = to.trim();
     if (n) p.set("nereden", n);
     if (v) p.set("nereye", v);
-    router.push(`/ai/yukler?${p.toString()}`);
+    gezinmeBaslat();
+    baslat(() => {
+      router.push(`/ai/yukler?${p.toString()}`);
+    });
   }
 
   function temizle() {
     setFrom("");
     setTo("");
-    router.push(`/ai/yukler?sekme=${encodeURIComponent(sekme)}`);
+    gezinmeBaslat();
+    baslat(() => {
+      router.push(`/ai/yukler?sekme=${encodeURIComponent(sekme)}`);
+    });
   }
 
   const filtreVar = Boolean(nereden || nereye);
 
   return (
-    <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-      <form onSubmit={ara} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+    <div className="relative space-y-2 rounded-2xl border border-white/12 bg-[#161e2a] p-3">
+      {bekliyor && (
+        <div
+          role="status"
+          className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#0c1017]/75 backdrop-blur-[2px]"
+        >
+          <p className="rounded-xl border border-amber/40 bg-amber/15 px-4 py-2.5 text-sm font-bold text-amber">
+            Yük aranıyor…
+          </p>
+        </div>
+      )}
+
+      <form
+        onSubmit={ara}
+        className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]"
+      >
         <label className="block">
           <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">
             Nereden
@@ -56,7 +88,8 @@ export default function IlanAramaCubugu({
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             placeholder="Ankara, Ostim…"
-            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none"
+            disabled={bekliyor}
+            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none disabled:opacity-60"
             autoComplete="off"
           />
         </label>
@@ -68,22 +101,25 @@ export default function IlanAramaCubugu({
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder="Bolu, Gerede…"
-            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none"
+            disabled={bekliyor}
+            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none disabled:opacity-60"
             autoComplete="off"
           />
         </label>
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="flex-1 rounded-xl bg-amber px-4 py-2.5 text-sm font-bold text-asphalt hover:brightness-110 sm:flex-none"
+            disabled={bekliyor}
+            className="flex-1 rounded-xl bg-amber px-4 py-2.5 text-sm font-bold text-asphalt hover:brightness-110 disabled:opacity-70 sm:flex-none sm:min-w-[7.5rem]"
           >
-            Ara
+            {bekliyor ? "Aranıyor…" : "Ara"}
           </button>
           {filtreVar && (
             <button
               type="button"
+              disabled={bekliyor}
               onClick={temizle}
-              className="rounded-xl border border-white/15 px-3 py-2.5 text-sm font-semibold text-fog hover:text-paper"
+              className="rounded-xl border border-white/15 px-3 py-2.5 text-sm font-semibold text-paper/80 hover:text-paper disabled:opacity-60"
             >
               Temizle
             </button>
@@ -107,10 +143,11 @@ export default function IlanAramaCubugu({
               <Link
                 key={c.etiket}
                 href={`/ai/yukler?${p.toString()}`}
+                onClick={gezinmeBaslat}
                 className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
                   aktif
                     ? "border-amber/50 bg-amber/15 text-amber"
-                    : "border-white/12 text-fog hover:border-white/25 hover:text-paper"
+                    : "border-white/12 text-paper/75 hover:border-white/25 hover:text-paper"
                 }`}
               >
                 {c.etiket}

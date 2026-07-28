@@ -13,7 +13,6 @@ import {
 import AksiyonButonu from "@/components/AksiyonButonu";
 import IlanAramaCubugu, { type RotaCip } from "@/components/IlanAramaCubugu";
 import IlanKart from "@/components/IlanKart";
-import { donusOnerileriBul } from "@/lib/seferPlan";
 import {
   hatAnahtar,
   hatOrtalamalariYukle,
@@ -231,9 +230,20 @@ export default async function AiYuklerSayfasi({
   const anahtarVar = Boolean(process.env.OPENAI_API_KEY);
   const cipler = rotaCipleri(tercih.rotalar);
 
-  let sirali = [...ilanlar].sort(
-    (a, b) => siralamaSkoru(b) - siralamaSkoru(a)
-  );
+  let sirali = [...ilanlar].sort((a, b) => {
+    // Nereden dolu → önce o ilden çıkanlar (Ankara aramada Pamukova→Ankara üste binmesin)
+    if (cikisIl && !nereyeHam) {
+      const aC = a.cikisIl === cikisIl ? 1 : 0;
+      const bC = b.cikisIl === cikisIl ? 1 : 0;
+      if (aC !== bC) return bC - aC;
+    }
+    if (varisIl && !neredenHam) {
+      const aV = a.varisIl === varisIl ? 1 : 0;
+      const bV = b.varisIl === varisIl ? 1 : 0;
+      if (aV !== bV) return bV - aV;
+    }
+    return siralamaSkoru(b) - siralamaSkoru(a);
+  });
   if (odak) {
     const idx = sirali.findIndex((i) => i.id === odak);
     if (idx > 0) {
@@ -256,35 +266,11 @@ export default async function AiYuklerSayfasi({
         .filter(Boolean)
         .join(" · ");
 
-  // Dönüş önerisi — sadece ilk 3 kart (eskiden 12× ayrı sorgu paneli kilitliyordu)
+  // Dönüş önerisi listede ekstra 3 sorgu yapıyordu — kart menüsüne bırakıldı.
   const donusMap = new Map<
     number,
     { id: number; rota: string; fiyat: string | null }[]
   >();
-  await Promise.all(
-    sirali.slice(0, 3).map(async (ilan) => {
-      const oneriler = await donusOnerileriBul(
-        ilan.varisIl,
-        tercih.anaUs || ilan.cikisIl,
-        ilan.id,
-        1
-      );
-      if (oneriler.length === 0) return;
-      donusMap.set(
-        ilan.id,
-        oneriler.map((o) => ({
-          id: o.id,
-          rota: `${o.nereden || o.cikisIl} → ${o.nereye || o.varisIl}`,
-          fiyat:
-            o.ucret && o.ucret > 0
-              ? tlYaz(o.ucret)
-              : o.fiyatTon && o.tonaj
-                ? `~${tlYaz(o.fiyatTon * o.tonaj)}`
-                : null,
-        }))
-      );
-    })
-  );
 
   function karIcin(ilan: (typeof sirali)[0]) {
     const key = hatAnahtar(ilan.cikisIl, ilan.varisIl);

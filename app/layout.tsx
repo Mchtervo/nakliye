@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
@@ -46,7 +47,9 @@ export default function RootLayout({
   return (
     <html lang="tr" className={`${sans.variable} h-full antialiased`}>
       <body className="min-h-full">
-        <GezinmeIlerleme />
+        <Suspense fallback={null}>
+          <GezinmeIlerleme />
+        </Suspense>
         <div className="app-shell">
           <Nav />
           <main className="app-main">
