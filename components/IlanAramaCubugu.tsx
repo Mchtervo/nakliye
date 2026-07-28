@@ -64,7 +64,7 @@ export default function IlanAramaCubugu({
   const filtreVar = Boolean(nereden || nereye);
 
   return (
-    <div className="relative space-y-2 rounded-2xl border border-white/12 bg-[#161e2a] p-3">
+    <div className="relative space-y-2 cam p-3">
       {bekliyor && (
         <div
           role="status"

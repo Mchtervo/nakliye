@@ -87,7 +87,7 @@ export default async function ParaSayfasi({
       </div>
 
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="rounded-2xl border border-white/12 bg-[#161e2a] p-3.5">
+        <div className="cam p-3.5">
           <p className="text-xs font-semibold text-fog">Kasada</p>
           <p
             className={`mt-1 font-display text-2xl font-bold ${
@@ -97,7 +97,7 @@ export default async function ParaSayfasi({
             {tlYaz(kasaBakiye)}
           </p>
         </div>
-        <div className="rounded-2xl border border-white/12 bg-[#161e2a] p-3.5">
+        <div className="cam p-3.5">
           <p className="text-xs font-semibold text-fog">Alacak</p>
           <p className="mt-1 font-display text-2xl font-bold text-amber">
             {tlYaz(toplamAlacak)}
@@ -108,16 +108,14 @@ export default async function ParaSayfasi({
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-2xl border border-white/10 bg-[#121a26] p-1">
+      <div className="sekme-serit">
         {SEKMELER.map((s) => {
           const aktif = s.kod === sekme;
           return (
             <Link
               key={s.kod}
               href={`/para?sekme=${s.kod}`}
-              className={`flex-1 rounded-xl py-2.5 text-center text-sm font-bold ${
-                aktif ? "bg-amber/15 text-amber" : "text-paper/70 hover:text-paper"
-              }`}
+              className={`sekme-oge flex-1 text-center ${aktif ? "aktif" : ""}`}
             >
               {s.ad}
             </Link>
@@ -129,7 +127,7 @@ export default async function ParaSayfasi({
         <div className="space-y-3">
           <Link
             href="/para?sekme=kasa"
-            className="block rounded-2xl border border-white/12 bg-[#161e2a] p-4"
+            className="block cam p-4"
           >
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -143,7 +141,7 @@ export default async function ParaSayfasi({
           </Link>
           <Link
             href="/para?sekme=cari"
-            className="block rounded-2xl border border-white/12 bg-[#161e2a] p-4"
+            className="block cam p-4"
           >
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -184,7 +182,7 @@ export default async function ParaSayfasi({
               hareketler.map((h) => (
                 <div
                   key={h.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#161e2a] p-3.5"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/12 bg-black/25 p-3.5"
                 >
                   <div>
                     <p className="font-semibold text-paper">
@@ -225,7 +223,7 @@ export default async function ParaSayfasi({
               <Link
                 key={f.id}
                 href={`/firmalar/${f.id}`}
-                className="block rounded-2xl border border-white/12 bg-[#161e2a] p-4"
+                className="block cam p-4"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

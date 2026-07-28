@@ -42,7 +42,7 @@ export default function PlanForm({
   return (
     <form
       onSubmit={planla}
-      className="grid grid-cols-1 gap-2 rounded-2xl border border-white/12 bg-[#161e2a] p-3 sm:grid-cols-[1fr_auto_auto]"
+      className="grid grid-cols-1 gap-2 cam p-3 sm:grid-cols-[1fr_auto_auto]"
     >
       <label className="block">
         <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">

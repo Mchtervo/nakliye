@@ -97,7 +97,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
   return (
     <article
       id={`ilan-${ilan.id}`}
-      className={`rounded-2xl border border-white/10 bg-[#141c28] p-4 ${
+      className={`cam p-4 ${
         ilan.odakli ? "ring-2 ring-amber/40" : ""
       } ${ilan.soluk || ilan.durum === "CEVAP_YOK" ? "opacity-70" : ""}`}
     >

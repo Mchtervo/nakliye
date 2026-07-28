@@ -275,7 +275,7 @@ export default function Nav() {
   return (
     <div className="contents">
       {/* Masaüstü yan menü */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[16.5rem] flex-col border-r border-white/[0.07] bg-[#0e141d]/92 px-4 py-5 backdrop-blur-xl md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[16.5rem] flex-col border-r border-white/10 bg-[rgba(10,14,22,0.85)] px-4 py-5 backdrop-blur-2xl md:flex">
         <div className="mb-6 px-1">
           <Logo />
           <div className="lane-strip mt-5 opacity-60" />
@@ -340,7 +340,7 @@ export default function Nav() {
       </aside>
 
       {/* Mobil üst bar */}
-      <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#0c1017]/90 px-3 py-2.5 backdrop-blur-xl md:hidden">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[rgba(7,11,18,0.88)] px-3 py-2.5 backdrop-blur-2xl md:hidden">
         <div className="flex items-center justify-between gap-2">
           <Logo />
           <div className="flex shrink-0 items-center gap-1.5">
@@ -374,7 +374,7 @@ export default function Nav() {
             onClick={() => setDahaAcik(false)}
           />
           <div
-            className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[1.75rem] border border-white/12 bg-[#121a26] px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl"
+            className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[1.75rem] border border-white/12 bg-[var(--asphalt-2)] px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl"
             role="dialog"
             aria-label="Diğer menü"
           >
@@ -435,7 +435,7 @@ export default function Nav() {
 
       {/* Mobil alt dock */}
       <nav
-        className="fixed inset-x-2 bottom-2 z-50 rounded-2xl border border-white/10 bg-[#121a26]/96 p-1 shadow-[0_16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-2 bottom-2 z-50 rounded-[1.35rem] border border-white/12 bg-[rgba(14,20,32,0.92)] p-1 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-2xl md:hidden"
         style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
       >
         <div className="grid grid-cols-5">

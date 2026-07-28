@@ -19,7 +19,7 @@ function gunYazi(n: number): string {
 
 function PlanKarti({ plan, sira }: { plan: SeferPlani; sira: number }) {
   return (
-    <article className="rounded-2xl border border-white/12 bg-[#161e2a] p-4">
+    <article className="cam p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-display text-lg font-bold text-paper">
           Alternatif {sira}
