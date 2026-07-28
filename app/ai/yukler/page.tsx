@@ -163,15 +163,32 @@ export default async function AiYuklerSayfasi({
                 }
               : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
 
-  const rotaKosul: Prisma.YukIlaniWhereInput = {};
-  if (cikisIl) rotaKosul.cikisIl = cikisIl;
-  if (varisIl) rotaKosul.varisIl = varisIl;
-  if (neredenHata) rotaKosul.cikisIl = "__yok__";
-  if (nereyeHata) rotaKosul.varisIl = "__yok__";
+  // Tek şehir: çıkış VEYA varış (Ankara yazıp sadece çıkışta 0 kalmasın —
+  // çoğu ilan Ankara'ya geliyor). İkisi doluysa kesin rota.
+  let rotaKosul: Prisma.YukIlaniWhereInput = {};
+  if (neredenHata || nereyeHata) {
+    if (neredenHata) rotaKosul.cikisIl = "__yok__";
+    if (nereyeHata) rotaKosul.varisIl = "__yok__";
+  } else if (cikisIl && varisIl) {
+    rotaKosul = { cikisIl, varisIl };
+  } else if (cikisIl && !nereyeHam) {
+    rotaKosul = { OR: [{ cikisIl }, { varisIl: cikisIl }] };
+  } else if (varisIl && !neredenHam) {
+    rotaKosul = { OR: [{ varisIl }, { cikisIl: varisIl }] };
+  } else if (cikisIl) {
+    rotaKosul = { cikisIl };
+  } else if (varisIl) {
+    rotaKosul = { varisIl };
+  }
 
   const filtre: Prisma.YukIlaniWhereInput = {
     AND: [tabanFiltre, rotaKosul],
   };
+  const tekSehirArama = Boolean(
+    (cikisIl && !nereyeHam && !neredenHata) ||
+      (varisIl && !neredenHam && !nereyeHata)
+  );
+  const tekSehirAd = cikisIl || varisIl;
 
   const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
     await Promise.all([
@@ -206,16 +223,18 @@ export default async function AiYuklerSayfasi({
   }
 
   const iyiSayisi = sirali.filter(iyiIsMi).length;
-  const filtreOzet = [
-    cikisIl
-      ? `çıkış ${cikisIl}${neredenHam !== cikisIl ? ` (${neredenHam})` : ""}`
-      : null,
-    varisIl
-      ? `varış ${varisIl}${nereyeHam !== varisIl ? ` (${nereyeHam})` : ""}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const filtreOzet = tekSehirArama
+    ? `${tekSehirAd} (çıkış veya varış)`
+    : [
+        cikisIl
+          ? `çıkış ${cikisIl}${neredenHam !== cikisIl ? ` (${neredenHam})` : ""}`
+          : null,
+        varisIl
+          ? `varış ${varisIl}${nereyeHam !== varisIl ? ` (${nereyeHam})` : ""}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
 
   // Dönüş önerisi — sadece ilk 3 kart (eskiden 12× ayrı sorgu paneli kilitliyordu)
   const donusMap = new Map<
@@ -384,12 +403,24 @@ export default async function AiYuklerSayfasi({
       )}
 
       {sirali.length === 0 ? (
-        <div className="bos-durum">
-          {neredenHam || nereyeHam
-            ? "Bu rotada ilan yok."
-            : sekme === "YENI"
-              ? "Şu an yeni ilan yok."
-              : "Bu listede kayıt yok."}
+        <div className="bos-durum space-y-3">
+          <p>
+            {neredenHam || nereyeHam
+              ? tekSehirArama
+                ? `${tekSehirAd} çıkışlı / varışlı ilan yok.`
+                : "Bu rotada ilan yok."
+              : sekme === "YENI"
+                ? "Şu an yeni ilan yok."
+                : "Bu listede kayıt yok."}
+          </p>
+          {(neredenHam || nereyeHam) && (
+            <Link
+              href={`/ai/yukler?sekme=${encodeURIComponent(sekme)}`}
+              className="inline-block text-sm font-bold text-amber hover:underline"
+            >
+              Filtreyi kaldır · tüm ilanlar
+            </Link>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

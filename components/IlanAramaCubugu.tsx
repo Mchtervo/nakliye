@@ -49,26 +49,26 @@ export default function IlanAramaCubugu({
     <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
       <form onSubmit={ara} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <label className="block">
-          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-fog">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">
             Nereden
           </span>
           <input
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             placeholder="Ankara, Ostim…"
-            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-fog/60 focus:border-amber/40 focus:outline-none"
+            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none"
             autoComplete="off"
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-fog">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">
             Nereye
           </span>
           <input
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder="Bolu, Gerede…"
-            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-fog/60 focus:border-amber/40 focus:outline-none"
+            className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none"
             autoComplete="off"
           />
         </label>
