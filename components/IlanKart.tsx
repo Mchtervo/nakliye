@@ -222,12 +222,30 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
 
       {/* Rozet — sadece önemli */}
       {(ilan.durum === "ALINDI" ||
+        ilan.durum === "ILETISIME_GECILDI" ||
+        ilan.durum === "ILGILENIYOR" ||
+        ilan.durum === "PAZARLIKTA" ||
         ilan.donusTalebiId ||
         aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod)) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {ilan.durum === "ALINDI" && (
             <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
               Alındı
+            </span>
+          )}
+          {ilan.durum === "ILETISIME_GECILDI" && (
+            <span className="rounded-md bg-amber/15 px-2 py-0.5 text-xs font-semibold text-amber">
+              Arandı
+            </span>
+          )}
+          {ilan.durum === "ILGILENIYOR" && (
+            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
+              Takipte
+            </span>
+          )}
+          {ilan.durum === "PAZARLIKTA" && (
+            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
+              Pazarlık
             </span>
           )}
           {ilan.donusTalebiId && (

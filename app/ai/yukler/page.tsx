@@ -136,7 +136,19 @@ export default async function AiYuklerSayfasi({
 
   // Arşiv canlandırma cron'da (ai-kuyruk) — sayfa açılışında DB yazısı paneli kilitliyordu.
 
-  const tabanFiltre: Prisma.YukIlaniWhereInput =
+  const rotaFiltresiVar = Boolean(neredenHam || nereyeHam);
+  const aktifDurumlar = [
+    "YENI",
+    "ILGILENIYOR",
+    "ILETISIME_GECILDI",
+    "PAZARLIKTA",
+    "CEVAP_YOK",
+    "ALINDI",
+  ] as const;
+
+  // Şehir/rota aranınca «Yeni» sekmesi Ankara çıkışını yutuyordu:
+  // Bilgi Sor / Ara sonrası durum ILETISIME_GECILDI oluyor, Yeni'de 0 kalıyordu.
+  let tabanFiltre: Prisma.YukIlaniWhereInput =
     sekme === "SUPHELI"
       ? { guvenSkoru: { lt: SUPHE_SINIRI } }
       : sekme === "HEPSI"
@@ -162,6 +174,13 @@ export default async function AiYuklerSayfasi({
                   guvenSkoru: { gte: SUPHE_SINIRI },
                 }
               : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
+
+  if (rotaFiltresiVar && (sekme === "YENI" || sekme === "ILGILENIYOR")) {
+    tabanFiltre = {
+      durum: { in: [...aktifDurumlar] },
+      ...tercihKosulu(tercih),
+    };
+  }
 
   // Tek şehir: çıkış VEYA varış (Ankara yazıp sadece çıkışta 0 kalmasın —
   // çoğu ilan Ankara'ya geliyor). İkisi doluysa kesin rota.
@@ -224,7 +243,7 @@ export default async function AiYuklerSayfasi({
 
   const iyiSayisi = sirali.filter(iyiIsMi).length;
   const filtreOzet = tekSehirArama
-    ? `${tekSehirAd} (çıkış veya varış)`
+    ? `${tekSehirAd} (çıkış veya varış · aktif ilanlar)`
     : [
         cikisIl
           ? `çıkış ${cikisIl}${neredenHam !== cikisIl ? ` (${neredenHam})` : ""}`
@@ -232,6 +251,7 @@ export default async function AiYuklerSayfasi({
         varisIl
           ? `varış ${varisIl}${nereyeHam !== varisIl ? ` (${nereyeHam})` : ""}`
           : null,
+        rotaFiltresiVar ? "aktif ilanlar" : null,
       ]
         .filter(Boolean)
         .join(" · ");
