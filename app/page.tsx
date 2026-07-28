@@ -170,7 +170,7 @@ export default async function PanelSayfasi() {
           },
         ].map((m) => (
           <div key={m.etiket} className="metrik-sade">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-fog">
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-paper/70">
               {m.etiket}
             </div>
             <div

@@ -42,23 +42,23 @@ export default function PlanForm({
   return (
     <form
       onSubmit={planla}
-      className="grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-white/4 p-3 sm:grid-cols-[1fr_auto_auto]"
+      className="grid grid-cols-1 gap-2 rounded-2xl border border-white/12 bg-[#161e2a] p-3 sm:grid-cols-[1fr_auto_auto]"
     >
       <label className="block">
-        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-fog">
+        <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">
           Neredeyim
         </span>
         <input
           value={from}
           onChange={(e) => setFrom(e.target.value)}
           placeholder="Ankara, Ostim…"
-          className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-fog/60 focus:border-amber/40 focus:outline-none"
+          className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none"
           autoComplete="off"
           disabled={bekliyor}
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-fog">
+        <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">
           Gün
         </span>
         <select
