@@ -52,7 +52,7 @@ export default function PlanForm({
           value={from}
           onChange={(e) => setFrom(e.target.value)}
           placeholder="Ankara, Ostim…"
-          className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper placeholder:text-paper/45 focus:border-amber/40 focus:outline-none"
+          className="w-full rounded-xl border border-black/10 bg-[#f0f5f4] px-3 py-2.5 text-sm text-ink placeholder:text-black/35 focus:border-teal/50 focus:outline-none disabled:opacity-60"
           autoComplete="off"
           disabled={bekliyor}
         />
@@ -65,7 +65,7 @@ export default function PlanForm({
           value={gunSayisi}
           onChange={(e) => setGunSayisi(e.target.value)}
           disabled={bekliyor}
-          className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-paper focus:border-amber/40 focus:outline-none sm:w-24"
+          className="w-full rounded-xl border border-black/10 bg-[#f0f5f4] px-3 py-2.5 text-sm text-ink focus:border-teal/50 focus:outline-none disabled:opacity-60 sm:w-24"
         >
           {GUN_SECENEKLERI.map((g) => (
             <option key={g} value={g}>

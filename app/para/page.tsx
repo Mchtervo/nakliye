@@ -182,7 +182,7 @@ export default async function ParaSayfasi({
               hareketler.map((h) => (
                 <div
                   key={h.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/12 bg-black/25 p-3.5"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/8 bg-[#f0f5f4] p-3.5"
                 >
                   <div>
                     <p className="font-semibold text-paper">

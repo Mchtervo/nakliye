@@ -266,36 +266,33 @@ export default function Nav() {
   }, [dahaAcik]);
 
   const yanMenuSinifi = (aktif: boolean) =>
-    `relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors duration-200 ${
+    `relative flex items-center gap-3 rounded-full px-3 py-2.5 text-sm font-semibold transition-colors duration-200 ${
       aktif
-        ? "bg-amber/12 text-amber"
-        : "text-paper/75 hover:bg-white/5 hover:text-paper"
+        ? "bg-white text-[#0a1c1b] shadow-md"
+        : "text-white/80 hover:bg-white/8 hover:text-white"
     }`;
 
   return (
     <div className="contents">
       {/* Masaüstü yan menü */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[16.5rem] flex-col border-r border-white/10 bg-[rgba(10,14,22,0.85)] px-4 py-5 backdrop-blur-2xl md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[16.5rem] flex-col border-r border-white/10 bg-[#041614]/95 px-4 py-5 backdrop-blur-2xl md:flex">
         <div className="mb-6 px-1">
           <Logo />
           <div className="lane-strip mt-5 opacity-60" />
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-paper/70">
+          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-white/65">
             Şu an · {konumAdi}
           </p>
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
-          <p className="mb-1 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-paper/65">
+          <p className="mb-1 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-white/50">
             Ana menü
           </p>
           {DOCK.map((l) => {
             const aktif = aktifMi(l.href);
             return (
               <NavLink key={l.href} href={l.href} className={yanMenuSinifi(aktif)}>
-                {aktif && (
-                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-amber" />
-                )}
-                <span className={aktif ? "text-amber" : "text-paper/70"}>{l.ikon}</span>
+                <span className={aktif ? "text-teal" : "text-white/70"}>{l.ikon}</span>
                 {l.ad}
               </NavLink>
             );
@@ -303,7 +300,7 @@ export default function Nav() {
 
           {DAHA_GRUPLAR.map((grup) => (
             <div key={grup.baslik} className="mt-4">
-              <p className="mb-1 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-paper/65">
+              <p className="mb-1 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-white/50">
                 {grup.baslik}
               </p>
               {grup.ogeler
@@ -312,10 +309,7 @@ export default function Nav() {
                   const aktif = aktifMi(l.href);
                   return (
                     <NavLink key={l.href} href={l.href} className={yanMenuSinifi(aktif)}>
-                      {aktif && (
-                        <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-amber" />
-                      )}
-                      <span className={aktif ? "text-amber" : "text-paper/70"}>{l.ikon}</span>
+                      <span className={aktif ? "text-teal" : "text-white/70"}>{l.ikon}</span>
                       {l.ad}
                     </NavLink>
                   );
@@ -324,8 +318,8 @@ export default function Nav() {
           ))}
         </nav>
 
-        <div className="mt-auto rounded-2xl border border-white/8 bg-gradient-to-br from-white/[0.06] to-transparent p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-paper/70">
+        <div className="mt-auto rounded-2xl border border-white/12 bg-white/5 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
             Hızlı
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -340,7 +334,7 @@ export default function Nav() {
       </aside>
 
       {/* Mobil üst bar */}
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[rgba(7,11,18,0.88)] px-3 py-2.5 backdrop-blur-2xl md:hidden">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#041614]/90 px-3 py-2.5 backdrop-blur-2xl md:hidden">
         <div className="flex items-center justify-between gap-2">
           <Logo />
           <div className="flex shrink-0 items-center gap-1.5">
@@ -374,7 +368,7 @@ export default function Nav() {
             onClick={() => setDahaAcik(false)}
           />
           <div
-            className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[1.75rem] border border-white/12 bg-[var(--asphalt-2)] px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl"
+            className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[1.75rem] border border-white/12 bg-[#0a2a28] px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl"
             role="dialog"
             aria-label="Diğer menü"
           >
@@ -435,7 +429,7 @@ export default function Nav() {
 
       {/* Mobil alt dock */}
       <nav
-        className="fixed inset-x-2 bottom-2 z-50 rounded-[1.35rem] border border-white/12 bg-[rgba(14,20,32,0.92)] p-1 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-2xl md:hidden"
+        className="fixed inset-x-2 bottom-2 z-50 rounded-[1.5rem] border border-white/12 bg-[#041614]/94 p-1 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-2xl md:hidden"
         style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
       >
         <div className="grid grid-cols-5">
@@ -445,12 +439,12 @@ export default function Nav() {
               <NavLink
                 key={l.href}
                 href={l.href}
-                className={`relative flex min-h-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 text-[11px] font-bold tracking-wide transition-colors ${
-                  aktif ? "text-amber" : "text-paper/70"
+                className={`relative flex min-h-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 py-1.5 text-[11px] font-bold tracking-wide transition-colors ${
+                  aktif ? "bg-white text-[#0a1c1b]" : "text-white/70"
                 }`}
               >
                 {aktif && (
-                  <span className="absolute inset-x-3 top-0.5 h-0.5 rounded-full bg-amber" />
+                  <span className="absolute inset-x-3 top-0.5 h-0.5 rounded-full bg-teal" />
                 )}
                 {l.ikon}
                 <span className="max-w-full truncate">{l.ad}</span>
@@ -460,14 +454,14 @@ export default function Nav() {
           <button
             type="button"
             onClick={() => setDahaAcik((v) => !v)}
-            className={`relative flex min-h-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 text-[11px] font-bold tracking-wide transition-colors ${
-              dahaAcik || dahaAktif ? "text-amber" : "text-paper/70"
+            className={`relative flex min-h-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 py-1.5 text-[11px] font-bold tracking-wide transition-colors ${
+              dahaAcik || dahaAktif ? "bg-white text-[#0a1c1b]" : "text-white/70"
             }`}
             aria-expanded={dahaAcik}
             aria-label="Diğer menü"
           >
             {(dahaAcik || dahaAktif) && (
-              <span className="absolute inset-x-3 top-0.5 h-0.5 rounded-full bg-amber" />
+              <span className="absolute inset-x-3 top-0.5 h-0.5 rounded-full bg-teal" />
             )}
             <DahaIkon acik={dahaAcik} />
             Daha

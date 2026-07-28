@@ -45,7 +45,7 @@ function PlanKarti({ plan, sira }: { plan: SeferPlani; sira: number }) {
           return (
             <li
               key={`${a.ilan.id}-${i}`}
-              className="rounded-xl border border-white/10 bg-black/25 p-3"
+              className="rounded-xl border border-black/8 bg-[#f0f5f4] p-3"
             >
               <p className="text-xs font-semibold text-fog">
                 {gunYazi(a.gun)}
@@ -66,7 +66,7 @@ function PlanKarti({ plan, sira }: { plan: SeferPlani; sira: number }) {
                 />
                 <Link
                   href={`/ai/yukler?sekme=HEPSI&id=${a.ilan.id}`}
-                  className="flex items-center justify-center rounded-xl border border-white/15 bg-white/5 py-3.5 text-sm font-bold text-paper hover:bg-white/10"
+                  className="flex items-center justify-center rounded-xl border border-black/12 bg-white py-3.5 text-sm font-bold text-paper hover:bg-[#f0f5f4]"
                 >
                   Aç
                 </Link>
