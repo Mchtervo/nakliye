@@ -98,13 +98,18 @@ export async function planAdaylariniGetir(): Promise<PlanAdayIlan[]> {
   const sinir = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const satirlar = await prisma.yukIlani.findMany({
     where: {
-      durum: { in: ["YENI", "ILGILENIYOR", "ILETISIME_GECILDI", "PAZARLIKTA"] },
-      guvenSkoru: { gte: SUPHE_SINIRI },
+      durum: {
+        in: ["YENI", "ILGILENIYOR", "ILETISIME_GECILDI", "PAZARLIKTA", "ARSIV"],
+      },
+      guvenSkoru: { gte: 40 },
       cikisIl: { not: null },
       varisIl: { not: null },
-      createdAt: { gte: sinir },
+      OR: [
+        { createdAt: { gte: sinir } },
+        { sonGorulme: { gte: sinir } },
+      ],
     },
-    orderBy: [{ guvenSkoru: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: ADAY_LIMIT,
     select: {
       id: true,

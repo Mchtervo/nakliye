@@ -116,7 +116,16 @@ export default async function PlanSayfasi({
         </p>
       </div>
 
-      <PlanForm baslangic={neredeHam} gun={gun} />
+      <PlanForm key={`${neredeHam}|${gun}`} baslangic={neredeHam} gun={gun} />
+
+      {baslangic && (
+        <p className="text-xs text-teal">
+          {baslangic} · {gun} gün
+          {planlar.length > 0
+            ? ` · ${planlar.length} alternatif`
+            : " · uygun zincir aranıyor"}
+        </p>
+      )}
 
       {!baslangic && (
         <p className="text-sm text-ember">
