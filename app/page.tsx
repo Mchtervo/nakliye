@@ -252,7 +252,7 @@ export default async function PanelSayfasi() {
         </section>
       )}
 
-      <p className="pb-2 text-center text-xs text-fog/80 reveal">
+      <p className="pb-2 text-center text-sm text-fog reveal">
         KDV detayı için{" "}
         <Link href="/kdv" className="font-semibold text-amber">
           KDV sayfası
