@@ -113,20 +113,20 @@ export default async function PanelSayfasi() {
         <p className="sayfa-eyebrow">{ayAdi}</p>
         <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="font-display text-[2.35rem] font-extrabold leading-[0.92] tracking-tight text-paper sm:text-5xl">
+            <h1 className="font-display text-[2.2rem] font-bold leading-[1.05] tracking-tight text-paper sm:text-5xl">
               Bu ay
               <span className="mt-1 block text-amber">ne kaldı?</span>
             </h1>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-fog">
+            <p className="mt-3 max-w-sm text-[15px] font-medium leading-relaxed text-fog">
               Gelir eksi gider. Büyük rakam yeşilse ay iyi geçiyor.
             </p>
           </div>
           <div className="sm:text-right">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-fog">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-fog">
               Net kâr
             </p>
             <p
-              className={`font-display text-4xl font-extrabold tabular-nums sm:text-5xl ${
+              className={`font-display text-4xl font-bold tabular-nums sm:text-5xl ${
                 netKar >= 0 ? "text-teal" : "text-ember"
               }`}
             >
@@ -149,10 +149,12 @@ export default async function PanelSayfasi() {
               href={is.href}
               className={`is-kart is-kart-${is.ton}`}
             >
-              <span className="font-display text-xl font-bold text-paper sm:text-2xl">
+              <span className="font-display text-lg font-bold text-paper sm:text-xl">
                 {is.baslik}
               </span>
-              <span className="mt-1 block text-xs text-fog sm:text-sm">{is.alt}</span>
+              <span className="mt-1.5 block text-sm font-medium text-fog sm:text-[15px]">
+                {is.alt}
+              </span>
             </Link>
           ))}
         </div>
@@ -170,11 +172,11 @@ export default async function PanelSayfasi() {
           },
         ].map((m) => (
           <div key={m.etiket} className="metrik-sade">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-paper/70">
+            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-fog">
               {m.etiket}
             </div>
             <div
-              className={`mt-1.5 font-display text-base font-extrabold tabular-nums sm:text-xl ${m.ton}`}
+              className={`mt-1.5 font-display text-lg font-bold tabular-nums sm:text-xl ${m.ton}`}
             >
               {m.deger}
             </div>
@@ -183,13 +185,15 @@ export default async function PanelSayfasi() {
       </section>
 
       {/* Hızlı ara */}
-      <section className="kart space-y-3 p-4 reveal reveal-d3">
+      <section className="kart space-y-3 p-4 reveal reveal-d3 sm:p-5">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="font-display text-lg font-bold text-paper">Telefon</h2>
-            <p className="text-xs text-fog">Kayıtlı numarayı tek tıkla ara</p>
+            <h2 className="font-display text-xl font-bold text-paper">Telefon</h2>
+            <p className="mt-0.5 text-sm font-medium text-fog">
+              Kayıtlı numarayı tek tıkla ara
+            </p>
           </div>
-          <Link href="/ayarlar" className="text-xs font-semibold text-amber">
+          <Link href="/ayarlar" className="text-sm font-semibold text-amber">
             Ayarla
           </Link>
         </div>
@@ -216,19 +220,19 @@ export default async function PanelSayfasi() {
       </section>
 
       {firmaAlacaklari.length > 0 && (
-        <section className="kart space-y-3 p-4 reveal reveal-d4">
+        <section className="kart space-y-3 p-4 reveal reveal-d4 sm:p-5">
           <div className="flex items-end justify-between gap-2">
             <div>
-              <h2 className="font-display text-lg font-bold text-paper">
+              <h2 className="font-display text-xl font-bold text-paper">
                 Kimde para kaldı?
               </h2>
-              <p className="text-xs text-fog">Açık alacaklar</p>
+              <p className="mt-0.5 text-sm font-medium text-fog">Açık alacaklar</p>
             </div>
-            <Link href="/para?sekme=cari" className="text-xs font-semibold text-amber">
+            <Link href="/para?sekme=cari" className="text-sm font-semibold text-amber">
               Tümü →
             </Link>
           </div>
-          <ul className="divide-y divide-white/8">
+          <ul className="divide-y divide-[rgba(11,22,21,0.1)]">
             {firmaAlacaklari.map((f) => (
               <li
                 key={f.id}
@@ -236,13 +240,13 @@ export default async function PanelSayfasi() {
               >
                 <Link
                   href={`/firmalar/${f.id}`}
-                  className="min-w-0 flex-1 font-semibold text-paper hover:text-amber"
+                  className="min-w-0 flex-1 text-[15px] font-semibold text-paper hover:text-amber"
                 >
                   {f.ad}
                 </Link>
                 <div className="flex items-center gap-2">
                   {f.telefon && <AraButonu telefon={f.telefon} etiket="Ara" />}
-                  <span className="font-display text-lg font-extrabold text-amber tabular-nums">
+                  <span className="font-display text-lg font-bold text-amber tabular-nums">
                     {tlYaz(f.kalan)}
                   </span>
                 </div>
@@ -252,7 +256,7 @@ export default async function PanelSayfasi() {
         </section>
       )}
 
-      <p className="pb-2 text-center text-sm text-fog reveal">
+      <p className="pb-2 text-center text-[15px] font-medium text-fog reveal">
         KDV detayı için{" "}
         <Link href="/kdv" className="font-semibold text-amber">
           KDV sayfası

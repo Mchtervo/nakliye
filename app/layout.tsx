@@ -1,16 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
-import { Outfit } from "next/font/google";
+import { IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import PwaKayit from "@/components/PwaKayit";
 import GezinmeIlerleme from "@/components/GezinmeIlerleme";
 
-/** Outfit — daha net, modern panel fontu */
-const sans = Outfit({
+/** IBM Plex Sans — net rakam, Türkçe, yuvarlak “dandik” değil */
+const sans = IBM_Plex_Sans({
   variable: "--font-body",
   subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {

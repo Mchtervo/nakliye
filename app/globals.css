@@ -9,10 +9,11 @@
   --asphalt-2: #0a2a28;
   --asphalt-3: #0f3532;
   --lane: #1a4a46;
-  --fog: #b8d4d0;
+  --fog: #c5ddd9;
   --paper: #ffffff;
   --paper-2: #f4f8f7;
   --ink: #0a1c1b;
+  --muted: #3a4a47;
   --amber: #ff7a14;
   --amber-glow: rgba(255, 122, 20, 0.4);
   --teal: #2ec4b6;
@@ -20,9 +21,9 @@
   --sky: #3d9eff;
   --ok: #22c55e;
   --warn: #ff7a14;
-  --radius: 1.35rem;
-  --radius-sm: 0.9rem;
-  --card-shadow: 0 10px 36px rgba(0, 0, 0, 0.22);
+  --radius: 1rem;
+  --radius-sm: 0.7rem;
+  --card-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
 }
 
 @theme inline {
@@ -56,8 +57,9 @@ body {
   margin: 0;
   min-height: 100%;
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 16.5px;
+  line-height: 1.55;
+  font-weight: 400;
   color: var(--paper);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -139,63 +141,68 @@ body::before {
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.015em;
   font-weight: 700;
+  font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
 /*
-  Beyaz kart — içinde text-paper / text-fog KOYU olmalı.
-  Tailwind text-fog/70 root’taki açık rengi kullanıyordu → okunmuyordu.
+  Açık kart — mürekkep siyahı + koyu gri alt yazı.
+  Root’taki açık fog/paper burada geçersiz.
 */
 .kart,
 .cam,
 .kart-paper,
 .metrik-sade,
 .bos-durum {
-  --paper: #061412;
-  --fog: #243836;
-  --paper-2: #eef3f2;
-  --color-paper: #061412;
-  --color-fog: #243836;
-  --color-amber: #c2410c;
+  --paper: #0b1615;
+  --fog: #3a4a47;
+  --muted: #3a4a47;
+  --paper-2: #eef2f1;
+  --color-paper: #0b1615;
+  --color-fog: #3a4a47;
+  --color-amber: #b45309;
   --color-teal: #0f766e;
   --color-ok: #15803d;
   --color-ember: #b91c1c;
   position: relative;
   overflow: hidden;
   border-radius: var(--radius);
-  border: 1px solid rgba(6, 20, 18, 0.1);
-  background: #ffffff;
-  color: #061412;
+  border: 1px solid rgba(6, 20, 18, 0.12);
+  background: #f7f8f6;
+  color: #0b1615;
   box-shadow: var(--card-shadow);
   transition: box-shadow 0.2s ease, transform 0.15s ease;
 }
 
 .kart:hover,
 .cam:hover {
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
 }
 
-/* Opacity’li fog/paper sınıflarını beyaz zeminde zorla okunaklı yap */
+/* Alt yazı / etiket — asla soluk gri olmasın */
 .kart [class*="text-fog"],
 .cam [class*="text-fog"],
 .kart-paper [class*="text-fog"],
 .metrik-sade [class*="text-fog"],
 .bos-durum [class*="text-fog"] {
-  color: #243836 !important;
+  color: #3a4a47 !important;
+  font-weight: 500 !important;
+  opacity: 1 !important;
 }
 
 .kart [class*="text-paper"],
 .cam [class*="text-paper"],
 .kart-paper [class*="text-paper"],
 .metrik-sade [class*="text-paper"] {
-  color: #061412 !important;
+  color: #0b1615 !important;
+  opacity: 1 !important;
 }
 
 .kart [class*="text-amber"],
 .cam [class*="text-amber"],
 .kart-paper [class*="text-amber"] {
-  color: #c2410c !important;
+  color: #b45309 !important;
 }
 
 .kart [class*="text-ok"],
@@ -279,8 +286,8 @@ body::before {
   padding: 1.1rem 1.05rem;
   color: #fff;
   --paper: #ffffff;
-  --fog: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  --fog: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 
@@ -316,9 +323,17 @@ body::before {
 }
 
 .metrik-sade {
-  /* kart kuralları miras; ekstra yok */
   text-align: center;
   padding: 0.9rem 0.7rem;
+  background: #f7f8f6;
+}
+
+.metrik-sade [class*="uppercase"] {
+  color: #3a4a47 !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  opacity: 1 !important;
 }
 
 @media (min-width: 640px) {
