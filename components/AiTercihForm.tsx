@@ -132,8 +132,8 @@ export default function AiTercihForm({
           Kâr hesabı
         </div>
         <p className="text-xs text-fog">
-          Her ilan kartında mesafe, yakıt, HGS, net kazanç ve ₺/km buna göre
-          hesaplanır. Yuk defterindeki hat ortalamasıyla karşılaştırılır.
+          İlan kartında net kazanç görünür; mesafe / yakıt / HGS isteğe bağlı
+          açılır. Hat ortalamasıyla karşılaştırılır.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>

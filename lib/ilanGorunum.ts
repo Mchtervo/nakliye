@@ -23,13 +23,10 @@ export type FiyatGorunumu = {
 export function fiyatGorunumu(ilan: FiyatAlanlari): FiyatGorunumu {
   if (ilan.fiyatTon !== null && ilan.fiyatTon > 0) {
     const tonaj = ilan.tonaj ?? null;
-    const tonTl = Math.round(ilan.fiyatTon / 100);
     return {
       ana: `${tlYazKisa(ilan.fiyatTon)}/ton`,
-      // Gerçek fiyat değil — "~₺21.600 (24 ton × 900)" biçimi.
-      tahmin: tonaj
-        ? `~${tlYazKisa(ilan.fiyatTon * tonaj)} (${tonaj} ton × ${tonTl})`
-        : null,
+      // Gerçek fiyat değil — kısa tahmin (~₺21.600). Formül kartı boğuyordu.
+      tahmin: tonaj ? `~${tlYazKisa(ilan.fiyatTon * tonaj)}` : null,
       belirsiz: false,
     };
   }

@@ -75,12 +75,12 @@ export default function BilgiSorButonu({
   }
 
   return (
-    <div className="relative inline-flex flex-col items-start gap-1">
+    <div className="relative min-w-0">
       <button
         type="button"
         disabled={bekliyor}
         onClick={bas}
-        className="rounded-lg border border-sky-400/50 bg-sky-500/20 px-2.5 py-1.5 text-xs font-bold text-sky-200 shadow-[0_0_0_1px_rgba(56,189,248,0.15)] transition-colors hover:bg-sky-500/35 disabled:opacity-50"
+        className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3.5 text-sm font-bold text-paper transition-colors hover:bg-white/10 disabled:opacity-50"
       >
         {bekliyor ? "Gönderiliyor…" : "Bilgi Sor"}
       </button>
@@ -88,7 +88,7 @@ export default function BilgiSorButonu({
       {toast && (
         <div
           role="status"
-          className={`z-20 mt-1 max-w-[18rem] rounded-lg border px-2.5 py-2 text-xs font-semibold leading-snug shadow-lg ${
+          className={`absolute left-0 right-0 z-20 mt-1 rounded-lg border px-2.5 py-2 text-xs font-semibold leading-snug shadow-lg ${
             toast.ok
               ? "border-teal/40 bg-teal/20 text-teal"
               : "border-ember/40 bg-ember/15 text-ember"
