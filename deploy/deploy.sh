@@ -75,11 +75,22 @@ if ! npx prisma migrate deploy; then
   exit 1
 fi
 
-echo "==> npm run build"
+# Build sırasında app .next okumasın + yarım klasör kalmasın (ENOENT tmp)
+echo "==> pm2 stop (build için)"
+pm2 stop yukavci >/dev/null 2>&1 || true
+# Portu tutan yetim next-server varsa öldür
+fuser -k 3200/tcp >/dev/null 2>&1 || true
+pkill -f "next-server" >/dev/null 2>&1 || true
+sleep 1
+
+echo "==> temiz .next + build"
+rm -rf .next
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
 if ! npm run build; then
   echo "==> BUILD HATA — eski sürüme dönülüyor"
   bildir "❌ Manuel deploy hatası (build): $SHORT — $MSG"
   geri_al
+  pm2 restart yukavci --update-env || true
   exit 1
 fi
 
@@ -87,8 +98,8 @@ if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
   rm -rf "$NEXT_BAK"
 fi
 
-echo "==> pm2 restart yukavci"
-pm2 restart yukavci --update-env
+echo "==> pm2 start/restart yukavci"
+pm2 restart yukavci --update-env || pm2 start yukavci --update-env
 pm2 save
 
 # Daemon yalnızca ilgili dosyalar değiştiyse restart (UI-only → atla).

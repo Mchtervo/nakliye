@@ -123,11 +123,19 @@ if [ "$MIG_KOD" -ne 0 ]; then
   exit 1
 fi
 
+# Build: app durdur + temiz .next (yarım _buildManifest.tmp ENOENT önlemi)
+pm2 stop yukavci >>"$LOG" 2>&1 || true
+fuser -k 3200/tcp >>"$LOG" 2>&1 || true
+pkill -f "next-server" >>"$LOG" 2>&1 || true
+sleep 1
+rm -rf .next
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
 npm run build >>"$LOG" 2>&1
 BUILD_KOD=$?
 if [ "$BUILD_KOD" -ne 0 ]; then
   log "build HATA exit=$BUILD_KOD"
   geri_al
+  pm2 restart yukavci --update-env >>"$LOG" 2>&1 || true
   bildir "❌ Deploy hatası (build): $SHORT — $MSG"
   exit 1
 fi
@@ -156,7 +164,7 @@ else
 fi
 
 set +e
-pm2 restart yukavci --update-env >>"$LOG" 2>&1
+pm2 restart yukavci --update-env >>"$LOG" 2>&1 || pm2 start yukavci --update-env >>"$LOG" 2>&1
 pm2 save >>"$LOG" 2>&1
 if [ "$DAEMON_RESTART" -eq 1 ]; then
   sudo /bin/systemctl restart yukavci-telegram >>"$LOG" 2>&1
