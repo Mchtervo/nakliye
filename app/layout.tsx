@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import PwaKayit from "@/components/PwaKayit";
 import GezinmeIlerleme from "@/components/GezinmeIlerleme";
 
-/** Tek net font — condensed display mobilde pikselleniyor / okunmuyordu */
-const sans = Plus_Jakarta_Sans({
+/** Outfit — daha net, modern panel fontu */
+const sans = Outfit({
   variable: "--font-body",
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700", "800"],
@@ -46,7 +46,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr" className={`${sans.variable} h-full antialiased`}>
-      <body className="min-h-full">
+      <body className="min-h-full font-sans">
         <Suspense fallback={null}>
           <GezinmeIlerleme />
         </Suspense>

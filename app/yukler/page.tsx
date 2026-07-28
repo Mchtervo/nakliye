@@ -93,10 +93,10 @@ export default async function YuklerSayfasi() {
                     : "KDV'siz iş"}
                 </div>
 
-                <div className="flex flex-wrap items-start justify-end gap-2 border-t border-white/10 pt-3">
+                <div className="flex flex-wrap items-start justify-end gap-2 border-t border-black/10 pt-3">
                   <Link
                     href={`/yukler/${yuk.id}/duzenle`}
-                    className="rounded-lg border border-white/20 px-2.5 py-1.5 text-sm font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber"
+                    className="rounded-lg border border-black/15 bg-[#eef3f2] px-2.5 py-1.5 text-sm font-bold text-paper transition-colors hover:border-amber/50 hover:text-amber"
                   >
                     Düzenle
                   </Link>

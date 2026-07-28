@@ -103,9 +103,9 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
     >
       {/* Üst: süre + menü */}
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-fog">
-          <span className="font-semibold text-paper/80">{bekleme}</span>
-          <span className="text-fog/70"> · {gecenSure(createdAt)}</span>
+        <p className="text-sm font-semibold text-fog">
+          <span className="font-bold text-paper">{bekleme}</span>
+          <span> · {gecenSure(createdAt)}</span>
         </p>
         <div className="relative shrink-0">
           <button

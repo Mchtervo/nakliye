@@ -22,7 +22,6 @@ export default function AnaEkranaEkle() {
 
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
-      // iOS Safari
       ("standalone" in navigator &&
         (navigator as Navigator & { standalone?: boolean }).standalone === true);
     if (standalone) setKurulu(true);
@@ -60,34 +59,33 @@ export default function AnaEkranaEkle() {
 
   if (kurulu) {
     return (
-      <section className="kart space-y-2 border-teal/30 p-4 sm:p-5 reveal">
-        <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal">
+      <section className="kart space-y-2 p-4 sm:p-5 reveal">
+        <div className="text-xs font-bold uppercase tracking-[0.12em] text-teal">
           Ana ekran
         </div>
         <h2 className="font-display text-xl font-bold text-paper">
           Uygulama kurulu
         </h2>
-        <p className="text-sm text-fog">
-          Telefon veya bilgisayar ana ekranındaki <strong className="text-paper">Nakliye</strong>{" "}
-          ikonuna bas → direkt panele girersin.
+        <p className="text-sm font-medium text-fog">
+          Ana ekrandaki <strong className="text-paper">Nakliye</strong> ikonuna
+          bas → direkt panele girersin.
         </p>
-        {mesaj && <p className="text-sm font-semibold text-ok">{mesaj}</p>}
+        {mesaj && <p className="text-sm font-bold text-ok">{mesaj}</p>}
       </section>
     );
   }
 
   return (
-    <section className="kart space-y-3 border-amber/35 bg-amber/5 p-4 sm:p-5 reveal">
+    <section className="kart space-y-3 p-4 sm:p-5 reveal">
       <div>
-        <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber">
+        <div className="text-xs font-bold uppercase tracking-[0.12em] text-amber">
           Ana ekran kısayolu
         </div>
         <h2 className="font-display text-xl font-bold text-paper">
           Telefona / masaüstüne ekle
         </h2>
-        <p className="mt-1 text-sm text-fog">
-          İkon ana ekrana gelir. Tıklayınca tarayıcı değil, uygulama gibi açılır —
-          direkt panele.
+        <p className="mt-1 text-sm font-medium text-fog">
+          İkon ana ekrana gelir. Tıklayınca tarayıcı değil, uygulama gibi açılır.
         </p>
       </div>
 
@@ -96,10 +94,13 @@ export default function AnaEkranaEkle() {
           Ana ekrana ekle
         </button>
       ) : iosMu ? (
-        <div className="rounded-xl border border-white/12 bg-asphalt/50 px-3 py-3 text-sm text-fog">
-          <p className="font-semibold text-paper">iPhone / iPad:</p>
+        <div className="rounded-xl border border-black/10 bg-[#eef3f2] px-3 py-3 text-sm font-medium text-fog">
+          <p className="font-bold text-paper">iPhone / iPad:</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
-            <li>Alttaki <strong className="text-paper">Paylaş</strong> (kare↑) butonuna bas</li>
+            <li>
+              Alttaki <strong className="text-paper">Paylaş</strong> (kare↑)
+              butonuna bas
+            </li>
             <li>
               <strong className="text-paper">Ana Ekrana Ekle</strong> seç
             </li>
@@ -108,25 +109,25 @@ export default function AnaEkranaEkle() {
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="rounded-xl border border-white/12 bg-asphalt/50 px-3 py-3 text-sm text-fog">
-            <p className="font-semibold text-paper">Android / Chrome:</p>
+          <div className="rounded-xl border border-black/10 bg-[#eef3f2] px-3 py-3 text-sm font-medium text-fog">
+            <p className="font-bold text-paper">Android / Chrome:</p>
             <p className="mt-1">
-              Menü (⋮) → <strong className="text-paper">Uygulamayı yükle</strong> veya{" "}
-              <strong className="text-paper">Ana ekrana ekle</strong>
+              Menü (⋮) → <strong className="text-paper">Uygulamayı yükle</strong>{" "}
+              veya <strong className="text-paper">Ana ekrana ekle</strong>
             </p>
-            <p className="mt-2 font-semibold text-paper">Windows bilgisayar:</p>
+            <p className="mt-2 font-bold text-paper">Windows bilgisayar:</p>
             <p className="mt-1">
-              Adres çubuğundaki <strong className="text-paper">⊕ Yükle</strong> / yükle
-              ikonuna bas, veya menü → Uygulamayı yükle
+              Adres çubuğundaki <strong className="text-paper">⊕ Yükle</strong>{" "}
+              ikonuna bas
             </p>
           </div>
-          <p className="text-xs text-fog">
-            Buton çıkmazsa sayfayı Chrome ile açıp bir kez yenile.
+          <p className="text-sm font-medium text-fog">
+            Buton çıkmazsa Chrome ile açıp bir kez yenile.
           </p>
         </div>
       )}
 
-      {mesaj && <p className="text-sm font-semibold text-ok">{mesaj}</p>}
+      {mesaj && <p className="text-sm font-bold text-ok">{mesaj}</p>}
     </section>
   );
 }

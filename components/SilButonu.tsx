@@ -22,7 +22,7 @@ export default function SilButonu({
           });
         }
       }}
-      className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-ember/90 transition-colors hover:bg-ember/10 disabled:opacity-50"
+      className="rounded-lg border border-ember/30 bg-ember/10 px-2.5 py-1.5 text-sm font-bold text-ember transition-colors hover:bg-ember/20 disabled:opacity-50"
       title="Sil"
     >
       Sil
