@@ -45,12 +45,12 @@ const VARSAYILAN_CIPLER: RotaCip[] = [
 
 /** Taze + güven + fiyat belli → üstte. */
 function siralamaSkoru(ilan: {
-  createdAt: Date;
+  sonGorulme: Date;
   guvenSkoru: number;
   ucret: number | null;
   fiyatTon: number | null;
 }): number {
-  const saat = (Date.now() - ilan.createdAt.getTime()) / 3_600_000;
+  const saat = (Date.now() - ilan.sonGorulme.getTime()) / 3_600_000;
   const taze = Math.max(0, 36 - saat);
   const fiyat =
     (ilan.ucret !== null && ilan.ucret > 0) ||
@@ -62,12 +62,12 @@ function siralamaSkoru(ilan: {
 }
 
 function iyiIsMi(ilan: {
-  createdAt: Date;
+  sonGorulme: Date;
   guvenSkoru: number;
   ucret: number | null;
   fiyatTon: number | null;
 }): boolean {
-  const taze = Date.now() - ilan.createdAt.getTime() < DORT_SAAT_MS;
+  const taze = Date.now() - ilan.sonGorulme.getTime() < DORT_SAAT_MS;
   const fiyatVar =
     (ilan.ucret !== null && ilan.ucret > 0) ||
     (ilan.fiyatTon !== null && ilan.fiyatTon > 0);
@@ -255,7 +255,7 @@ export default async function AiYuklerSayfasi({
     await Promise.all([
       prisma.yukIlani.findMany({
         where: filtre,
-        orderBy: [{ createdAt: "desc" }],
+        orderBy: [{ sonGorulme: "desc" }],
         take: 40,
         include: { kaynak: { select: { ad: true, tur: true } } },
       }),
@@ -534,12 +534,13 @@ export default async function AiYuklerSayfasi({
                   guvenSkoru: ilan.guvenSkoru,
                   hamMetin: ilan.hamMetin,
                   createdAt: ilan.createdAt,
+                  sonGorulme: ilan.sonGorulme,
                   donusTalebiId: ilan.donusTalebiId,
                   kaynakAd: ilan.kaynak?.ad ?? null,
                   ucretYazi:
                     ilan.ucret !== null ? kurustanGiris(ilan.ucret) : null,
                   odakli: odak === ilan.id,
-                  soluk: solukMu(ilan.createdAt),
+                  soluk: solukMu(ilan.sonGorulme),
                   vurgulu: iyiIsMi(ilan),
                   kar: karIcin(ilan),
                   donusOnerileri: donusMap.get(ilan.id),

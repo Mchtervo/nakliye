@@ -129,7 +129,7 @@ export async function telegramGuncellemeIsle(
     return bos("İlan bulunamadı.");
   }
 
-  const yeniIlanlar = await ilanlariKaydet(
+  const { yeniler: yeniIlanlar } = await ilanlariKaydet(
     kaynakId,
     ilanlar.map((ilan) => ({ ilan, hamMetin: metin }))
   );

@@ -72,10 +72,10 @@ export async function kaynaklariTara(limit = 2): Promise<TaramaRaporu> {
       hedef: kaynak.hedef,
     });
 
-    const kaydedilenler = sonuc.hata
-      ? []
+    const kaydedilen = sonuc.hata
+      ? { yeniler: [] as Awaited<ReturnType<typeof ilanlariKaydet>>["yeniler"], dedupAtlanan: 0 }
       : await ilanlariKaydet(kaynak.id, sonuc.bulunanlar);
-    yeniler.push(...kaydedilenler);
+    yeniler.push(...kaydedilen.yeniler);
 
     if (sonuc.hata) rapor.hatalar.push(`${kaynak.ad}: ${sonuc.hata}`);
 
@@ -84,7 +84,7 @@ export async function kaynaklariTara(limit = 2): Promise<TaramaRaporu> {
       data: {
         sonTarama: new Date(),
         sonHata: sonuc.hata,
-        bulunanAdet: { increment: kaydedilenler.length },
+        bulunanAdet: { increment: kaydedilen.yeniler.length },
       },
     });
   }

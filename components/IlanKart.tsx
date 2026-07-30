@@ -38,6 +38,8 @@ export type IlanKartVeri = {
   guvenSkoru: number;
   hamMetin: string;
   createdAt: Date | string;
+  /** Tazelik göstergesi — yoksa createdAt. */
+  sonGorulme?: Date | string | null;
   donusTalebiId: number | null;
   kaynakAd: string | null;
   ucretYazi: string | null;
@@ -65,8 +67,13 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
     typeof ilan.createdAt === "string"
       ? new Date(ilan.createdAt)
       : ilan.createdAt;
+  const tazeTarih = ilan.sonGorulme
+    ? typeof ilan.sonGorulme === "string"
+      ? new Date(ilan.sonGorulme)
+      : ilan.sonGorulme
+    : createdAt;
   const iletisimVar = Boolean(ilan.gonderenUserId || ilan.telefon);
-  const bekleme = beklemeBuyuk(createdAt);
+  const bekleme = beklemeBuyuk(tazeTarih);
   const karVar = Boolean(ilan.kar && (ilan.kar.mesafe || ilan.kar.net));
 
   const metaParcalar = [
@@ -105,7 +112,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-fog">
           <span className="font-bold text-paper">{bekleme}</span>
-          <span> · {gecenSure(createdAt)}</span>
+          <span> · {gecenSure(tazeTarih)}</span>
         </p>
         <div className="relative shrink-0">
           <button

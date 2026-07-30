@@ -199,7 +199,7 @@ model YukIlani {
   /** Bu ilanı üreten HamMesaj.id — kalıcı bağ. */
   hamMesajId    Int?
   createdAt     DateTime     @default(now())
-  /** Aynı rota tekrar görünce güncellenir (dedup 48s). */
+  /** Aynı rota tekrar görünce güncellenir. Dedup: 48s kova hash + sonGorulme penceresi. */
   sonGorulme    DateTime     @default(now())
   telegramDmler TelegramDm[]
 

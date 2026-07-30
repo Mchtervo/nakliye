@@ -432,7 +432,7 @@ export async function yuklegelTara(): Promise<YuklegelRapor> {
   }
 
   const kaynakId = await kaynakIdAl();
-  const kaydedilen = await ilanlariKaydet(
+  const { yeniler: kaydedilen } = await ilanlariKaydet(
     kaynakId,
     ilanlar.map((ilan) => ({
       ilan,

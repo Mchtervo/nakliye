@@ -323,6 +323,8 @@ export async function mesajlariKuyrugaAl(
 export type KuyrukRaporu = {
   islenen: number;
   yeniIlan: number;
+  /** Kaydet: aynı rota 48s içinde yenilendi, yeni satır yok. */
+  dedupAtlanan: number;
   bildirilen: number;
   kalan: number;
   hata: string | null;
@@ -564,6 +566,7 @@ export async function kuyrugunuCoz(
   const rapor: KuyrukRaporu = {
     islenen: 0,
     yeniIlan: 0,
+    dedupAtlanan: 0,
     bildirilen: 0,
     kalan: 0,
     hata: null,
@@ -805,13 +808,14 @@ export async function kuyrugunuCoz(
 
   const yeniler: KaydedilenIlan[] = [];
   for (const [kaynakId, bulunanlar] of kaynagaGore) {
-    const kaydedilen = await ilanlariKaydet(kaynakId, bulunanlar);
-    yeniler.push(...kaydedilen);
+    const kayit = await ilanlariKaydet(kaynakId, bulunanlar);
+    yeniler.push(...kayit.yeniler);
+    rapor.dedupAtlanan += kayit.dedupAtlanan;
 
-    if (kaynakId && kaydedilen.length > 0) {
+    if (kaynakId && kayit.yeniler.length > 0) {
       await prisma.ilanKaynagi.update({
         where: { id: kaynakId },
-        data: { bulunanAdet: { increment: kaydedilen.length } },
+        data: { bulunanAdet: { increment: kayit.yeniler.length } },
       });
     }
   }

@@ -4,7 +4,7 @@ import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 import { ilBul, sadelestir } from "@/lib/iller";
 import { guvenliKirp } from "@/lib/metin";
 
-/** Aynı rota tekrarında yeni kayıt açmama penceresi. */
+/** Aynı rota tekrarında yeni kayıt açmama / hash kova penceresi. */
 export const DEDUP_PENCERE_MS = 48 * 60 * 60 * 1000;
 
 export type KaydedilenIlan = {
@@ -31,6 +31,12 @@ export type KaydedilenIlan = {
   hamMesajId?: number | null;
 };
 
+export type KaydetRaporu = {
+  yeniler: KaydedilenIlan[];
+  /** Aynı hash/rota 48s içinde → yenileme, yeni satır yok. */
+  dedupAtlanan: number;
+};
+
 /** İlçe→il sonrası normalize (Temelli→Ankara, Gebze→Kocaeli). */
 export function ilaniRotaNormalize(ilan: CozulmusIlan): CozulmusIlan {
   const cikisIl =
@@ -40,9 +46,14 @@ export function ilaniRotaNormalize(ilan: CozulmusIlan): CozulmusIlan {
   return { ...ilan, cikisIl, varisIl };
 }
 
+/** Mutlak 48s kova — süre dolunca aynı rota yeni dedupHash alır (@unique kırılmaz). */
+export function dedupKova(tarih = new Date()): number {
+  return Math.floor(tarih.getTime() / DEDUP_PENCERE_MS);
+}
+
 /**
- * Rota bazlı dedup — ham yer adı YOK, sadece normalize il.
- * Anahtar: telefon | çıkış_il | varış_il | fiyat
+ * Rota bazlı dedup — ham yer adı YOK, sadece normalize il + 48s kova.
+ * Anahtar: telefon | çıkış_il | varış_il | fiyat | b{kova}
  */
 export function dedupHashUret(ilan: CozulmusIlan, _hamMetin?: string): string {
   const n = ilaniRotaNormalize(ilan);
@@ -52,6 +63,7 @@ export function dedupHashUret(ilan: CozulmusIlan, _hamMetin?: string): string {
     sadelestir(n.cikisIl ?? ""),
     sadelestir(n.varisIl ?? ""),
     String(fiyat),
+    `b${dedupKova()}`,
   ].join("|");
 
   return createHash("sha256").update(cekirdek).digest("hex").slice(0, 40);
@@ -227,9 +239,10 @@ async function donusTalebiEslestir(
 }
 
 /**
- * İlanları kaydeder; yeni eklenenleri döndürür.
- * Dedup: ilçe→il normalize SONRA (Temelli=Ankara, Gebze=Kocaeli).
+ * İlanları kaydeder; yeni eklenenleri + dedup sayacını döndürür.
+ * 48s kova hash: süre dolunca aynı rota yeni YukIlani satırı üretir.
  */
+
 export async function ilanlariKaydet(
   kaynakId: number | null,
   bulunanlar: {
@@ -243,9 +256,9 @@ export async function ilanlariKaydet(
     /** Varsayılan YENI. Tonaj aşımı vb. için ELENDI. */
     durum?: string;
   }
-): Promise<KaydedilenIlan[]> {
+): Promise<KaydetRaporu> {
   const yeniler: KaydedilenIlan[] = [];
-  /** Batch içi: aynı normalize rota (+tel) tek kart. */
+  let dedupAtlanan = 0;
   const batchRota = new Set<string>();
   const hedefDurum = opts?.durum || "YENI";
   const elendiMi = hedefDurum === "ELENDI";
@@ -261,10 +274,15 @@ export async function ilanlariKaydet(
     if (!ilan.cikisIl || !ilan.varisIl) continue;
 
     const rotaKey = `${ilan.telefon || ""}|${ilan.cikisIl}|${ilan.varisIl}`;
-    if (batchRota.has(rotaKey)) continue;
-    // Aynı normalize rota: Temelli→Gebze ile Ankara→Kocaeli birleşsin
+    if (batchRota.has(rotaKey)) {
+      dedupAtlanan += 1;
+      continue;
+    }
     const rotaSonek = `|${ilan.cikisIl}|${ilan.varisIl}`;
-    if ([...batchRota].some((k) => k.endsWith(rotaSonek))) continue;
+    if ([...batchRota].some((k) => k.endsWith(rotaSonek))) {
+      dedupAtlanan += 1;
+      continue;
+    }
     batchRota.add(rotaKey);
 
     const dedupHash = dedupHashUret(ilan);
@@ -272,37 +290,35 @@ export async function ilanlariKaydet(
 
     const ayniHash = await prisma.yukIlani.findUnique({
       where: { dedupHash },
-      select: { id: true, sonGorulme: true },
+      select: { id: true },
     });
     if (ayniHash) {
-      const sinir = Date.now() - DEDUP_PENCERE_MS;
-      if (ayniHash.sonGorulme.getTime() >= sinir) {
-        if (elendiMi) {
-          await prisma.yukIlani.update({
-            where: { id: ayniHash.id },
-            data: {
-              durum: "ELENDI",
-              bildirildi: true,
-              sonGorulme: new Date(),
-              tonaj: ilan.tonaj ?? undefined,
-              hamMetin: guvenliKirp(
-                `[tonaj aşımı] ${hamMetin}`.slice(0, 4000),
-                4000
-              ),
-            },
-          });
-        } else {
-          await yenileVeBelkiBildir(
-            ayniHash.id,
-            ilan,
-            hamMetin,
-            kaynakId,
-            kimlik,
-            yeniler
-          );
-        }
-        continue;
+      if (elendiMi) {
+        await prisma.yukIlani.update({
+          where: { id: ayniHash.id },
+          data: {
+            durum: "ELENDI",
+            bildirildi: true,
+            sonGorulme: new Date(),
+            tonaj: ilan.tonaj ?? undefined,
+            hamMetin: guvenliKirp(
+              `[tonaj aşımı] ${hamMetin}`.slice(0, 4000),
+              4000
+            ),
+          },
+        });
+      } else {
+        await yenileVeBelkiBildir(
+          ayniHash.id,
+          ilan,
+          hamMetin,
+          kaynakId,
+          kimlik,
+          yeniler
+        );
       }
+      dedupAtlanan += 1;
+      continue;
     }
 
     const yakin = await mevcutRota48s(ilan);
@@ -331,6 +347,7 @@ export async function ilanlariKaydet(
           yeniler
         );
       }
+      dedupAtlanan += 1;
       continue;
     }
 
@@ -386,7 +403,6 @@ export async function ilanlariKaydet(
         });
       }
 
-      // ELENDI bildirilmez / yeniler listesine girmez
       if (elendiMi) continue;
 
       yeniler.push({
@@ -412,12 +428,12 @@ export async function ilanlariKaydet(
         hamMesajId: kayit.hamMesajId,
       });
     } catch {
-      // Eşzamanlı taramada aynı hash — varsa yenile.
       const yarisan = await prisma.yukIlani.findUnique({
         where: { dedupHash },
         select: { id: true },
       });
       if (yarisan) {
+        dedupAtlanan += 1;
         if (elendiMi) {
           await prisma.yukIlani.update({
             where: { id: yarisan.id },
@@ -441,5 +457,6 @@ export async function ilanlariKaydet(
     }
   }
 
-  return yeniler;
+  return { yeniler, dedupAtlanan };
 }
+

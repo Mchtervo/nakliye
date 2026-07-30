@@ -59,6 +59,7 @@ export function panelTazeKosulu() {
 
 /**
  * 48 saatten eski ilanları ARSIV'e al — SİLME YOK.
+ * Eşik: sonGorulme (createdAt değil) — taze tekrarlar arşive düşmez.
  * Müşteri havuzu frekansı için kayıtlar kalır.
  */
 export async function eskiIlanlariArsivle(): Promise<number> {
