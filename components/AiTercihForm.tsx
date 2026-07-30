@@ -31,6 +31,7 @@ export default function AiTercihForm({
     hgsTlKm: 0.2,
     tonaj: 26,
   },
+  budama = { sessizGun: 4, sifirIlanGun: 5, isabetGun: 7, korumaGun: 4 },
 }: {
   sehir: string;
   rotalar: string;
@@ -67,6 +68,12 @@ export default function AiTercihForm({
     sabitTlKm: number;
     hgsTlKm: number;
     tonaj: number;
+  };
+  budama?: {
+    sessizGun: number;
+    sifirIlanGun: number;
+    isabetGun: number;
+    korumaGun: number;
   };
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
@@ -526,6 +533,70 @@ export default function AiTercihForm({
             defaultValue={tdmKaraListe}
             className="alan"
           />
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-ember/20 bg-ember/5 p-3">
+        <div className="text-xs font-bold uppercase tracking-wider text-ember">
+          Grup budama (çıkış adayı)
+        </div>
+        <p className="text-xs text-fog">
+          Onaysız çıkılmaz. Günde max 3 çıkış, 30 dk ara. Yeni gruba koruma
+          süresi tanınır.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="budamaSessizGun" className="etiket">
+              Sessiz (gün)
+            </label>
+            <input
+              id="budamaSessizGun"
+              name="budamaSessizGun"
+              type="text"
+              inputMode="numeric"
+              defaultValue={String(budama.sessizGun)}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="budamaSifirIlanGun" className="etiket">
+              Mesaj var, 0 ilan (gün)
+            </label>
+            <input
+              id="budamaSifirIlanGun"
+              name="budamaSifirIlanGun"
+              type="text"
+              inputMode="numeric"
+              defaultValue={String(budama.sifirIlanGun)}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="budamaIsabetGun" className="etiket">
+              İsabet penceresi (gün)
+            </label>
+            <input
+              id="budamaIsabetGun"
+              name="budamaIsabetGun"
+              type="text"
+              inputMode="numeric"
+              defaultValue={String(budama.isabetGun)}
+              className="alan"
+            />
+          </div>
+          <div>
+            <label htmlFor="budamaKorumaGun" className="etiket">
+              Yeni grup koruma (gün)
+            </label>
+            <input
+              id="budamaKorumaGun"
+              name="budamaKorumaGun"
+              type="text"
+              inputMode="numeric"
+              defaultValue={String(budama.korumaGun)}
+              className="alan"
+            />
+          </div>
         </div>
       </div>
 

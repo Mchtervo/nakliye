@@ -155,6 +155,7 @@ export default async function AyarlarSayfasi() {
           autoDeploy={tercih.autoDeploy}
           autoDeployEnv={autoDeployEnvAcikMi()}
           maliyet={tercih.maliyet}
+          budama={tercih.budama}
         />
 
         <TestBildirimButonu />

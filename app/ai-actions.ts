@@ -500,6 +500,24 @@ export async function aiTercihKaydet(
   );
   if (typeof maliyetTonaj === "object") return maliyetTonaj;
 
+  function gunSayi(alan: string, varsayilan: number): number | { hata: string } {
+    const ham = metinOku(formData.get(alan));
+    if (!ham) return varsayilan;
+    const n = Number(ham.replace(/\D/g, ""));
+    if (!Number.isFinite(n) || n < 1 || n > 30) {
+      return { hata: kaydedilmedi(`${alan} (1–30 gün)`) };
+    }
+    return Math.round(n);
+  }
+  const budamaSessiz = gunSayi("budamaSessizGun", 4);
+  if (typeof budamaSessiz === "object") return budamaSessiz;
+  const budamaSifir = gunSayi("budamaSifirIlanGun", 5);
+  if (typeof budamaSifir === "object") return budamaSifir;
+  const budamaIsabet = gunSayi("budamaIsabetGun", 7);
+  if (typeof budamaIsabet === "object") return budamaIsabet;
+  const budamaKoruma = gunSayi("budamaKorumaGun", 4);
+  if (typeof budamaKoruma === "object") return budamaKoruma;
+
   // Max tonaj formu: boşsa istiap (maliyetTonaj) kullan
   const efektifMaxTonaj = maxTonaj || maliyetTonaj;
 
@@ -594,6 +612,22 @@ export async function aiTercihKaydet(
     {
       anahtar: AYAR_ANAHTARLARI.maliyetTonaj,
       deger: String(maliyetTonaj),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.budamaSessizGun,
+      deger: String(budamaSessiz),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.budamaSifirIlanGun,
+      deger: String(budamaSifir),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.budamaIsabetGun,
+      deger: String(budamaIsabet),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.budamaKorumaGun,
+      deger: String(budamaKoruma),
     },
   ];
 

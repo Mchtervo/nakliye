@@ -74,6 +74,14 @@ export const AYAR_ANAHTARLARI = {
   maliyetHgsTlKm: "maliyet_hgs_tl_km",
   /** İstiap haddi (ton) — maliyet profili */
   maliyetTonaj: "maliyet_tonaj",
+  /** Budama: kaç gün 0 mesaj → çıkış adayı */
+  budamaSessizGun: "budama_sessiz_gun",
+  /** Budama: mesaj var ama 0 ilan (gün) */
+  budamaSifirIlanGun: "budama_sifir_ilan_gun",
+  /** Budama: düşük isabet penceresi (gün) */
+  budamaIsabetGun: "budama_isabet_gun",
+  /** Budama: yeni gruba koruma (gün) */
+  budamaKorumaGun: "budama_koruma_gun",
 } as const;
 
 export type AyarAnahtari =
@@ -161,6 +169,13 @@ export type AiTercihleri = {
     /** İstiap haddi (ton) */
     tonaj: number;
   };
+  /** Grup budama eşikleri (gün) */
+  budama: {
+    sessizGun: number;
+    sifirIlanGun: number;
+    isabetGun: number;
+    korumaGun: number;
+  };
 };
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
@@ -194,6 +209,10 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.maliyetSabitTlKm,
     AYAR_ANAHTARLARI.maliyetHgsTlKm,
     AYAR_ANAHTARLARI.maliyetTonaj,
+    AYAR_ANAHTARLARI.budamaSessizGun,
+    AYAR_ANAHTARLARI.budamaSifirIlanGun,
+    AYAR_ANAHTARLARI.budamaIsabetGun,
+    AYAR_ANAHTARLARI.budamaKorumaGun,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
@@ -293,6 +312,24 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
         VARSAYILAN_MALIYET.hgsTlKm
       ),
       tonaj: maliyetTonaj,
+    },
+    budama: {
+      sessizGun: Math.max(
+        1,
+        Math.round(sayiOku(a[AYAR_ANAHTARLARI.budamaSessizGun], 4))
+      ),
+      sifirIlanGun: Math.max(
+        1,
+        Math.round(sayiOku(a[AYAR_ANAHTARLARI.budamaSifirIlanGun], 5))
+      ),
+      isabetGun: Math.max(
+        1,
+        Math.round(sayiOku(a[AYAR_ANAHTARLARI.budamaIsabetGun], 7))
+      ),
+      korumaGun: Math.max(
+        1,
+        Math.round(sayiOku(a[AYAR_ANAHTARLARI.budamaKorumaGun], 4))
+      ),
     },
   };
 }

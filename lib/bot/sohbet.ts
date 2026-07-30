@@ -238,8 +238,9 @@ export async function botCallbackIsle(guncelleme: {
   // Grup çıkış onayı (id yok)
   if (islem === "gcik") {
     const { cikisOnayiniIsle } = await import("@/lib/kaynaklar/grupTemizlik");
-    const evet = idHam === "evet";
-    const sonuc = await cikisOnayiniIsle(evet);
+    const karar =
+      idHam === "evet" ? "evet" : idHam === "bekle" ? "bekle" : "hayir";
+    const sonuc = await cikisOnayiniIsle(karar);
     await telegramCallbackCevapla(cq.id, sonuc.mesaj.slice(0, 180));
     if (sonuc.ok) {
       await telegramGonder(chatId, sonuc.mesaj);

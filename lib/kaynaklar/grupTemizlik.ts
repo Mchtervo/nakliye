@@ -11,9 +11,12 @@ export const GRUP_CIKIS_ONAY_ANAHTAR = "grup_cikis_onay";
 export const GRUP_CIKIS_KUYRUK_ANAHTAR = "grup_cikis_kuyruk";
 export const GRUP_CIKIS_GUNLUK_ANAHTAR = "grup_cikis_gunluk";
 export const GRUP_CIKIS_SON_ANAHTAR = "grup_cikis_son";
+/** id → ISO bitiş: "3 gün daha bekle" */
+export const GRUP_CIKIS_ERTELEME_ANAHTAR = "grup_cikis_erteleme";
 
 export const CIKIS_GUNLUK_LIMIT = 3;
 export const CIKIS_ARA_MS = 30 * 60 * 1000;
+const ERTELEME_GUN = 3;
 
 const GUN_MS = 24 * 60 * 60 * 1000;
 
@@ -23,6 +26,11 @@ export type CikisAdayi = {
   kullaniciAdi: string | null;
   hedef: string;
   sebep: string;
+  /** İstatistik (Telegram mesajı) */
+  pencereGun: number;
+  mesajSayisi: number;
+  ilanSayisi: number;
+  isabetYuzde: number | null;
 };
 
 export type CikisOnayKayit =
@@ -51,17 +59,63 @@ function koridorDisiBaslikMi(baslik: string, koridor: Set<string>): boolean {
   if (iller.length === 0) return false;
   const dis = iller.filter((il) => !koridor.has(il));
   const ic = iller.filter((il) => koridor.has(il));
-  // Sadece dış iller geçiyorsa alakasız
   return dis.length > 0 && ic.length === 0;
+}
+
+async function ertelemeOku(): Promise<Record<string, string>> {
+  const k = await prisma.ayar.findUnique({
+    where: { anahtar: GRUP_CIKIS_ERTELEME_ANAHTAR },
+  });
+  if (!k?.deger) return {};
+  try {
+    const j = JSON.parse(k.deger) as Record<string, string>;
+    return j && typeof j === "object" ? j : {};
+  } catch {
+    return {};
+  }
+}
+
+async function ertelemeYaz(map: Record<string, string>): Promise<void> {
+  const simdi = Date.now();
+  const temiz: Record<string, string> = {};
+  for (const [id, iso] of Object.entries(map)) {
+    const t = Date.parse(iso);
+    if (Number.isFinite(t) && t > simdi) temiz[id] = iso;
+  }
+  if (Object.keys(temiz).length === 0) {
+    await prisma.ayar
+      .delete({ where: { anahtar: GRUP_CIKIS_ERTELEME_ANAHTAR } })
+      .catch(() => null);
+    return;
+  }
+  await prisma.ayar.upsert({
+    where: { anahtar: GRUP_CIKIS_ERTELEME_ANAHTAR },
+    create: {
+      anahtar: GRUP_CIKIS_ERTELEME_ANAHTAR,
+      deger: JSON.stringify(temiz),
+    },
+    update: { deger: JSON.stringify(temiz) },
+  });
 }
 
 /** AKTİF gruplardan çıkış adaylarını üretir. */
 export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
   const tercih = await aiTercihleriOku();
   const koridor = new Set(koridorIlKumesi(tercih.koridorIller));
+  const {
+    sessizGun,
+    sifirIlanGun,
+    isabetGun,
+    korumaGun,
+  } = tercih.budama;
   const simdi = Date.now();
-  const yediGun = new Date(simdi - 7 * GUN_MS);
-  const onDortGun = new Date(simdi - 14 * GUN_MS);
+  const sessizSinir = new Date(simdi - sessizGun * GUN_MS);
+  const sifirSinir = new Date(simdi - sifirIlanGun * GUN_MS);
+  const isabetSinir = new Date(simdi - isabetGun * GUN_MS);
+
+  const ertelenen = await ertelemeOku();
+  // Süresi dolanları temizle
+  await ertelemeYaz(ertelenen);
 
   const gruplar = await prisma.ilanKaynagi.findMany({
     where: { tur: TELEGRAM_UYE, durum: "AKTIF", aktif: true },
@@ -79,101 +133,120 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
   const adaylar: CikisAdayi[] = [];
 
   for (const g of gruplar) {
-    // 1) Konu dışı — hemen aday
-    if (istenmeyenBaslikMi(g.ad)) {
-      adaylar.push({
-        id: g.id,
-        ad: g.ad,
-        kullaniciAdi: g.kullaniciAdi,
-        hedef: g.hedef,
-        sebep: "konu dışı / nakliye değil",
-      });
-      continue;
-    }
+    const ertIso = ertelenen[String(g.id)];
+    if (ertIso && Date.parse(ertIso) > simdi) continue;
 
-    const [sonHam, ham7, ham14, ilanToplam, sonIlan] = await Promise.all([
-      prisma.hamMesaj.findFirst({
-        where: { kaynakId: g.id },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
-      }),
-      prisma.hamMesaj.count({
-        where: { kaynakId: g.id, createdAt: { gte: yediGun } },
-      }),
-      prisma.hamMesaj.count({
-        where: { kaynakId: g.id, createdAt: { gte: onDortGun } },
-      }),
-      prisma.yukIlani.count({ where: { kaynakId: g.id } }),
-      prisma.yukIlani.findFirst({
-        where: { kaynakId: g.id },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
-      }),
-    ]);
+    const grupYasGun = (simdi - g.createdAt.getTime()) / GUN_MS;
+    // Yeni grup koruması — katılımından korumaGun geçmeden aday olamaz
+    if (grupYasGun < korumaGun) continue;
 
-    const grupYasGun =
-      (simdi - g.createdAt.getTime()) / GUN_MS;
+    const [sonHam, hamSessiz, hamSifir, hamIsabet, ilanPencere, ilanToplam] =
+      await Promise.all([
+        prisma.hamMesaj.findFirst({
+          where: { kaynakId: g.id },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        }),
+        prisma.hamMesaj.count({
+          where: { kaynakId: g.id, createdAt: { gte: sessizSinir } },
+        }),
+        prisma.hamMesaj.count({
+          where: { kaynakId: g.id, createdAt: { gte: sifirSinir } },
+        }),
+        prisma.hamMesaj.count({
+          where: { kaynakId: g.id, createdAt: { gte: isabetSinir } },
+        }),
+        prisma.yukIlani.count({
+          where: { kaynakId: g.id, createdAt: { gte: sifirSinir } },
+        }),
+        prisma.yukIlani.count({ where: { kaynakId: g.id } }),
+      ]);
+
     const sonAktivite = Math.max(
       g.sonTarama?.getTime() ?? 0,
       sonHam?.createdAt.getTime() ?? 0,
       g.createdAt.getTime()
     );
-    const sessizGun = (simdi - sonAktivite) / GUN_MS;
+    const sessizGunGecen = (simdi - sonAktivite) / GUN_MS;
 
-    // 2) 7 gün 0 mesaj
-    if (grupYasGun >= 7 && ham7 === 0 && sessizGun >= 7) {
+    const base = {
+      id: g.id,
+      ad: g.ad,
+      kullaniciAdi: g.kullaniciAdi,
+      hedef: g.hedef,
+      pencereGun: sessizGun,
+      mesajSayisi: hamSessiz,
+      ilanSayisi: ilanToplam,
+      isabetYuzde: null as number | null,
+    };
+
+    // 1) Konu dışı — aday (koruma geçtiyse)
+    if (istenmeyenBaslikMi(g.ad)) {
       adaylar.push({
-        id: g.id,
-        ad: g.ad,
-        kullaniciAdi: g.kullaniciAdi,
-        hedef: g.hedef,
-        sebep: "7 gün 0 mesaj",
+        ...base,
+        sebep: "konu dışı / nakliye değil",
+        pencereGun: 0,
+        mesajSayisi: hamSessiz,
       });
       continue;
     }
 
-    // 3) 14 gün mesaj var, 0 ilan
-    if (grupYasGun >= 14 && ham14 > 0 && ilanToplam === 0) {
+    // 2) sessizGun boyunca HİÇ mesaj
+    if (hamSessiz === 0 && sessizGunGecen >= sessizGun) {
       adaylar.push({
-        id: g.id,
-        ad: g.ad,
-        kullaniciAdi: g.kullaniciAdi,
-        hedef: g.hedef,
-        sebep: `14 gün mesaj var (${ham14}), 0 ilan`,
+        ...base,
+        sebep: `${sessizGun} gün 0 mesaj`,
+        pencereGun: sessizGun,
+        mesajSayisi: 0,
+        ilanSayisi: ilanToplam,
       });
       continue;
     }
 
-    // 4) Koridor dışı başlık + 7 gün 0 ilan
-    if (
-      koridorDisiBaslikMi(g.ad, koridor) &&
-      grupYasGun >= 7 &&
-      ilanToplam === 0
-    ) {
+    // 3) sifirIlanGun mesaj var, 0 ilan
+    if (hamSifir > 0 && ilanPencere === 0 && ilanToplam === 0) {
       adaylar.push({
-        id: g.id,
-        ad: g.ad,
-        kullaniciAdi: g.kullaniciAdi,
-        hedef: g.hedef,
-        sebep: "koridor dışı başlık, 7g 0 ilan",
+        ...base,
+        sebep: `${sifirIlanGun} gün mesaj var (${hamSifir}), 0 ilan`,
+        pencereGun: sifirIlanGun,
+        mesajSayisi: hamSifir,
+        ilanSayisi: 0,
       });
       continue;
     }
 
-    void sonIlan;
+    // 4) Koridor dışı başlık + pencere 0 ilan
+    if (koridorDisiBaslikMi(g.ad, koridor) && ilanToplam === 0) {
+      adaylar.push({
+        ...base,
+        sebep: `koridor dışı başlık, ${sifirIlanGun}g 0 ilan`,
+        pencereGun: sifirIlanGun,
+        mesajSayisi: hamSifir,
+        ilanSayisi: 0,
+      });
+      continue;
+    }
+
+    void hamIsabet;
   }
 
-  // 5) Düşük koridor isabet — konuşuyor ama koridor dışı
+  // 5) Düşük koridor isabet
   const isabetAday = await dusukIsabetCikisAdaylari(
-    gruplar.map((g) => g.id),
+    gruplar
+      .filter((g) => (simdi - g.createdAt.getTime()) / GUN_MS >= korumaGun)
+      .filter((g) => {
+        const ert = ertelenen[String(g.id)];
+        return !(ert && Date.parse(ert) > simdi);
+      })
+      .map((g) => g.id),
     koridor,
-    yediGun
+    isabetSinir,
+    isabetGun
   );
   for (const a of isabetAday) {
     if (!adaylar.some((x) => x.id === a.id)) adaylar.push(a);
   }
 
-  // Tekilleştir
   const gorulen = new Set<number>();
   return adaylar.filter((a) => {
     if (gorulen.has(a.id)) return false;
@@ -182,17 +255,18 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
   });
 }
 
-/** İsabet <%20 + 7g ≥20 mesaj → çıkış adayı. */
+/** İsabet <%20 + pencerede yeterli mesaj → çıkış adayı. */
 async function dusukIsabetCikisAdaylari(
   kaynakIds: number[],
   koridor: Set<string>,
-  yediGun: Date
+  pencereBas: Date,
+  pencereGun: number
 ): Promise<CikisAdayi[]> {
   if (kaynakIds.length === 0) return [];
 
-  const [hamHafta, gruplar] = await Promise.all([
+  const [hamHafta, gruplar, ilanSay] = await Promise.all([
     prisma.hamMesaj.findMany({
-      where: { kaynakId: { in: kaynakIds }, createdAt: { gte: yediGun } },
+      where: { kaynakId: { in: kaynakIds }, createdAt: { gte: pencereBas } },
       select: { kaynakId: true, metin: true },
       take: 4000,
     }),
@@ -205,12 +279,21 @@ async function dusukIsabetCikisAdaylari(
         hedef: true,
       },
     }),
+    prisma.yukIlani.groupBy({
+      by: ["kaynakId"],
+      where: { kaynakId: { in: kaynakIds } },
+      _count: { _all: true },
+    }),
   ]);
 
+  const ilanMap = new Map(ilanSay.map((m) => [m.kaynakId!, m._count._all]));
   const { satirlaraBol, rotaSatiriMi } = await import(
     "@/lib/kaynaklar/onFiltre"
   );
-  const isabetMap = new Map<number, { hit: number; toplam: number; mesaj: number }>();
+  const isabetMap = new Map<
+    number,
+    { hit: number; toplam: number; mesaj: number }
+  >();
   for (const h of hamHafta) {
     if (!h.kaynakId) continue;
     let slot = isabetMap.get(h.kaynakId);
@@ -241,7 +324,11 @@ async function dusukIsabetCikisAdaylari(
       ad: g.ad,
       kullaniciAdi: g.kullaniciAdi,
       hedef: g.hedef,
-      sebep: `isabet %${yuzde} (7g ${slot.mesaj} mesaj)`,
+      sebep: `isabet %${yuzde} (${pencereGun}g ${slot.mesaj} mesaj)`,
+      pencereGun,
+      mesajSayisi: slot.mesaj,
+      ilanSayisi: ilanMap.get(id) ?? 0,
+      isabetYuzde: yuzde,
     });
   }
   return sonuc;
@@ -261,9 +348,9 @@ export async function cikisOnayOku(): Promise<CikisOnayKayit> {
 
 async function onayYaz(d: CikisOnayKayit | null): Promise<void> {
   if (!d || d.tur === "bos") {
-    await prisma.ayar.delete({ where: { anahtar: GRUP_CIKIS_ONAY_ANAHTAR } }).catch(
-      () => null
-    );
+    await prisma.ayar
+      .delete({ where: { anahtar: GRUP_CIKIS_ONAY_ANAHTAR } })
+      .catch(() => null);
     return;
   }
   await prisma.ayar.upsert({
@@ -300,7 +387,7 @@ async function kuyrukYaz(d: CikisKuyrukKayit): Promise<void> {
 }
 
 /**
- * Aday bul → Telegram'da onay iste.
+ * Tek grup için Telegram onay iste (rakamlı + 3 buton).
  * Zaten bekleyen onay varsa tekrar gönderme.
  */
 export async function cikisOnayiIste(): Promise<{
@@ -318,8 +405,8 @@ export async function cikisOnayiIste(): Promise<{
   );
   if (adaylar.length === 0) return { aday: 0, gonderildi: false };
 
-  // Telegram mesajına en fazla 5 aday
-  const dilim = adaylar.slice(0, 5);
+  // Tek grup — rakamlı mesaj + [Evet][Hayır][3 gün daha]
+  const dilim = adaylar.slice(0, 1);
   await onayYaz({
     tur: "bekliyor",
     adaylar: dilim,
@@ -332,37 +419,57 @@ export async function cikisOnayiIste(): Promise<{
     return { aday: dilim.length, gonderildi: false };
   }
 
-  const liste = dilim
-    .map(
-      (a, i) =>
-        `${i + 1}) ${htmlKacis(a.ad)}${a.kullaniciAdi ? ` (@${htmlKacis(a.kullaniciAdi)})` : ""}\n   → ${htmlKacis(a.sebep)}`
-    )
-    .join("\n");
+  const a = dilim[0]!;
+  const isabetYazi =
+    a.isabetYuzde !== null ? `isabet %${a.isabetYuzde}` : "isabet —";
+  const gunYazi = a.pencereGun > 0 ? `${a.pencereGun} günde` : "şimdi";
+  const metin =
+    `<b>Grup çıkış onayı</b>\n` +
+    `${htmlKacis(a.ad)}${a.kullaniciAdi ? ` (@${htmlKacis(a.kullaniciAdi)})` : ""}\n` +
+    `${gunYazi} ${a.mesajSayisi} mesaj, ${a.ilanSayisi} ilan, ${isabetYazi}.\n` +
+    `→ ${htmlKacis(a.sebep)}\n\n` +
+    `Çıkalım mı?`;
 
-  await telegramGonder(
-    tercih.telegramChatId,
-    `<b>Grup çıkış onayı</b>\nŞu ${dilim.length} gruptan çıkılacak:\n\n${liste}\n\nOnaylıyor musun?`,
-    [
-      { metin: "Evet, çık", callback: "gcik:evet" },
-      { metin: "Hayır", callback: "gcik:hayir" },
-    ]
-  );
+  await telegramGonder(tercih.telegramChatId, metin, [
+    { metin: "Evet", callback: "gcik:evet" },
+    { metin: "Hayır", callback: "gcik:hayir" },
+    { metin: "3 gün daha bekle", callback: "gcik:bekle" },
+  ]);
 
   return { aday: dilim.length, gonderildi: true };
 }
 
-/** Callback: Evet → kuyruğa al; Hayır → iptal. */
+/**
+ * Callback: evet → kuyruk; hayır → iptal; bekle → 3 gün ertele.
+ */
 export async function cikisOnayiniIsle(
-  evet: boolean
+  karar: "evet" | "hayir" | "bekle"
 ): Promise<{ ok: boolean; mesaj: string }> {
   const mevcut = await cikisOnayOku();
   if (mevcut.tur !== "bekliyor" || mevcut.adaylar.length === 0) {
     return { ok: false, mesaj: "Bekleyen onay yok." };
   }
 
-  if (!evet) {
+  if (karar === "hayir") {
     await onayYaz(null);
     return { ok: true, mesaj: "İptal — gruplardan çıkılmayacak." };
+  }
+
+  if (karar === "bekle") {
+    const map = await ertelemeOku();
+    const bitis = new Date(
+      Date.now() + ERTELEME_GUN * GUN_MS
+    ).toISOString();
+    for (const a of mevcut.adaylar) {
+      map[String(a.id)] = bitis;
+    }
+    await ertelemeYaz(map);
+    await onayYaz(null);
+    const ad = mevcut.adaylar[0]?.ad || "Grup";
+    return {
+      ok: true,
+      mesaj: `${ad} — ${ERTELEME_GUN} gün ertelendi, tekrar sorulmayacak.`,
+    };
   }
 
   const kuyruk = await cikisKuyrukOku();
