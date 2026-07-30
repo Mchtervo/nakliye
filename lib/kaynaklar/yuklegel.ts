@@ -17,15 +17,51 @@ import {
 
 const KAYNAK_AD = "yuklegel.com";
 const KAYNAK_HEDEF = "https://yuklegel.com/";
+/** Ayar: "YYYY-MM:adet" — Firecrawl aylık sayfa sayacı */
+export const FIRECRAWL_AYLIK_SAYFA = "firecrawl_aylik_sayfa";
+/** Ücretsiz kota ~1000; 900'de dur (tampon) */
+const FIRECRAWL_KOTA_LIMIT = 900;
 
 export type YuklegelRapor = {
   sayfa: number;
   kart: number;
   kayit: number;
+  yeniFirma: number;
+  guncellenenFirma: number;
   aiFallback: boolean;
   aiAtlandi: boolean;
+  kotaAtlandi: boolean;
+  aylikSayfa: number;
   hatalar: string[];
 };
+
+function trAyAnahtari(tarih = new Date()): string {
+  const tr = new Date(tarih.getTime() + 3 * 60 * 60 * 1000);
+  return tr.toISOString().slice(0, 7); // YYYY-MM
+}
+
+async function firecrawlAylikOku(): Promise<{ ay: string; sayfa: number }> {
+  const ay = trAyAnahtari();
+  const k = await prisma.ayar.findUnique({
+    where: { anahtar: FIRECRAWL_AYLIK_SAYFA },
+  });
+  if (!k?.deger) return { ay, sayfa: 0 };
+  const [kayitAy, adetHam] = k.deger.split(":");
+  if (kayitAy !== ay) return { ay, sayfa: 0 }; // ayın 1'i → sıfır
+  const sayfa = Number(adetHam);
+  return { ay, sayfa: Number.isFinite(sayfa) ? sayfa : 0 };
+}
+
+async function firecrawlAylikYaz(ay: string, sayfa: number): Promise<void> {
+  await prisma.ayar.upsert({
+    where: { anahtar: FIRECRAWL_AYLIK_SAYFA },
+    create: {
+      anahtar: FIRECRAWL_AYLIK_SAYFA,
+      deger: `${ay}:${sayfa}`,
+    },
+    update: { deger: `${ay}:${sayfa}` },
+  });
+}
 
 function bekle(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -248,16 +284,34 @@ async function kaynakIdAl(): Promise<number> {
 
 /**
  * Tek tur: max 20 sayfa, 3 sn ara, CSS parse → gerekirse AI (bütçe doluysa atla).
+ * Aylık Firecrawl kota 900 aşılırsa tur atlanır.
  */
 export async function yuklegelTara(): Promise<YuklegelRapor> {
   const rapor: YuklegelRapor = {
     sayfa: 0,
     kart: 0,
     kayit: 0,
+    yeniFirma: 0,
+    guncellenenFirma: 0,
     aiFallback: false,
     aiAtlandi: false,
+    kotaAtlandi: false,
+    aylikSayfa: 0,
     hatalar: [],
   };
+
+  const kota = await firecrawlAylikOku();
+  rapor.aylikSayfa = kota.sayfa;
+  if (kota.sayfa >= FIRECRAWL_KOTA_LIMIT) {
+    rapor.kotaAtlandi = true;
+    console.log(
+      `kota koruması: ${kota.sayfa}/1000 sayfa, tur atlandı`
+    );
+    rapor.hatalar.push(
+      `kota koruması: ${kota.sayfa}/1000 sayfa, tur atlandı`
+    );
+    return rapor;
+  }
 
   if (!(process.env.FIRECRAWL_API_KEY || "").trim()) {
     rapor.hatalar.push("FIRECRAWL_API_KEY yok — yine de fetch denenecek");
@@ -268,6 +322,9 @@ export async function yuklegelTara(): Promise<YuklegelRapor> {
   const tumKartlar: YuklegelHamKart[] = [];
 
   while (kuyruk.length > 0 && gezilen.size < YUKLEGEL_SECICILER.maxSayfa) {
+    // Tur ortasında da kota aşılmasın
+    if (kota.sayfa + rapor.sayfa >= FIRECRAWL_KOTA_LIMIT) break;
+
     const url = kuyruk.shift()!;
     if (gezilen.has(url) || engelliUrlMi(url)) continue;
     gezilen.add(url);
@@ -294,6 +351,13 @@ export async function yuklegelTara(): Promise<YuklegelRapor> {
         `${url}: ${e instanceof Error ? e.message : "hata"}`
       );
     }
+  }
+
+  // Aylık sayaç güncelle
+  if (rapor.sayfa > 0) {
+    const yeniToplam = kota.sayfa + rapor.sayfa;
+    await firecrawlAylikYaz(kota.ay, yeniToplam);
+    rapor.aylikSayfa = yeniToplam;
   }
 
   // Tekilleştir telefon
@@ -351,18 +415,47 @@ export async function yuklegelTara(): Promise<YuklegelRapor> {
     return rapor;
   }
 
+  // Müşteri havuzu: telefon bazlı yeni / güncellenen firma
+  const batchTelefonlar = new Set<string>();
+  for (const i of ilanlar) {
+    const n = telefonNormalize(i.telefon);
+    if (n) batchTelefonlar.add(n);
+  }
+  const mevcutTelefonlar = new Set<string>();
+  if (batchTelefonlar.size > 0) {
+    const onceki = await prisma.yukIlani.findMany({
+      where: {
+        OR: [...batchTelefonlar].flatMap((t10) => [
+          { telefon: t10 },
+          { telefon: `0${t10}` },
+        ]),
+      },
+      select: { telefon: true },
+      distinct: ["telefon"],
+    });
+    for (const s of onceki) {
+      const n = telefonNormalize(s.telefon);
+      if (n) mevcutTelefonlar.add(n);
+    }
+  }
+
   const kaynakId = await kaynakIdAl();
   const kaydedilen = await ilanlariKaydet(
     kaynakId,
     ilanlar.map((ilan) => ({
       ilan,
-      hamMetin: `[yuklegel] ${ilan.nereden || "?"}→${ilan.nereye || "?"} ${ilan.telefon || ""}`.slice(
+      hamMetin: `[yuklegel] ${ilan.nereden || "?"}→${ilan.nereye || "?"} ${ilan.telefon || ""} ${ilan.firmaAdi || ""}`.slice(
         0,
         500
       ),
     }))
   );
   rapor.kayit = kaydedilen.length;
+
+  for (const t of batchTelefonlar) {
+    if (mevcutTelefonlar.has(t)) rapor.guncellenenFirma += 1;
+    else rapor.yeniFirma += 1;
+  }
 
   await prisma.ilanKaynagi.update({
     where: { id: kaynakId },

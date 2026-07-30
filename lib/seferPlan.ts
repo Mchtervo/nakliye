@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ilBul } from "@/lib/iller";
 import { yaklasikKarayoluKm } from "@/lib/ilMesafe";
-import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
+import { SUPHE_SINIRI, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
 import {
   gelirKurus,
   karHesapla,
@@ -114,6 +114,7 @@ export async function planAdaylariniGetir(opts?: {
             { sonGorulme: { gte: sinir } },
           ],
         },
+        webKaynakHaricKosulu(),
         ...(maxTonaj
           ? [{ OR: [{ tonaj: null }, { tonaj: { lte: maxTonaj } }] }]
           : []),
@@ -306,6 +307,7 @@ export async function donusOnerileriBul(
       ...(haricId ? { id: { not: haricId } } : {}),
       createdAt: { gte: sinir },
       varisIl: { not: null },
+      AND: [webKaynakHaricKosulu()],
     },
     orderBy: [{ guvenSkoru: "desc" }, { ucret: "desc" }],
     take: 15,

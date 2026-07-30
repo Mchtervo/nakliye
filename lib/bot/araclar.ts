@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { ilBul } from "@/lib/iller";
 import { bugunAnahtar, elemeSayaclariOku } from "@/lib/kaynaklar/elemeSayac";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
-import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
+import { SUPHE_SINIRI, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
 import { AYAR_ANAHTARLARI, aiTercihleriOku, ayarOku } from "@/lib/ayarlar";
 import {
   GRUP_CIKIS_GUNLUK_ANAHTAR,
@@ -103,6 +103,7 @@ export async function ilanAra(girdi: IlanAraGirdi): Promise<{
     createdAt: { gte: since },
     guvenSkoru: { gte: SUPHE_SINIRI },
     durum: { not: "ELENDI" },
+    AND: [webKaynakHaricKosulu()],
   };
   if (cikis) where.cikisIl = cikis;
   if (varis) where.varisIl = varis;

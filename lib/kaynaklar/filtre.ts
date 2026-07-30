@@ -104,10 +104,12 @@ export function ilgilileriSuz(
 /**
  * Liste sayfası filtresi.
  * Skor 40+ yeter (50 altı eskiden paneli boşaltıyordu; şüpheli sekmesi ayrı).
+ * WEB kaynak (yuklegel vb.) sadece müşteri havuzunda — panelde yok.
  */
 export function tercihKosulu(tercih: AiTercihleri) {
   const kosullar: Record<string, unknown>[] = [
     { guvenSkoru: { gte: 40 } },
+    webKaynakHaricKosulu(),
   ];
 
   if (tercih.aracTipleri.length > 0) {
@@ -130,4 +132,14 @@ export function tercihKosulu(tercih: AiTercihleri) {
   }
 
   return { AND: kosullar };
+}
+
+/** YukIlani: WEB kaynaklı kayıtları ana akıştan çıkar. */
+export function webKaynakHaricKosulu() {
+  return {
+    OR: [
+      { kaynakId: null },
+      { kaynak: { tur: { not: "WEB" } } },
+    ],
+  };
 }

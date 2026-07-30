@@ -48,7 +48,12 @@ export async function kaynaklariTara(limit = 2): Promise<TaramaRaporu> {
   }
 
   const kaynaklar = await prisma.ilanKaynagi.findMany({
-    where: { aktif: true, tur: { in: Object.keys(ADAPTORLER) } },
+    where: {
+      aktif: true,
+      tur: { in: Object.keys(ADAPTORLER) },
+      // yuklegel ayrı cron ile firma havuzuna gider — genel taramada yok
+      NOT: { hedef: { contains: "yuklegel" } },
+    },
     orderBy: [{ sonTarama: { sort: "asc", nulls: "first" } }, { id: "asc" }],
     take: Math.max(1, Math.min(limit, 10)),
   });
