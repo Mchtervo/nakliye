@@ -2,10 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { ilBul } from "@/lib/iller";
 import { yaklasikKarayoluKm } from "@/lib/ilMesafe";
 import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
+import {
+  gelirKurus,
+  karHesapla,
+  type MaliyetAyarlari,
+  VARSAYILAN_MALIYET,
+} from "@/lib/karHesap";
 
 const BOS_MAX_KM = 100;
-const YUKLU_MALIYET_KURUS_KM = 800; // ~8 TL/km
-const BOS_MALIYET_KURUS_KM = 1200; // ~12 TL/km
 const ADAY_LIMIT = 100;
 const BEAM = 40;
 
@@ -65,37 +69,36 @@ function ilanKm(ilan: PlanAdayIlan): number {
   return yaklasikKarayoluKm(ilan.cikisIl, ilan.varisIl) ?? 0;
 }
 
-function gelirKurus(ilan: PlanAdayIlan): number {
-  if (ilan.ucret && ilan.ucret > 0) return ilan.ucret;
-  if (ilan.fiyatTon && ilan.tonaj && ilan.fiyatTon > 0 && ilan.tonaj > 0) {
-    return ilan.fiyatTon * ilan.tonaj;
-  }
-  return 0;
-}
-
-function planOzet(ayaklar: PlanAyak[]): SeferPlani {
+function planOzet(
+  ayaklar: PlanAyak[],
+  maliyet: MaliyetAyarlari
+): SeferPlani {
   let toplamUcret = 0;
   let bosKm = 0;
   let yukluKm = 0;
+  let netTl = 0;
   for (const a of ayaklar) {
     toplamUcret += gelirKurus(a.ilan);
     bosKm += a.bosKm;
     yukluKm += a.yukluKm;
+    const kar = karHesapla(a.ilan, maliyet, null, { bosKm: a.bosKm });
+    if (kar.netTl !== null) netTl += kar.netTl;
   }
-  const maliyet =
-    yukluKm * YUKLU_MALIYET_KURUS_KM + bosKm * BOS_MALIYET_KURUS_KM;
   return {
     ayaklar,
     toplamUcret,
     toplamKm: yukluKm + bosKm,
     bosKm,
-    netTahmini: toplamUcret - maliyet,
+    netTahmini: Math.round(netTl * 100),
   };
 }
 
 /** DB'den plan adaylarını çek. */
-export async function planAdaylariniGetir(): Promise<PlanAdayIlan[]> {
+export async function planAdaylariniGetir(opts?: {
+  maxTonaj?: number | null;
+}): Promise<PlanAdayIlan[]> {
   const sinir = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const maxTonaj = opts?.maxTonaj ?? null;
   const satirlar = await prisma.yukIlani.findMany({
     where: {
       durum: {
@@ -104,9 +107,16 @@ export async function planAdaylariniGetir(): Promise<PlanAdayIlan[]> {
       guvenSkoru: { gte: 40 },
       cikisIl: { not: null },
       varisIl: { not: null },
-      OR: [
-        { createdAt: { gte: sinir } },
-        { sonGorulme: { gte: sinir } },
+      AND: [
+        {
+          OR: [
+            { createdAt: { gte: sinir } },
+            { sonGorulme: { gte: sinir } },
+          ],
+        },
+        ...(maxTonaj
+          ? [{ OR: [{ tonaj: null }, { tonaj: { lte: maxTonaj } }] }]
+          : []),
       ],
     },
     orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
@@ -152,11 +162,13 @@ export async function planAdaylariniGetir(): Promise<PlanAdayIlan[]> {
 /**
  * Başlangıç ilden 2–4 ayaklı tur planları.
  * Varış → sonraki çıkış aynı il veya ≤100 km; tarihler çakışmasın.
+ * Net = Ayarlar maliyet profili (yüklü + boş km ayrı).
  */
 export function seferPlanlariUret(
   baslangicIlHam: string,
   gunSayisi: number,
-  adaylar: PlanAdayIlan[]
+  adaylar: PlanAdayIlan[],
+  maliyet: MaliyetAyarlari = VARSAYILAN_MALIYET
 ): SeferPlani[] {
   const baslangic = ilBul(baslangicIlHam);
   if (!baslangic) return [];
@@ -210,7 +222,7 @@ export function seferPlanlariUret(
     const sonraki: Dugum[] = [];
     for (const dugum of beam) {
       if (dugum.ayaklar.length >= minAyak) {
-        tamamlanan.push(planOzet(dugum.ayaklar));
+        tamamlanan.push(planOzet(dugum.ayaklar, maliyet));
       }
       for (const ilan of adaylar) {
         if (dugum.kullanilan.has(ilan.id)) continue;
@@ -247,7 +259,9 @@ export function seferPlanlariUret(
     }
 
     sonraki.sort(
-      (a, b) => planOzet(b.ayaklar).netTahmini - planOzet(a.ayaklar).netTahmini
+      (a, b) =>
+        planOzet(b.ayaklar, maliyet).netTahmini -
+        planOzet(a.ayaklar, maliyet).netTahmini
     );
     beam = sonraki.slice(0, BEAM);
     if (beam.length === 0) break;
@@ -255,7 +269,7 @@ export function seferPlanlariUret(
 
   for (const dugum of beam) {
     if (dugum.ayaklar.length >= minAyak) {
-      tamamlanan.push(planOzet(dugum.ayaklar));
+      tamamlanan.push(planOzet(dugum.ayaklar, maliyet));
     }
   }
 

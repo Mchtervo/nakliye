@@ -492,6 +492,16 @@ export async function aiTercihKaydet(
   if (typeof sabitKm === "object") return sabitKm;
   const hgsKm = maliyetSayi("hgsTlKm", VARSAYILAN_MALIYET.hgsTlKm, 0, 10);
   if (typeof hgsKm === "object") return hgsKm;
+  const maliyetTonaj = maliyetSayi(
+    "maliyetTonaj",
+    VARSAYILAN_MALIYET.tonaj,
+    1,
+    50
+  );
+  if (typeof maliyetTonaj === "object") return maliyetTonaj;
+
+  // Max tonaj formu: boşsa istiap (maliyetTonaj) kullan
+  const efektifMaxTonaj = maxTonaj || maliyetTonaj;
 
   // Tüm doğrulamalar geçti — tek transaction (hepsi ya hiçbiri)
   const kayitlar: { anahtar: string; deger: string }[] = [
@@ -500,7 +510,7 @@ export async function aiTercihKaydet(
     { anahtar: AYAR_ANAHTARLARI.aiMinUcret, deger: String(minUcret ?? 0) },
     { anahtar: AYAR_ANAHTARLARI.aiBolgeler, deger: bolgeler },
     { anahtar: AYAR_ANAHTARLARI.aiAracTipleri, deger: aracTipleri },
-    { anahtar: AYAR_ANAHTARLARI.aiMaxTonaj, deger: String(maxTonaj || 0) },
+    { anahtar: AYAR_ANAHTARLARI.aiMaxTonaj, deger: String(efektifMaxTonaj) },
     { anahtar: AYAR_ANAHTARLARI.aiAnaUs, deger: anaUs || "" },
     {
       anahtar: AYAR_ANAHTARLARI.aiEkIller,
@@ -580,6 +590,10 @@ export async function aiTercihKaydet(
     {
       anahtar: AYAR_ANAHTARLARI.maliyetHgsTlKm,
       deger: String(hgsKm),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.maliyetTonaj,
+      deger: String(maliyetTonaj),
     },
   ];
 

@@ -747,8 +747,34 @@ export async function kuyrugunuCoz(
   const koridorSet = new Set(kapsam);
   let aracElenen = 0;
   let uzakElenen = 0;
+  let tonajElenen = 0;
+  const istiap = tercih.maliyet.tonaj;
   for (const { anahtar, ilan } of cozulenler) {
     const hamMetin = hamTam.get(anahtar) ?? metinler.get(anahtar) ?? "";
+    // Tonaj aşımı → kaydet ama ELENDI (sebep hamMetin öneki + durum)
+    if (
+      ilan.tonaj != null &&
+      ilan.tonaj > istiap &&
+      ilan.cikisIl &&
+      ilan.varisIl
+    ) {
+      const kaynakId = kaynaklar.get(anahtar) ?? null;
+      await ilanlariKaydet(
+        kaynakId,
+        [
+          {
+            ilan,
+            hamMetin,
+            gonderenUserId: gonderenler.get(anahtar) ?? null,
+            kaynakMesajId: kaynakMesajlar.get(anahtar) ?? null,
+            hamMesajId: anahtar,
+          },
+        ],
+        { durum: "ELENDI" }
+      );
+      tonajElenen += 1;
+      continue;
+    }
     if (!ilanKaydaUygunMu(ilan, tercih, anaUs, koridorSet, hamMetin)) {
       if (!araciUyuyorMu(ilan, tercih, hamMetin)) aracElenen += 1;
       else uzakElenen += 1;
@@ -775,6 +801,7 @@ export async function kuyrugunuCoz(
   }
   if (aracElenen > 0) await elemeArtir({ ARAC_TIP: aracElenen });
   if (uzakElenen > 0) await elemeArtir({ BOLGE_ROTA: uzakElenen });
+  if (tonajElenen > 0) await elemeArtir({ TONAJ_ASIMI: tonajElenen });
 
   const yeniler: KaydedilenIlan[] = [];
   for (const [kaynakId, bulunanlar] of kaynagaGore) {

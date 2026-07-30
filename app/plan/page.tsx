@@ -92,9 +92,13 @@ export default async function PlanSayfasi({
   const gun = Number.isFinite(gunHam) && gunHam >= 2 && gunHam <= 7 ? gunHam : 3;
   const baslangic = ilBul(neredeHam);
 
-  const adaylar = await planAdaylariniGetir();
+  const adaylar = await planAdaylariniGetir({
+    maxTonaj: tercih.maliyet.tonaj,
+  });
   const planlar =
-    baslangic != null ? seferPlanlariUret(baslangic, gun, adaylar) : [];
+    baslangic != null
+      ? seferPlanlariUret(baslangic, gun, adaylar, tercih.maliyet)
+      : [];
 
   return (
     <div className="mx-auto max-w-lg space-y-4">

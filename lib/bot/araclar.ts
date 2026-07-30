@@ -3,7 +3,7 @@ import { ilBul } from "@/lib/iller";
 import { bugunAnahtar, elemeSayaclariOku } from "@/lib/kaynaklar/elemeSayac";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
-import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
+import { AYAR_ANAHTARLARI, aiTercihleriOku, ayarOku } from "@/lib/ayarlar";
 import {
   GRUP_CIKIS_GUNLUK_ANAHTAR,
   cikisGunlukOku,
@@ -361,8 +361,11 @@ export async function aiHarcama() {
 export async function seferPlanla(nerede: string, gun = 3) {
   const il = ilBul(nerede);
   if (!il) return { hata: `Yer çözülemedi: ${nerede}` };
-  const adaylar = await planAdaylariniGetir();
-  const planlar = seferPlanlariUret(il, gun, adaylar);
+  const tercih = await aiTercihleriOku();
+  const adaylar = await planAdaylariniGetir({
+    maxTonaj: tercih.maliyet.tonaj,
+  });
+  const planlar = seferPlanlariUret(il, gun, adaylar, tercih.maliyet);
   return {
     baslangic: il,
     gun,

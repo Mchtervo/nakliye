@@ -24,7 +24,13 @@ export default function AiTercihForm({
   katilimMinUye = "15",
   autoDeploy,
   autoDeployEnv = false,
-  maliyet = { yakitLt100: 32, motorinTl: 48, sabitTlKm: 2.5, hgsTlKm: 0.2 },
+  maliyet = {
+    yakitLt100: 32,
+    motorinTl: 48,
+    sabitTlKm: 2.5,
+    hgsTlKm: 0.2,
+    tonaj: 26,
+  },
 }: {
   sehir: string;
   rotalar: string;
@@ -60,6 +66,7 @@ export default function AiTercihForm({
     motorinTl: number;
     sabitTlKm: number;
     hgsTlKm: number;
+    tonaj: number;
   };
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
@@ -194,6 +201,23 @@ export default function AiTercihForm({
               defaultValue={String(maliyet.hgsTlKm)}
               className="alan"
             />
+          </div>
+          <div>
+            <label htmlFor="maliyetTonaj" className="etiket">
+              Tonaj / istiap (ton)
+            </label>
+            <input
+              id="maliyetTonaj"
+              name="maliyetTonaj"
+              type="text"
+              inputMode="numeric"
+              placeholder="26"
+              defaultValue={String(maliyet.tonaj)}
+              className="alan"
+            />
+            <p className="mt-1 text-xs text-fog">
+              Üstü tonaj aşımı → ilan ELENDI.
+            </p>
           </div>
         </div>
       </div>

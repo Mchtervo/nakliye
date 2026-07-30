@@ -226,11 +226,17 @@ export async function ilanlariKaydet(
     gonderenUserId?: string | null;
     kaynakMesajId?: number | null;
     hamMesajId?: number | null;
-  }[]
+  }[],
+  opts?: {
+    /** Varsayılan YENI. Tonaj aşımı vb. için ELENDI. */
+    durum?: string;
+  }
 ): Promise<KaydedilenIlan[]> {
   const yeniler: KaydedilenIlan[] = [];
   /** Batch içi: aynı normalize rota (+tel) tek kart. */
   const batchRota = new Set<string>();
+  const hedefDurum = opts?.durum || "YENI";
+  const elendiMi = hedefDurum === "ELENDI";
 
   for (const {
     ilan: hamIlan,
@@ -259,39 +265,74 @@ export async function ilanlariKaydet(
     if (ayniHash) {
       const sinir = Date.now() - DEDUP_PENCERE_MS;
       if (ayniHash.sonGorulme.getTime() >= sinir) {
-        await yenileVeBelkiBildir(
-          ayniHash.id,
-          ilan,
-          hamMetin,
-          kaynakId,
-          kimlik,
-          yeniler
-        );
+        if (elendiMi) {
+          await prisma.yukIlani.update({
+            where: { id: ayniHash.id },
+            data: {
+              durum: "ELENDI",
+              bildirildi: true,
+              sonGorulme: new Date(),
+              tonaj: ilan.tonaj ?? undefined,
+              hamMetin: guvenliKirp(
+                `[tonaj aşımı] ${hamMetin}`.slice(0, 4000),
+                4000
+              ),
+            },
+          });
+        } else {
+          await yenileVeBelkiBildir(
+            ayniHash.id,
+            ilan,
+            hamMetin,
+            kaynakId,
+            kimlik,
+            yeniler
+          );
+        }
         continue;
       }
     }
 
     const yakin = await mevcutRota48s(ilan);
     if (yakin) {
-      await yenileVeBelkiBildir(
-        yakin.id,
-        ilan,
-        hamMetin,
-        kaynakId,
-        kimlik,
-        yeniler
-      );
+      if (elendiMi) {
+        await prisma.yukIlani.update({
+          where: { id: yakin.id },
+          data: {
+            durum: "ELENDI",
+            bildirildi: true,
+            sonGorulme: new Date(),
+            tonaj: ilan.tonaj ?? undefined,
+            hamMetin: guvenliKirp(
+              `[tonaj aşımı] ${hamMetin}`.slice(0, 4000),
+              4000
+            ),
+          },
+        });
+      } else {
+        await yenileVeBelkiBildir(
+          yakin.id,
+          ilan,
+          hamMetin,
+          kaynakId,
+          kimlik,
+          yeniler
+        );
+      }
       continue;
     }
 
-    const donusTalebiId = await donusTalebiEslestir(ilan);
+    const donusTalebiId = elendiMi ? null : await donusTalebiEslestir(ilan);
     const simdi = new Date();
 
     try {
       const kayit = await prisma.yukIlani.create({
         data: {
           kaynakId,
-          hamMetin: guvenliKirp(hamMetin, 4000),
+          hamMetin: guvenliKirp(
+            elendiMi ? `[tonaj aşımı] ${hamMetin}` : hamMetin,
+            4000
+          ),
           firmaAdi: ilan.firmaAdi,
           ilgiliKisi: ilan.ilgiliKisi,
           telefon: ilan.telefon,
@@ -308,6 +349,8 @@ export async function ilanlariKaydet(
           aracTipiKod: ilan.aracTipiKod,
           yukTipi: ilan.yukTipi,
           guvenSkoru: ilan.guvenSkoru,
+          durum: hedefDurum,
+          bildirildi: elendiMi,
           dedupHash,
           donusTalebiId,
           sonGorulme: simdi,
@@ -318,9 +361,10 @@ export async function ilanlariKaydet(
       });
 
       console.log(
-        `[kaydet] YENİ #${kayit.id} ${kayit.cikisIl}→${kayit.varisIl} ` +
+        `[kaydet] ${hedefDurum} #${kayit.id} ${kayit.cikisIl}→${kayit.varisIl} ` +
           `uid=${kayit.gonderenUserId || "-"} hamMesajId=${kayit.hamMesajId ?? "-"} ` +
-          `tgMsg=${kayit.kaynakMesajId ?? "-"}`
+          `tgMsg=${kayit.kaynakMesajId ?? "-"}` +
+          (elendiMi ? " sebep=tonaj aşımı" : "")
       );
 
       if (donusTalebiId) {
@@ -329,6 +373,9 @@ export async function ilanlariKaydet(
           data: { eslesmeAdet: { increment: 1 }, sonKontrol: new Date() },
         });
       }
+
+      // ELENDI bildirilmez / yeniler listesine girmez
+      if (elendiMi) continue;
 
       yeniler.push({
         id: kayit.id,
@@ -359,14 +406,25 @@ export async function ilanlariKaydet(
         select: { id: true },
       });
       if (yarisan) {
-        await yenileVeBelkiBildir(
-          yarisan.id,
-          ilan,
-          hamMetin,
-          kaynakId,
-          kimlik,
-          yeniler
-        );
+        if (elendiMi) {
+          await prisma.yukIlani.update({
+            where: { id: yarisan.id },
+            data: {
+              durum: "ELENDI",
+              bildirildi: true,
+              sonGorulme: new Date(),
+            },
+          });
+        } else {
+          await yenileVeBelkiBildir(
+            yarisan.id,
+            ilan,
+            hamMetin,
+            kaynakId,
+            kimlik,
+            yeniler
+          );
+        }
       }
     }
   }

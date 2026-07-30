@@ -72,6 +72,8 @@ export const AYAR_ANAHTARLARI = {
   maliyetSabitTlKm: "maliyet_sabit_tl_km",
   /** Km başı HGS tahmini ₺ */
   maliyetHgsTlKm: "maliyet_hgs_tl_km",
+  /** İstiap haddi (ton) — maliyet profili */
+  maliyetTonaj: "maliyet_tonaj",
 } as const;
 
 export type AyarAnahtari =
@@ -121,7 +123,7 @@ export type AiTercihleri = {
   minUcret: number | null; // kuruş
   bolgeler: BolgeKodu[];
   aracTipleri: AracTipiKodu[];
-  maxTonaj: number | null;
+  maxTonaj: number;
   anaUs: string | null;
   /** Bölge checkbox'larına ek, elle yazılan iller (eski; koridora eklenir) */
   ekIller: string[];
@@ -156,6 +158,8 @@ export type AiTercihleri = {
     motorinTl: number;
     sabitTlKm: number;
     hgsTlKm: number;
+    /** İstiap haddi (ton) */
+    tonaj: number;
   };
 };
 
@@ -189,11 +193,13 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.maliyetMotorinTl,
     AYAR_ANAHTARLARI.maliyetSabitTlKm,
     AYAR_ANAHTARLARI.maliyetHgsTlKm,
+    AYAR_ANAHTARLARI.maliyetTonaj,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
   const bolgeHam = a[AYAR_ANAHTARLARI.aiBolgeler];
   const tonajHam = Number(a[AYAR_ANAHTARLARI.aiMaxTonaj]);
+  const maliyetTonajHam = Number(a[AYAR_ANAHTARLARI.maliyetTonaj]);
   const ekIller = (a[AYAR_ANAHTARLARI.aiEkIller] || "")
     .split(/[,\n]/)
     .map((p) => ilBul(p.trim()))
@@ -215,6 +221,18 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     return Number.isFinite(n) && n >= 0 ? n : varsayilan;
   }
 
+  const maliyetTonaj = sayiOku(
+    a[AYAR_ANAHTARLARI.maliyetTonaj],
+    VARSAYILAN_MALIYET.tonaj
+  );
+  // Max tonaj: ayrı ayar varsa onu kullan; yoksa istiap (maliyet.tonaj)
+  const maxTonajCozulmus =
+    Number.isFinite(tonajHam) && tonajHam > 0
+      ? Math.round(tonajHam)
+      : Number.isFinite(maliyetTonajHam) && maliyetTonajHam > 0
+        ? Math.round(maliyetTonajHam)
+        : maliyetTonaj;
+
   return {
     sehir: a[AYAR_ANAHTARLARI.aiSehir] || null,
     rotalar: (a[AYAR_ANAHTARLARI.aiRotalar] || "")
@@ -225,8 +243,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     bolgeler:
       bolgeHam === undefined ? VARSAYILAN_BOLGELER : bolgeCozumle(bolgeHam),
     aracTipleri: aracKodlariCozumle(a[AYAR_ANAHTARLARI.aiAracTipleri]),
-    maxTonaj:
-      Number.isFinite(tonajHam) && tonajHam > 0 ? Math.round(tonajHam) : null,
+    maxTonaj: maxTonajCozulmus,
     anaUs: ilBul(a[AYAR_ANAHTARLARI.aiAnaUs]),
     ekIller: [...new Set(ekIller)],
     koridorIller,
@@ -275,6 +292,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
         a[AYAR_ANAHTARLARI.maliyetHgsTlKm],
         VARSAYILAN_MALIYET.hgsTlKm
       ),
+      tonaj: maliyetTonaj,
     },
   };
 }

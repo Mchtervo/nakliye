@@ -141,7 +141,7 @@ export default async function AyarlarSayfasi() {
           minUcretYazi={tercih.minUcret ? kurustanGiris(tercih.minUcret) : ""}
           bolgeler={tercih.bolgeler}
           aracTipleri={tercih.aracTipleri}
-          maxTonaj={tercih.maxTonaj ? String(tercih.maxTonaj) : ""}
+          maxTonaj={String(tercih.maxTonaj)}
           anaUs={tercih.anaUs || ""}
           ekIller={tercih.ekIller.join(", ")}
           koridorIller={tercih.koridorIller.join(", ")}

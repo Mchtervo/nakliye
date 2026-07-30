@@ -13,6 +13,8 @@ export const VARSAYILAN_MALIYET = {
   sabitTlKm: 2.5,
   /** ₺ / km HGS tahmini */
   hgsTlKm: 0.2,
+  /** İstiap haddi (ton) — üstü tonaj aşımı */
+  tonaj: 26,
 } as const;
 
 export type MaliyetAyarlari = {
@@ -20,13 +22,19 @@ export type MaliyetAyarlari = {
   motorinTl: number;
   sabitTlKm: number;
   hgsTlKm: number;
+  /** İstiap haddi (ton) */
+  tonaj: number;
 };
 
 export type KarOzet = {
   mesafeKm: number | null;
+  /** Boş (reposition) km — varsa maliyete eklenir */
+  bosKm: number;
   yakitTl: number | null;
   hgsTl: number | null;
   sabitTl: number | null;
+  /** Boş km maliyeti (₺) */
+  bosMaliyetTl: number | null;
   maliyetTl: number | null;
   gelirTl: number | null;
   netTl: number | null;
@@ -37,6 +45,17 @@ export type KarOzet = {
   /** Pozitif = ortalamanın %X altında */
   ortalamaAltindaYuzde: number | null;
 };
+
+/** km başına yakıt+HGS+sabit (₺). */
+export function kmMaliyetTl(mesafeKm: number, maliyet: MaliyetAyarlari): number {
+  if (mesafeKm <= 0) return 0;
+  const yakitLt = (mesafeKm * maliyet.yakitLt100) / 100;
+  return (
+    yakitLt * maliyet.motorinTl +
+    mesafeKm * maliyet.hgsTlKm +
+    mesafeKm * maliyet.sabitTlKm
+  );
+}
 
 export function gelirKurus(ilan: {
   ucret: number | null;
@@ -59,49 +78,60 @@ export function karHesapla(
     tonaj: number | null;
   },
   maliyet: MaliyetAyarlari,
-  hat?: { ortalamaKurus: number; ornek: number } | null
+  hat?: { ortalamaKurus: number; ornek: number } | null,
+  /** Boş km (önceki varış → bu çıkış); yüklü km’den ayrı hesaplanır */
+  opts?: { bosKm?: number }
 ): KarOzet {
   const mesafeKm = yaklasikKarayoluKm(ilan.cikisIl, ilan.varisIl);
+  const bosKm = Math.max(0, opts?.bosKm ?? 0);
   const gelir = gelirKurus(ilan);
   const gelirTl = gelir > 0 ? gelir / 100 : null;
+  const hatOrtalamaTl =
+    hat && hat.ornek > 0 ? hat.ortalamaKurus / 100 : null;
 
-  if (mesafeKm === null || mesafeKm <= 0) {
+  if ((mesafeKm === null || mesafeKm <= 0) && bosKm <= 0) {
     return {
       mesafeKm,
+      bosKm,
       yakitTl: null,
       hgsTl: null,
       sabitTl: null,
+      bosMaliyetTl: null,
       maliyetTl: null,
       gelirTl,
       netTl: null,
       tlKm: null,
-      hatOrtalamaTl: hat && hat.ornek > 0 ? hat.ortalamaKurus / 100 : null,
+      hatOrtalamaTl,
       hatOrnek: hat?.ornek ?? 0,
       ortalamaAltindaYuzde: null,
     };
   }
 
-  const yakitLt = (mesafeKm * maliyet.yakitLt100) / 100;
+  const yukluKm = mesafeKm !== null && mesafeKm > 0 ? mesafeKm : 0;
+  const yakitLt = (yukluKm * maliyet.yakitLt100) / 100;
   const yakitTl = yakitLt * maliyet.motorinTl;
-  const hgsTl = mesafeKm * maliyet.hgsTlKm;
-  const sabitTl = mesafeKm * maliyet.sabitTlKm;
-  const maliyetTl = yakitTl + hgsTl + sabitTl;
+  const hgsTl = yukluKm * maliyet.hgsTlKm;
+  const sabitTl = yukluKm * maliyet.sabitTlKm;
+  const yukluMaliyetTl = yakitTl + hgsTl + sabitTl;
+  const bosMaliyetTl = kmMaliyetTl(bosKm, maliyet);
+  const maliyetTl = yukluMaliyetTl + bosMaliyetTl;
   const netTl = gelirTl !== null ? gelirTl - maliyetTl : null;
-  const tlKm = netTl !== null ? netTl / mesafeKm : null;
+  const toplamKm = yukluKm + bosKm;
+  const tlKm = netTl !== null && toplamKm > 0 ? netTl / toplamKm : null;
 
   let ortalamaAltindaYuzde: number | null = null;
-  const hatOrtalamaTl =
-    hat && hat.ornek > 0 ? hat.ortalamaKurus / 100 : null;
   if (gelirTl !== null && hatOrtalamaTl && hatOrtalamaTl > 0) {
     const fark = ((hatOrtalamaTl - gelirTl) / hatOrtalamaTl) * 100;
     if (fark >= 5) ortalamaAltindaYuzde = Math.round(fark);
   }
 
   return {
-    mesafeKm,
+    mesafeKm: mesafeKm !== null && mesafeKm > 0 ? mesafeKm : null,
+    bosKm,
     yakitTl: Math.round(yakitTl),
     hgsTl: Math.round(hgsTl),
     sabitTl: Math.round(sabitTl),
+    bosMaliyetTl: Math.round(bosMaliyetTl),
     maliyetTl: Math.round(maliyetTl),
     gelirTl: gelirTl !== null ? Math.round(gelirTl) : null,
     netTl: netTl !== null ? Math.round(netTl) : null,
