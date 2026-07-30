@@ -44,6 +44,15 @@ bildir() {
   ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts "$metin" ) >>"$LOG" 2>&1 || true
 }
 
+hata_ozet() {
+  local dosya="$1"
+  if [ ! -f "$dosya" ]; then
+    echo "(log yok)"
+    return
+  fi
+  tail -n 40 "$dosya" | tail -c 2500
+}
+
 script_izinleri() {
   chmod +x "$REPO"/deploy/deploy.sh \
     "$REPO"/deploy/cron/*.sh \
@@ -85,43 +94,85 @@ if [ -d .next ]; then
   cp -a .next "$NEXT_BAK"
 fi
 
+# Geri alma: SADECE git + .next. node_modules'a DOKUNMA.
 geri_al() {
-  log "GERİ AL → $OLD_SHA"
+  log "GERİ AL → $OLD_SHA (node_modules dokunulmuyor)"
   git reset --hard "$OLD_SHA" >>"$LOG" 2>&1 || true
   script_izinleri
-  set +e
-  npm ci >>"$LOG" 2>&1
   if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
     rm -rf .next
     mv "$NEXT_BAK" .next
     log ".next yedeği geri yüklendi"
   else
-    npm run build >>"$LOG" 2>&1
+    log ".next yedeği yok — mevcut .next bırakıldı"
   fi
+}
+
+npm_ci_guvenli() {
+  local logf
+  logf="$(mktemp /tmp/yukavci-npmci.XXXXXX)"
+  set +e
+  npm ci >"$logf" 2>&1
+  local kod=$?
   set -e
+  cat "$logf" >>"$LOG"
+  if [ "$kod" -eq 0 ]; then
+    rm -f "$logf"
+    return 0
+  fi
+
+  log "npm ci HATA — node_modules silinip 2. deneme"
+  hata_ozet "$logf" >>"$LOG"
+  rm -rf node_modules
+
+  set +e
+  npm ci >"$logf" 2>&1
+  kod=$?
+  set -e
+  cat "$logf" >>"$LOG"
+  if [ "$kod" -eq 0 ]; then
+    rm -f "$logf"
+    return 0
+  fi
+
+  local oz
+  oz="$(hata_ozet "$logf")"
+  rm -f "$logf"
+  bildir "❌ Deploy npm ci 2x fail: $SHORT — $MSG
+
+$oz"
+  geri_al
+  return 1
 }
 
 set +e
 git reset --hard origin/main >>"$LOG" 2>&1
 script_izinleri
-npm ci >>"$LOG" 2>&1
-CI_KOD=$?
-if [ "$CI_KOD" -ne 0 ]; then
-  log "npm ci HATA exit=$CI_KOD"
-  geri_al
-  bildir "❌ Deploy hatası (npm ci): $SHORT — $MSG"
+set -e
+
+if ! npm_ci_guvenli; then
   exit 1
 fi
 
-npx prisma generate >>"$LOG" 2>&1
-npx prisma migrate deploy >>"$LOG" 2>&1
+set +e
+PRISMA_LOG="$(mktemp /tmp/yukavci-prisma.XXXXXX)"
+npx prisma generate >"$PRISMA_LOG" 2>&1
 MIG_KOD=$?
+if [ "$MIG_KOD" -eq 0 ]; then
+  npx prisma migrate deploy >>"$PRISMA_LOG" 2>&1
+  MIG_KOD=$?
+fi
+cat "$PRISMA_LOG" >>"$LOG"
 if [ "$MIG_KOD" -ne 0 ]; then
   log "prisma HATA exit=$MIG_KOD"
+  bildir "❌ Deploy prisma: $SHORT — $MSG
+
+$(hata_ozet "$PRISMA_LOG")"
+  rm -f "$PRISMA_LOG"
   geri_al
-  bildir "❌ Deploy hatası (prisma): $SHORT — $MSG"
   exit 1
 fi
+rm -f "$PRISMA_LOG"
 
 # Build: app durdur + temiz .next (yarım _buildManifest.tmp ENOENT önlemi)
 pm2 stop yukavci >>"$LOG" 2>&1 || true
@@ -130,15 +181,21 @@ pkill -f "next-server" >>"$LOG" 2>&1 || true
 sleep 1
 rm -rf .next
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
-npm run build >>"$LOG" 2>&1
+BUILD_LOG="$(mktemp /tmp/yukavci-build.XXXXXX)"
+npm run build >"$BUILD_LOG" 2>&1
 BUILD_KOD=$?
+cat "$BUILD_LOG" >>"$LOG"
 if [ "$BUILD_KOD" -ne 0 ]; then
   log "build HATA exit=$BUILD_KOD"
+  bildir "❌ Deploy build: $SHORT — $MSG
+
+$(hata_ozet "$BUILD_LOG")"
+  rm -f "$BUILD_LOG"
   geri_al
   pm2 restart yukavci --update-env >>"$LOG" 2>&1 || true
-  bildir "❌ Deploy hatası (build): $SHORT — $MSG"
   exit 1
 fi
+rm -f "$BUILD_LOG"
 set -e
 
 # Build OK — yedeği sil, servisleri yenile

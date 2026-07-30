@@ -11,6 +11,17 @@ bildir() {
   ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts "$metin" ) || true
 }
 
+# Telegram'a gidecek hata özeti (son satırlar — ENOTEMPTY vb. görünsün)
+hata_ozet() {
+  local dosya="$1"
+  if [ ! -f "$dosya" ]; then
+    echo "(log yok)"
+    return
+  fi
+  # Son ~2500 karakter / ~40 satır
+  tail -n 40 "$dosya" | tail -c 2500
+}
+
 SHORT="$(git rev-parse --short HEAD)"
 MSG="$(git log -1 --format=%s HEAD | tr '\n' ' ' | cut -c1-120)"
 
@@ -35,17 +46,62 @@ if [ -d .next ]; then
   cp -a .next "$NEXT_BAK"
 fi
 
+# Geri alma: SADECE git + .next. node_modules'a DOKUNMA
+# (npm ci geri almada ENOTEMPTY / prisma: not found üretiyordu)
 geri_al() {
-  echo "==> GERİ AL $OLD_SHA"
+  echo "==> GERİ AL $OLD_SHA (node_modules dokunulmuyor)"
   git reset --hard "$OLD_SHA"
   chmod +x deploy/deploy.sh deploy/cron/*.sh deploy/nginx-body-size.sh 2>/dev/null || true
-  npm ci
   if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
     rm -rf .next
     mv "$NEXT_BAK" .next
+    echo "==> .next yedeği geri yüklendi"
   else
-    npm run build
+    echo "==> .next yedeği yok — mevcut .next bırakıldı (yeniden build yok)"
   fi
+}
+
+# npm ci: fail → rm -rf node_modules → bir kez daha dene
+npm_ci_guvenli() {
+  local logf
+  logf="$(mktemp /tmp/yukavci-npmci.XXXXXX)"
+  echo "==> npm ci (1. deneme)"
+  set +e
+  npm ci >"$logf" 2>&1
+  local kod=$?
+  set -e
+  cat "$logf"
+  if [ "$kod" -eq 0 ]; then
+    rm -f "$logf"
+    return 0
+  fi
+
+  echo "==> npm ci HATA — node_modules silinip yeniden denenecek"
+  echo "==> hata özeti:"
+  hata_ozet "$logf"
+  rm -rf node_modules
+
+  echo "==> npm ci (2. deneme)"
+  set +e
+  npm ci >"$logf" 2>&1
+  kod=$?
+  set -e
+  cat "$logf"
+  if [ "$kod" -eq 0 ]; then
+    rm -f "$logf"
+    return 0
+  fi
+
+  local oz
+  oz="$(hata_ozet "$logf")"
+  rm -f "$logf"
+  bildir "❌ Manuel deploy npm ci 2x fail: $SHORT — $MSG
+
+$oz"
+  # Geri al: git + .next; node_modules dokunma (zaten bozuk olabilir —
+  # ikinci fail sonrası elle müdahale gerekir; geri alma npm ci yapmaz)
+  geri_al
+  return 1
 }
 
 git reset --hard origin/main
@@ -56,24 +112,30 @@ chmod +x deploy/deploy.sh deploy/cron/*.sh deploy/nginx-body-size.sh 2>/dev/null
 SHORT="$(git rev-parse --short HEAD)"
 MSG="$(git log -1 --format=%s HEAD | tr '\n' ' ' | cut -c1-120)"
 
-echo "==> npm ci"
-if ! npm ci; then
-  bildir "❌ Manuel deploy hatası (npm ci): $SHORT — $MSG"
-  geri_al
+if ! npm_ci_guvenli; then
   exit 1
 fi
 
 echo "==> prisma generate + migrate deploy"
-if ! npx prisma generate; then
-  bildir "❌ Manuel deploy hatası (prisma generate): $SHORT — $MSG"
+PRISMA_LOG="$(mktemp /tmp/yukavci-prisma.XXXXXX)"
+set +e
+npx prisma generate >"$PRISMA_LOG" 2>&1
+PG_KOD=$?
+if [ "$PG_KOD" -eq 0 ]; then
+  npx prisma migrate deploy >>"$PRISMA_LOG" 2>&1
+  PG_KOD=$?
+fi
+set -e
+cat "$PRISMA_LOG"
+if [ "$PG_KOD" -ne 0 ]; then
+  bildir "❌ Manuel deploy prisma: $SHORT — $MSG
+
+$(hata_ozet "$PRISMA_LOG")"
+  rm -f "$PRISMA_LOG"
   geri_al
   exit 1
 fi
-if ! npx prisma migrate deploy; then
-  bildir "❌ Manuel deploy hatası (prisma migrate): $SHORT — $MSG"
-  geri_al
-  exit 1
-fi
+rm -f "$PRISMA_LOG"
 
 # Build sırasında app .next okumasın + yarım klasör kalmasın (ENOENT tmp)
 echo "==> pm2 stop (build için)"
@@ -86,13 +148,23 @@ sleep 1
 echo "==> temiz .next + build"
 rm -rf .next
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
-if ! npm run build; then
-  echo "==> BUILD HATA — eski sürüme dönülüyor"
-  bildir "❌ Manuel deploy hatası (build): $SHORT — $MSG"
+BUILD_LOG="$(mktemp /tmp/yukavci-build.XXXXXX)"
+set +e
+npm run build >"$BUILD_LOG" 2>&1
+BUILD_KOD=$?
+set -e
+cat "$BUILD_LOG"
+if [ "$BUILD_KOD" -ne 0 ]; then
+  echo "==> BUILD HATA — eski sürüme dönülüyor (node_modules dokunulmuyor)"
+  bildir "❌ Manuel deploy build: $SHORT — $MSG
+
+$(hata_ozet "$BUILD_LOG")"
+  rm -f "$BUILD_LOG"
   geri_al
   pm2 restart yukavci --update-env || true
   exit 1
 fi
+rm -f "$BUILD_LOG"
 
 if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
   rm -rf "$NEXT_BAK"
@@ -128,7 +200,7 @@ fi
 
 echo "==> doğrulama"
 HATA=0
-PID="$(pm2 pid yukavci 2>/dev/null | head -1 | tr -d '[:space:]')"
+PID="$(pm2 pid yukavci 2>/dev/null | head -1 | tr '\n' ' ' | awk '{print $1}' | tr -d '[:space:]')"
 if [[ "$PID" =~ ^[0-9]+$ ]] && [ "$PID" -gt 0 ]; then
   echo "pm2 yukavci: online (pid $PID)"
 else
@@ -158,7 +230,7 @@ pm2 status || true
 
 if [ "$HATA" -ne 0 ]; then
   echo "==> DEPLOY DOĞRULAMA BAŞARISIZ — geri al"
-  bildir "❌ Manuel deploy hatası (doğrulama): $SHORT — $MSG"
+  bildir "❌ Manuel deploy doğrulama: $SHORT — $MSG (pm2/http/daemon)"
   geri_al
   pm2 restart yukavci --update-env || true
   sudo /bin/systemctl restart yukavci-telegram || true
