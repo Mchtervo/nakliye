@@ -146,7 +146,7 @@ export async function tdmKaraKontrol(
   return false;
 }
 
-/** Bildirim kartı: [Bilgi Sor] [Ara] [Geç] — taslak/onay yok. */
+/** Bildirim kartı: [Bilgi Sor] (+ Panelde Aç gonder.ts'te) — tel: yasak (TG 400). */
 export async function tdmKartButonlari(ilan: {
   id: number;
   gonderenUserId: string | null;
@@ -169,12 +169,8 @@ export async function tdmKartButonlari(ilan: {
     if (wa) satir.push({ metin: "Bilgi Sor", url: wa });
   }
 
-  if (ilan.telefon) {
-    const tel = ilan.telefon.replace(/[^\d+]/g, "");
-    if (tel) satir.push({ metin: "Ara", url: `tel:${tel}` });
-  }
-
-  satir.push({ metin: "Geç", callback: `tdm:p:${ilan.id}` });
+  // Ara/tel: KALDIRILDI — Telegram inline keyboard tel: kabul etmiyor (Wrong port).
+  // Telefon mesaj metninde; kullanıcı kopyala/tıkla yapar.
 
   return satir.length > 0 ? [satir] : null;
 }

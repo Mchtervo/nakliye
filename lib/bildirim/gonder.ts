@@ -169,20 +169,29 @@ export async function yukIlanlariniBildir(
       }
     }
 
+    const panelUrl = kok
+      ? `${kok}/ai/yukler?sekme=HEPSI&id=${ilan.id}`
+      : null;
+    const panelButon: { metin: string; url: string } | null = panelUrl
+      ? { metin: "Panelde Aç", url: panelUrl }
+      : null;
+
     let tgOk = false;
-    if (tercih.telegramAcik && tercih.telegramChatId && telegramKullanilabilir()) {
+    const tgGerekli =
+      tercih.telegramAcik &&
+      Boolean(tercih.telegramChatId) &&
+      telegramKullanilabilir();
+
+    if (tgGerekli && tercih.telegramChatId) {
+      // [Bilgi Sor] (+ varsa) + [Panelde Aç] — tel:/Ara yok (TG 400).
+      const satir1 = butonSatirlari?.[0] ? [...butonSatirlari[0]] : [];
+      if (panelButon) satir1.push(panelButon);
       const butonlar =
-        butonSatirlari ||
-        (kok
-          ? [
-              [
-                {
-                  metin: "Detay",
-                  url: `${kok}/ai/yukler?sekme=HEPSI&id=${ilan.id}`,
-                },
-              ],
-            ]
-          : undefined);
+        satir1.length > 0
+          ? [satir1]
+          : panelButon
+            ? [[panelButon]]
+            : undefined;
 
       const cevap = await telegramGonder(
         tercih.telegramChatId,
@@ -221,7 +230,13 @@ export async function yukIlanlariniBildir(
       if (cevap.hata) sonuc.hatalar.push(cevap.hata);
     }
 
-    if (tgOk || pushOk) gonderilenIdler.push(ilan.id);
+    // TG açıksa başarısız TG → bildirildi=false kalsın (retry / sabah özeti).
+    // Sadece push başarısı TG hatasını "gönderildi" saymasın.
+    if (tgGerekli) {
+      if (tgOk) gonderilenIdler.push(ilan.id);
+    } else if (pushOk) {
+      gonderilenIdler.push(ilan.id);
+    }
   }
 
   if (gonderilenIdler.length > 0) {
@@ -329,6 +344,45 @@ export async function sabahOzetBildir(): Promise<{
   });
 
   return { adet: uygun.length, gonderildi: true };
+}
+
+/**
+ * Bugün TELEGRAM kanalında HATA olan bildirim sayısı — günde 1 özet.
+ * Cron: gunluk-rapor (20:30) çağırır.
+ */
+export async function bildirimHataOzetiGonder(): Promise<{
+  adet: number;
+  gonderildi: boolean;
+}> {
+  const tr = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  const gunBas = new Date(
+    Date.UTC(tr.getUTCFullYear(), tr.getUTCMonth(), tr.getUTCDate()) -
+      3 * 60 * 60 * 1000
+  );
+
+  const adet = await prisma.bildirim.count({
+    where: {
+      kanal: "TELEGRAM",
+      durum: "HATA",
+      createdAt: { gte: gunBas },
+    },
+  });
+  if (adet === 0) return { adet: 0, gonderildi: false };
+
+  const tercih = await aiTercihleriOku();
+  if (
+    !tercih.telegramAcik ||
+    !tercih.telegramChatId ||
+    !telegramKullanilabilir()
+  ) {
+    return { adet, gonderildi: false };
+  }
+
+  const cevap = await telegramGonder(
+    tercih.telegramChatId,
+    `Bugün ${adet} bildirim gönderilemedi`
+  );
+  return { adet, gonderildi: cevap.basarili };
 }
 
 /** Serbest metinli tekil bildirim (günlük analiz gibi). */

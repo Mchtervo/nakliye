@@ -181,6 +181,19 @@ async function main() {
   const sonuc = await telegramGonder(chatId, metin);
   if (!sonuc.basarili) throw new Error(sonuc.hata || "telegram hata");
   console.log("[cron-gunluk-rapor] gönderildi");
+
+  try {
+    const { bildirimHataOzetiGonder } = await import("@/lib/bildirim/gonder");
+    const h = await bildirimHataOzetiGonder();
+    if (h.gonderildi) {
+      console.log(`[cron-gunluk-rapor] bildirim hata özeti: ${h.adet}`);
+    }
+  } catch (e) {
+    console.warn(
+      "[cron-gunluk-rapor] bildirim hata özeti",
+      e instanceof Error ? e.message : e
+    );
+  }
 }
 
 main()

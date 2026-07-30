@@ -6,6 +6,7 @@ export {
   yukIlanlariniBildir,
   sabahOzetBildir,
   bilgiBildir,
+  bildirimHataOzetiGonder,
   bildirimSessizMi,
   BILDIRIM_ACIL_SKOR,
   type BildirimSonucu,
