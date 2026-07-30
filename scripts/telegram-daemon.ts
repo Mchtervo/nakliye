@@ -199,9 +199,15 @@ async function kacanlariYakala(client: TelegramClient) {
           const h = await mesajdanHasatEt(
             m.metin,
             { id: k.id, ad: k.ad },
-            m.entities
+            m.entities,
+            istemci
           );
           hasatYeni += h.yeni;
+          if (h.kisiBot > 0 || h.cozulemedi > 0) {
+            log(
+              `catch-up hasat filtre #${k.id}: grup=${h.grup} kisiBot=${h.kisiBot} cozulemedi=${h.cozulemedi}`
+            );
+          }
         }
         if (hasatYeni > 0) log(`catch-up hasat #${k.id}: +${hasatYeni}`);
       } catch (e) {
@@ -280,9 +286,18 @@ async function mesajiIsle(event: NewMessageEvent) {
     const h = await mesajdanHasatEt(
       metin,
       { id: k.id, ad: k.ad },
-      msg.entities ?? null
+      msg.entities ?? null,
+      istemci
     );
-    if (h.yeni > 0) log(`hasat +${h.yeni} (mevcut=${h.mevcut})`);
+    if (h.yeni > 0) {
+      log(
+        `hasat +${h.yeni} grup (mevcut=${h.mevcut} kisiBot=${h.kisiBot} cozulemedi=${h.cozulemedi})`
+      );
+    } else if (h.kisiBot > 0 || h.bulunan > 0) {
+      log(
+        `hasat yok yeni: bulunan=${h.bulunan} kisiBot=${h.kisiBot} mevcut=${h.mevcut} cozulemedi=${h.cozulemedi}`
+      );
+    }
   } catch (e) {
     uyari("hasat hata", e instanceof Error ? e.message : e);
   }

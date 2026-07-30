@@ -1,22 +1,21 @@
 /**
  * Grup mesajlarından t.me / @mention / WhatsApp link hasadı.
- * OpenAI yok — regex + ADAY kaydı.
+ * @username → ADAY yazmadan ÖNCE getEntity ile tip doğrula (Channel/Chat).
+ * User/Bot / çözülemeyen → kaydetme.
  */
+import type { TelegramClient } from "telegram";
 import { prisma } from "@/lib/prisma";
 import { sadelestir } from "@/lib/iller";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+import { usernamePeerTipi } from "@/lib/kaynaklar/telegramPeerTip";
 
 export type HasatTur = "TME_USER" | "TME_INVITE" | "MENTION" | "WHATSAPP";
 
 export type HasatLink = {
   tur: HasatTur;
-  /** Dedup anahtarı → IlanKaynagi.hedef */
   hedef: string;
-  /** JoinChannel için (sadece public username). */
   kullaniciAdi: string | null;
-  /** Panelde görünen ad. */
   ad: string;
-  /** Davet hash / WA kodu (ileride). */
   kod: string | null;
 };
 
@@ -40,15 +39,10 @@ const ATLANACAK_USER = new Set(
 const YUK_IPUCU =
   /y[uü]k|nakliye|nakliyat|t[iı]r|kamyon|lojistik|parsiyel|komple|osb|ara[cç]|[sş]of[oö]r|bo[sş]\s*ara[cç]/i;
 
-/** Metinde nakliye ipucu var mı (@mention için). */
 export function metindeYukIpuçuVar(metin: string): boolean {
   return YUK_IPUCU.test(sadelestir(metin) || metin);
 }
 
-/**
- * GramJS MessageEntityTextUrl vb. — gizli URL'leri düz metne ekle.
- * entities: { url?: string }[] veya className/url taşıyan nesneler.
- */
 export function entityUrlleriEkle(
   metin: string,
   entities: unknown[] | null | undefined
@@ -57,16 +51,17 @@ export function entityUrlleriEkle(
   const ek: string[] = [];
   for (const e of entities) {
     if (!e || typeof e !== "object") continue;
-    const o = e as { url?: string; className?: string };
-    if (typeof o.url === "string" && o.url.trim()) {
-      ek.push(o.url.trim());
-    }
+    const o = e as { url?: string };
+    if (typeof o.url === "string" && o.url.trim()) ek.push(o.url.trim());
   }
   if (ek.length === 0) return metin;
   return `${metin}\n${ek.join("\n")}`;
 }
 
-/** t.me/xxx, t.me/+xxx, chat.whatsapp.com, whatsapp.com/channel, @xxx */
+/**
+ * Önce t.me / davet / WA, sonra @mention.
+ * Tip doğrulama kaydetmeden önce yapılır.
+ */
 export function linkleriHasatEt(metin: string): HasatLink[] {
   const sonuc: HasatLink[] = [];
   const gorulen = new Set<string>();
@@ -107,7 +102,6 @@ export function linkleriHasatEt(metin: string): HasatLink[] {
     });
   }
 
-  // chat.whatsapp.com/XXX ve whatsapp.com/channel/XXX
   const waRe =
     /(?:https?:\/\/)?(?:chat\.whatsapp\.com|whatsapp\.com\/channel)\/([A-Za-z0-9_\-]+)/gi;
   while ((m = waRe.exec(metin)) !== null) {
@@ -122,7 +116,7 @@ export function linkleriHasatEt(metin: string): HasatLink[] {
     });
   }
 
-  // @mention — sadece metinde yük/nakliye ipucu varsa (kişisel etiketleri ele)
+  // @mention en sonda — sadece yük ipucu + tip doğrulama ile
   if (metindeYukIpuçuVar(metin)) {
     const mentionRe = /(?<![A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_]{3,31})\b/g;
     while ((m = mentionRe.exec(metin)) !== null) {
@@ -138,25 +132,53 @@ export function linkleriHasatEt(metin: string): HasatLink[] {
     }
   }
 
+  // Güvenilirlik sırası: t.me → davet/WA → mention
+  const sira = (t: HasatTur) =>
+    t === "TME_USER" ? 0 : t === "TME_INVITE" ? 1 : t === "WHATSAPP" ? 2 : 3;
+  sonuc.sort((a, b) => sira(a.tur) - sira(b.tur));
   return sonuc;
 }
 
-export type HasatRaporu = { yeni: number; mevcut: number; atlanan: number };
+export type HasatRaporu = {
+  bulunan: number;
+  yeni: number;
+  mevcut: number;
+  atlanan: number;
+  /** Channel/Chat olarak kayda geçen */
+  grup: number;
+  /** User/Bot diye atlanan */
+  kisiBot: number;
+  /** getEntity başarısız — kaydedilmedi */
+  cozulemedi: number;
+};
+
+type KaydetOpts = {
+  client?: TelegramClient | null;
+};
 
 /**
- * Hasat edilen linkleri ADAY olarak kaydeder.
- * Nakliyeci grubundan gelenlere yüksek öncelik (oncelik=10).
+ * Linkleri ADAY yap. Username’li olanlar client ile tip doğrulanır.
+ * Client yoksa username’li linkler atlanır (çöp yazma).
  */
 export async function hasatLinkleriniKaydet(
   linkler: HasatLink[],
-  kaynak: { id: number; ad: string }
+  kaynak: { id: number; ad: string },
+  opts: KaydetOpts = {}
 ): Promise<HasatRaporu> {
-  const rapor: HasatRaporu = { yeni: 0, mevcut: 0, atlanan: 0 };
+  const rapor: HasatRaporu = {
+    bulunan: linkler.length,
+    yeni: 0,
+    mevcut: 0,
+    atlanan: 0,
+    grup: 0,
+    kisiBot: 0,
+    cozulemedi: 0,
+  };
   if (linkler.length === 0) return rapor;
 
   const kayitlar = await prisma.ilanKaynagi.findMany({
     where: { tur: TELEGRAM_UYE },
-    select: { id: true, hedef: true, kullaniciAdi: true, durum: true },
+    select: { id: true, hedef: true, kullaniciAdi: true },
   });
   const hedefSet = new Set(kayitlar.map((k) => k.hedef));
   const userSet = new Set(
@@ -169,45 +191,84 @@ export async function hasatLinkleriniKaydet(
     0,
     120
   );
+  const client = opts.client ?? null;
 
   for (const l of linkler) {
+    // Username’li: tip doğrula
+    if (l.kullaniciAdi) {
+      if (!client) {
+        rapor.cozulemedi += 1;
+        continue;
+      }
+      const tip = await usernamePeerTipi(client, l.kullaniciAdi);
+      if (tip.tip === "kisi" || tip.tip === "bot") {
+        rapor.kisiBot += 1;
+        continue;
+      }
+      if (tip.tip === "bilinmiyor") {
+        rapor.cozulemedi += 1;
+        continue;
+      }
+
+      // Gerçek grup — chatId ile kaydet
+      const hedef = tip.chatId;
+      const ku = (tip.kullaniciAdi || l.kullaniciAdi).toLowerCase();
+      if (hedefSet.has(hedef) || userSet.has(ku)) {
+        rapor.mevcut += 1;
+        continue;
+      }
+
+      try {
+        await prisma.ilanKaynagi.create({
+          data: {
+            tur: TELEGRAM_UYE,
+            hedef,
+            ad: tip.baslik.slice(0, 120),
+            aktif: true,
+            durum: "ADAY",
+            kullaniciAdi: ku,
+            uyeSayisi: tip.uyeSayisi,
+            oncelik: l.tur === "TME_USER" ? 12 : 10,
+            hasatKaynak: not,
+          },
+        });
+        hedefSet.add(hedef);
+        userSet.add(ku);
+        rapor.yeni += 1;
+        rapor.grup += 1;
+      } catch {
+        rapor.atlanan += 1;
+      }
+      continue;
+    }
+
+    // Davet / WA — username yok, tip yok; kaydet ama join yok
     if (hedefSet.has(l.hedef)) {
       rapor.mevcut += 1;
       continue;
     }
-    if (l.kullaniciAdi && userSet.has(l.kullaniciAdi)) {
-      rapor.mevcut += 1;
-      continue;
-    }
-
-    // WhatsApp / invite: kaydet ama otomatik katılma (aktif=false).
-    // Public username: ADAY + aktif → cron-katil (başlık @ iken Join dener).
-    const joinable = l.tur === "TME_USER" || l.tur === "MENTION";
-    const oncelik = joinable ? 10 : 1;
-
     try {
       await prisma.ilanKaynagi.create({
         data: {
           tur: TELEGRAM_UYE,
           hedef: l.hedef,
           ad: l.ad.slice(0, 120),
-          aktif: joinable,
+          aktif: false,
           durum: "ADAY",
-          kullaniciAdi: l.kullaniciAdi,
+          kullaniciAdi: null,
           uyeSayisi: null,
-          oncelik,
+          oncelik: 1,
           hasatKaynak: not,
           sonHata:
             l.tur === "WHATSAPP"
               ? "WhatsApp link — ileride"
-              : l.tur === "TME_INVITE"
-                ? "Davet linki — elle katıl / ImportChatInvite"
-                : null,
+              : "Davet linki — elle katıl / ImportChatInvite",
         },
       });
       hedefSet.add(l.hedef);
-      if (l.kullaniciAdi) userSet.add(l.kullaniciAdi);
       rapor.yeni += 1;
+      // Davet/WA grup sayılır (kişi değil)
+      rapor.grup += 1;
     } catch {
       rapor.atlanan += 1;
     }
@@ -216,22 +277,35 @@ export async function hasatLinkleriniKaydet(
   return rapor;
 }
 
-/** Daemon / catch-up: metinden hasat et ve kaydet + günlük sayaç. */
 export async function mesajdanHasatEt(
   metin: string,
   kaynak: { id: number; ad: string },
-  entities?: unknown[] | null
+  entities?: unknown[] | null,
+  client?: TelegramClient | null
 ): Promise<HasatRaporu> {
   const birlesik = entityUrlleriEkle(metin, entities);
   const linkler = linkleriHasatEt(birlesik);
-  if (linkler.length === 0) return { yeni: 0, mevcut: 0, atlanan: 0 };
-  const rapor = await hasatLinkleriniKaydet(linkler, kaynak);
+  if (linkler.length === 0) {
+    return {
+      bulunan: 0,
+      yeni: 0,
+      mevcut: 0,
+      atlanan: 0,
+      grup: 0,
+      kisiBot: 0,
+      cozulemedi: 0,
+    };
+  }
+  const rapor = await hasatLinkleriniKaydet(linkler, kaynak, { client });
   try {
     const { elemeArtir } = await import("@/lib/kaynaklar/elemeSayac");
     await elemeArtir({
-      HASAT_LINK: linkler.length,
+      HASAT_LINK: rapor.bulunan,
       HASAT_YENI: rapor.yeni,
       HASAT_MEVCUT: rapor.mevcut,
+      HASAT_KISI_BOT: rapor.kisiBot,
+      HASAT_GRUP: rapor.grup,
+      HASAT_COZULEMEDI: rapor.cozulemedi,
     });
   } catch {
     /* sayaç opsiyonel */

@@ -1215,6 +1215,19 @@ export async function adaylariDegerlendir(
     if (!chatId || !baslik || gorulen.has(chatId)) continue;
     gorulen.add(chatId);
 
+    // Kullanıcı peer id pozitif; kanal/süpergrup negatif (−100…).
+    // Kişi hesabı keşif sonucu olarak gelirse ele.
+    const chatIdSayi = Number(chatId);
+    if (Number.isFinite(chatIdSayi) && chatIdSayi > 0) {
+      rapor.elenen += 1;
+      continue;
+    }
+    if (baslik.startsWith("@") && !baslik.slice(1).includes(" ")) {
+      // Ham @username başlık — tip doğrulanmamış kişi kalıntısı
+      rapor.elenen += 1;
+      continue;
+    }
+
     const uye = grup.uye === true;
     const ku = (grup.kullaniciAdi || "").trim().toLowerCase();
     // chatId veya @username ile eşle (dialog/entity id farkı olmasın).

@@ -88,12 +88,8 @@ async function adaySec(): Promise<{
       console.log(`[cron-katil] RED → PASIF #${a.id} (${red}): ${a.ad}`);
       continue;
     }
-    // Hasat @username: gerçek grup adı henüz yok — JoinChannel sonrası güncellenir.
-    const hasatUsername =
-      Boolean(a.hasatKaynak?.startsWith("Hasat")) &&
-      Boolean(a.kullaniciAdi) &&
-      a.ad.trim().startsWith("@");
-    if (!yukBasligiMi(a.ad) && !hasatUsername) {
+    // Hasat sonrası başlık gerçek grup adı olmalı; @spam kalıntısı ele
+    if (!yukBasligiMi(a.ad)) {
       await prisma.ilanKaynagi.update({
         where: { id: a.id },
         data: {

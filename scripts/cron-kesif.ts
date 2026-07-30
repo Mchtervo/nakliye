@@ -32,6 +32,12 @@ function sohbetiAdaya(
   const uyeMi = (ayrilmis: boolean | undefined) =>
     dialogdan ? ayrilmis !== true : ayrilmis === false;
 
+  // User / Bot asla ADAY olmaz
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((sohbet as any)?.className === "User" || sohbet instanceof Api.User) {
+    return null;
+  }
+
   if (sohbet instanceof Api.Channel) {
     const uye = uyeMi(sohbet.left);
     if (dialogdan && !uye) return null;
