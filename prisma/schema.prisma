@@ -293,6 +293,16 @@ model Bildirim {
   @@index([createdAt])
 }
 
+/// Müşteri havuzu notları (telefon = son 10 hane)
+model MusteriNot {
+  id        Int      @id @default(autoincrement())
+  telefon   String
+  metin     String
+  createdAt DateTime @default(now())
+
+  @@index([telefon, createdAt])
+}
+
 /// Web Push aboneliği (tarayıcı bildirimleri)
 model PushAbone {
   id        Int      @id @default(autoincrement())

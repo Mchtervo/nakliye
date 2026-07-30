@@ -1,10 +1,6 @@
 import Link from "next/link";
-import {
-  musteriHavuzuOku,
-  telefonGorunum,
-  type MusteriSinif,
-} from "@/lib/musteriHavuz";
-import { gecenSure } from "@/lib/ilanGorunum";
+import { musteriHavuzuOku } from "@/lib/musteriHavuz";
+import MusteriKart from "@/components/MusteriKart";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +9,6 @@ const SEKMELER = [
   { kod: "KOMISYONCU", ad: "Komisyoncu" },
   { kod: "HEPSI", ad: "Hepsi" },
 ] as const;
-
-function sinifEtiket(s: MusteriSinif): string {
-  if (s === "YUK_SAHIBI") return "Yük sahibi";
-  if (s === "KOMISYONCU") return "Komisyoncu";
-  return "Karışık";
-}
 
 export default async function MusteriHavuzSayfasi({
   searchParams,
@@ -98,53 +88,23 @@ export default async function MusteriHavuzSayfasi({
       ) : (
         <div className="space-y-2.5">
           {liste.map((m) => (
-            <article
+            <MusteriKart
               key={m.telefon}
-              className={`rounded-2xl border px-3.5 py-3 ${
-                m.sinif === "YUK_SAHIBI"
-                  ? "border-teal/30 bg-teal/8"
-                  : m.sinif === "KOMISYONCU"
-                    ? "border-white/10 bg-white/4 opacity-70"
-                    : "border-white/10 bg-white/4"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-paper">
-                    {m.firmaAdi || "İsimsiz"}
-                  </div>
-                  <a
-                    href={`tel:0${m.telefon}`}
-                    className="mt-0.5 inline-block text-sm font-bold text-teal hover:underline"
-                  >
-                    {telefonGorunum(m.telefon)}
-                  </a>
-                </div>
-                <span
-                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                    m.sinif === "YUK_SAHIBI"
-                      ? "bg-teal/20 text-teal"
-                      : m.sinif === "KOMISYONCU"
-                        ? "bg-ember/15 text-ember"
-                        : "bg-white/10 text-fog"
-                  }`}
-                >
-                  {sinifEtiket(m.sinif)}
-                </span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fog">
-                {m.baskinCikis && <span>Çıkış: {m.baskinCikis}</span>}
-                {m.baskinYukTipi && <span>Yük: {m.baskinYukTipi}</span>}
-                <span>{m.ilanAdet} ilan</span>
-                <span>{m.rotaAdet} rota</span>
-                <span>son: {gecenSure(m.sonIlan)}</span>
-              </div>
-              {m.sinif === "YUK_SAHIBI" && (
-                <p className="mt-1.5 text-[11px] font-semibold text-teal/90">
-                  Doğrudan müşteri adayı — komisyoncuyu aradan çıkar
-                </p>
-              )}
-            </article>
+              m={{
+                telefon: m.telefon,
+                firmaAdi: m.firmaAdi,
+                sinif: m.sinif,
+                baskinCikis: m.baskinCikis,
+                baskinYukTipi: m.baskinYukTipi,
+                baskinGuzergah: m.baskinGuzergah,
+                haftalikSiklik: m.haftalikSiklik,
+                ilanAdet: m.ilanAdet,
+                koridorDisi: m.koridorDisi,
+                isaretli: m.isaretli,
+                sonNot: m.sonNot,
+                sonIlan: m.sonIlan.toISOString(),
+              }}
+            />
           ))}
         </div>
       )}
