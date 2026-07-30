@@ -41,5 +41,8 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 # gonderenUserId geriye dönük — Pazartesi 06:10
 10 6 * * 1 /bin/bash $GUVENLI uid-doldur.sh
 
+# yuklegel.com firma+numara — 2 saatte 1 (AI maliyetini yakmamak için)
+0 */2 * * * /bin/bash $GUVENLI yuklegel.sh
+
 # Otomatik deploy — dakikada 1 (AUTO_DEPLOY=1 veya Ayarlar açık)
 * * * * * /bin/bash $GUVENLI auto-deploy.sh
