@@ -1,25 +1,54 @@
 #!/usr/bin/env bash
-# Manuel deploy — auto-deploy ile aynı güvenli yol (yedek .next).
+# Manuel deploy — auto-deploy ile AYNI flock kilidi (npm ci çakışmaz).
 # Kullanım: bash ~/muhasebbe/deploy/deploy.sh
 set -euo pipefail
 
 REPO="${YUKAVCI_REPO:-/home/yukavci/muhasebbe}"
+LOGDIR="${YUKAVCI_LOGDIR:-/home/yukavci/logs}"
+LOCKDIR="${YUKAVCI_LOCKDIR:-/home/yukavci/locks}"
+LOCK="$LOCKDIR/deploy.lock"
+
+mkdir -p "$LOGDIR" "$LOCKDIR"
 cd "$REPO"
+
+# Takılı kilit: 2 saatten eskiyse temizle
+eski_kilit_temizle() {
+  local lock="$1"
+  [ -e "$lock" ] || return 0
+  if find "$lock" -mmin +120 2>/dev/null | grep -q .; then
+    echo "==> UYARI: kilit >2s — siliniyor ($lock)"
+    if command -v fuser >/dev/null 2>&1; then
+      fuser -k "$lock" >/dev/null 2>&1 || true
+    fi
+    rm -f "$lock"
+  fi
+}
+
+eski_kilit_temizle "$LOCKDIR/auto-deploy.lock"
+eski_kilit_temizle "$LOCK"
+
+# --- TEK flock: git / npm ci / prisma / build / restart tamamı ---
+# Cron auto-deploy ile paylaşılan kilit; tutulamazsa çık
+exec 9>"$LOCK"
+if ! flock -n 9; then
+  echo "$(date -Is) zaten deploy çalışıyor — çıkılıyor"
+  echo "$(date -Is) zaten deploy çalışıyor — atlandı (manuel)" >>"$LOGDIR/auto-deploy.log"
+  exit 1
+fi
 
 bildir() {
   local metin="$1"
   ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts "$metin" ) || true
 }
 
-# Telegram'a gidecek hata özeti (son satırlar — ENOTEMPTY vb. görünsün)
+# Telegram'a gidecek hata özeti (mümkün olduğunca tam)
 hata_ozet() {
   local dosya="$1"
   if [ ! -f "$dosya" ]; then
     echo "(log yok)"
     return
   fi
-  # Son ~2500 karakter / ~40 satır
-  tail -n 40 "$dosya" | tail -c 2500
+  tail -n 80 "$dosya" | tail -c 3500
 }
 
 SHORT="$(git rev-parse --short HEAD)"
@@ -27,7 +56,7 @@ MSG="$(git log -1 --format=%s HEAD | tr '\n' ' ' | cut -c1-120)"
 
 trap 'bildir "❌ Manuel deploy kesildi: $SHORT — $MSG"' ERR
 
-echo "==> $(date -Is) manuel deploy"
+echo "==> $(date -Is) manuel deploy (kilit: $LOCK)"
 
 git fetch origin main
 LOCAL="$(git rev-parse HEAD)"
@@ -61,7 +90,7 @@ geri_al() {
   fi
 }
 
-# npm ci: fail → rm -rf node_modules → bir kez daha dene
+# npm ci: fail → rm node_modules + cache clean → bir kez daha dene
 npm_ci_guvenli() {
   local logf
   logf="$(mktemp /tmp/yukavci-npmci.XXXXXX)"
@@ -76,10 +105,11 @@ npm_ci_guvenli() {
     return 0
   fi
 
-  echo "==> npm ci HATA — node_modules silinip yeniden denenecek"
+  echo "==> npm ci HATA — node_modules sil + cache clean, 2. deneme"
   echo "==> hata özeti:"
   hata_ozet "$logf"
   rm -rf node_modules
+  npm cache clean --force || true
 
   echo "==> npm ci (2. deneme)"
   set +e
@@ -98,15 +128,14 @@ npm_ci_guvenli() {
   bildir "❌ Manuel deploy npm ci 2x fail: $SHORT — $MSG
 
 $oz"
-  # Geri al: git + .next; node_modules dokunma (zaten bozuk olabilir —
-  # ikinci fail sonrası elle müdahale gerekir; geri alma npm ci yapmaz)
+  # Geri al: git + .next; node_modules dokunma
   geri_al
   return 1
 }
 
 git reset --hard origin/main
 
-# Reset sonrası executable bit'i yenile (git mode 100755 olmalı; yine de güvence)
+# Reset sonrası executable bit'i yenile
 chmod +x deploy/deploy.sh deploy/cron/*.sh deploy/nginx-body-size.sh 2>/dev/null || true
 
 SHORT="$(git rev-parse --short HEAD)"
@@ -140,7 +169,6 @@ rm -f "$PRISMA_LOG"
 # Build sırasında app .next okumasın + yarım klasör kalmasın (ENOENT tmp)
 echo "==> pm2 stop (build için)"
 pm2 stop yukavci >/dev/null 2>&1 || true
-# Portu tutan yetim next-server varsa öldür
 fuser -k 3200/tcp >/dev/null 2>&1 || true
 pkill -f "next-server" >/dev/null 2>&1 || true
 sleep 1

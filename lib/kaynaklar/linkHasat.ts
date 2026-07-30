@@ -205,12 +205,9 @@ export async function hasatLinkleriniKaydet(
         continue;
       }
       const tip = await usernamePeerTipi(client, l.kullaniciAdi);
-      if (tip.tip === "kisi" || tip.tip === "bot") {
-        rapor.kisiBot += 1;
-        continue;
-      }
-      if (tip.tip === "bilinmiyor") {
-        rapor.cozulemedi += 1;
+      if (tip.tip !== "kanal" && tip.tip !== "sohbet") {
+        if (tip.tip === "kisi" || tip.tip === "bot") rapor.kisiBot += 1;
+        else rapor.cozulemedi += 1;
         continue;
       }
 

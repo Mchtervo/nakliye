@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Dakikada bir: origin/main değiştiyse güvenli deploy.
-# flock — üst üste binmez. Build fail → eski commit + .next geri.
+# flock — manuel deploy.sh ile AYNI kilit; üst üste binmez.
+# Build fail → eski commit + .next geri (node_modules dokunulmaz).
 #
 # Kurulum: crontab'a ekle (deploy/crontab.yukavci)
 # AUTO_DEPLOY=1 veya Ayarlar → Otomatik deploy.
@@ -11,7 +12,8 @@ REPO="${YUKAVCI_REPO:-/home/yukavci/muhasebbe}"
 LOGDIR="${YUKAVCI_LOGDIR:-/home/yukavci/logs}"
 LOCKDIR="${YUKAVCI_LOCKDIR:-/home/yukavci/locks}"
 LOG="$LOGDIR/auto-deploy.log"
-LOCK="$LOCKDIR/auto-deploy.lock"
+# Manuel deploy.sh ile paylaşılan kilit — npm ci çakışmasını önler
+LOCK="$LOCKDIR/deploy.lock"
 
 mkdir -p "$LOGDIR" "$LOCKDIR"
 cd "$REPO"
@@ -31,11 +33,15 @@ eski_kilit_temizle() {
   fi
 }
 
+# Eski ad (auto-deploy.lock) → yeni paylaşılan deploy.lock
+eski_kilit_temizle "$LOCKDIR/auto-deploy.lock"
 eski_kilit_temizle "$LOCK"
 
+# --- TEK flock bloğu: git / npm ci / prisma / build / restart tamamı ---
+# Kilit tutulamıyorsa sessiz çık (cron her dakika; log şişmesin)
 exec 9>"$LOCK"
 if ! flock -n 9; then
-  echo "$(date -Is) zaten çalışıyor — atlandı" >>"$LOG"
+  echo "$(date -Is) zaten deploy çalışıyor — atlandı" >>"$LOG"
   exit 0
 fi
 
@@ -44,13 +50,15 @@ bildir() {
   ( cd "$REPO" && npm run ts -- scripts/cron-uyari.ts "$metin" ) >>"$LOG" 2>&1 || true
 }
 
+# Telegram + log için hata özeti (mümkün olduğunca tam)
 hata_ozet() {
   local dosya="$1"
   if [ ! -f "$dosya" ]; then
     echo "(log yok)"
     return
   fi
-  tail -n 40 "$dosya" | tail -c 2500
+  # Telegram ~4096; cron-uyari 4000 keser — son ~80 satır / 3500 char
+  tail -n 80 "$dosya" | tail -c 3500
 }
 
 script_izinleri() {
@@ -108,6 +116,7 @@ geri_al() {
   fi
 }
 
+# npm ci: fail → rm node_modules + cache clean → 1 kez daha
 npm_ci_guvenli() {
   local logf
   logf="$(mktemp /tmp/yukavci-npmci.XXXXXX)"
@@ -121,9 +130,10 @@ npm_ci_guvenli() {
     return 0
   fi
 
-  log "npm ci HATA — node_modules silinip 2. deneme"
+  log "npm ci HATA — node_modules sil + cache clean, 2. deneme"
   hata_ozet "$logf" >>"$LOG"
   rm -rf node_modules
+  npm cache clean --force >>"$LOG" 2>&1 || true
 
   set +e
   npm ci >"$logf" 2>&1

@@ -15,7 +15,7 @@ async function main() {
   }
   const sonuc = await telegramGonder(
     chatId,
-    `<b>Yük Avcısı cron</b>\n${htmlKacis(metin.slice(0, 3500))}`
+    `<b>Yük Avcısı cron</b>\n${htmlKacis(metin.slice(0, 4000))}`
   );
   if (!sonuc.basarili) {
     console.error("[cron-uyari]", sonuc.hata);
