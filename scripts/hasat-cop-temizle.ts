@@ -71,18 +71,11 @@ async function main() {
       }
 
       const tip = await usernamePeerTipi(client, user);
-      if (tip.tip === "kisi" || tip.tip === "bot") {
+      if (tip.tip !== "kanal" && tip.tip !== "sohbet") {
         await prisma.ilanKaynagi.delete({ where: { id: a.id } });
         silinen += 1;
+        if (tip.tip === "bilinmiyor") cozulemedi += 1;
         silinenListe.push(`#${a.id} @${user} (${tip.tip})`);
-        continue;
-      }
-      if (tip.tip === "bilinmiyor") {
-        // Kullanıcı istedi: çözülemezse kaydetme → mevcut çöpü de sil
-        await prisma.ilanKaynagi.delete({ where: { id: a.id } });
-        silinen += 1;
-        cozulemedi += 1;
-        silinenListe.push(`#${a.id} @${user} (cozulemedi→sil)`);
         continue;
       }
 
