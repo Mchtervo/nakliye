@@ -2,8 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { katilimRedSebebi, koridorBaslikOnceligi } from "@/lib/bolgeler";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+import { katilimMinUyeOku } from "@/lib/kaynaklar/katilimLimit";
 
 async function main() {
+  const minUye = await katilimMinUyeOku();
   const bugun0 = new Date(
     new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) +
       "T00:00:00+03:00"
@@ -46,7 +48,7 @@ async function main() {
         durum: "ADAY",
         aktif: true,
         kullaniciAdi: { not: null },
-        OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: 50 } }],
+        OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: minUye } }],
       },
       orderBy: [{ oncelik: "desc" }, { uyeSayisi: "desc" }],
       take: 12,

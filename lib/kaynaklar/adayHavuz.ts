@@ -1,23 +1,31 @@
 import { prisma } from "@/lib/prisma";
 import { katilimRedSebebi, yukBasligiMi } from "@/lib/bolgeler";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
+import {
+  KATILIM_MIN_UYE_VARSAYILAN,
+  katilimMinUyeOku,
+} from "@/lib/kaynaklar/katilimLimit";
 
 export type AdayHavuzOzeti = {
   toplam: number;
   aktif: number;
-  /** cron-katil'in deneyeceği (username + üye≥50/null + RED yok + yük başlığı) */
+  /** cron-katil'in deneyeceği (username + üye≥eşik/null + RED yok + yük başlığı) */
   katilimaUygun: number;
   red: number;
   baslikEleme: number;
   usernameYok: number;
-  uyeAz: number; // <50
+  uyeAz: number;
   hasatli: number;
+  minUye: number;
 };
 
 /**
  * ADAY havuz kırılımı — katılım kuyruğu neden ince?
  */
-export async function adayHavuzOzeti(): Promise<AdayHavuzOzeti> {
+export async function adayHavuzOzeti(
+  minUyeArg?: number
+): Promise<AdayHavuzOzeti> {
+  const minUye = minUyeArg ?? (await katilimMinUyeOku());
   const adaylar = await prisma.ilanKaynagi.findMany({
     where: { tur: TELEGRAM_UYE, durum: "ADAY" },
     select: {
@@ -38,6 +46,7 @@ export async function adayHavuzOzeti(): Promise<AdayHavuzOzeti> {
     usernameYok: 0,
     uyeAz: 0,
     hasatli: 0,
+    minUye,
   };
 
   for (const a of adaylar) {
@@ -50,7 +59,11 @@ export async function adayHavuzOzeti(): Promise<AdayHavuzOzeti> {
       ozet.red += 1;
       continue;
     }
-    if (!yukBasligiMi(a.ad)) {
+    const hasatUsername =
+      Boolean(a.hasatKaynak?.startsWith("Hasat")) &&
+      Boolean(a.kullaniciAdi) &&
+      a.ad.trim().startsWith("@");
+    if (!yukBasligiMi(a.ad) && !hasatUsername) {
       ozet.baslikEleme += 1;
       continue;
     }
@@ -58,7 +71,7 @@ export async function adayHavuzOzeti(): Promise<AdayHavuzOzeti> {
       ozet.usernameYok += 1;
       continue;
     }
-    if (a.uyeSayisi !== null && a.uyeSayisi < 50) {
+    if (a.uyeSayisi !== null && a.uyeSayisi < minUye) {
       ozet.uyeAz += 1;
       continue;
     }
@@ -67,3 +80,5 @@ export async function adayHavuzOzeti(): Promise<AdayHavuzOzeti> {
 
   return ozet;
 }
+
+export { KATILIM_MIN_UYE_VARSAYILAN };

@@ -151,6 +151,7 @@ export default async function AyarlarSayfasi() {
           waSablon={tercih.waSablon}
           tdmKaraListe={tercih.tdmKaraListe}
           tdmGunlukLimit={String(tercih.tdmGunlukLimit)}
+          katilimMinUye={String(tercih.katilimMinUye)}
           autoDeploy={tercih.autoDeploy}
           autoDeployEnv={autoDeployEnvAcikMi()}
           maliyet={tercih.maliyet}

@@ -22,6 +22,7 @@ import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 import {
   KATILIM_ARA_MS,
   KATILIM_GUNLUK_LIMIT,
+  katilimMinUyeOku,
 } from "@/lib/kaynaklar/katilimLimit";
 
 const GUNLUK_LIMIT = KATILIM_GUNLUK_LIMIT;
@@ -43,16 +44,26 @@ async function adaySec(): Promise<{
   kullaniciAdi: string | null;
   hedef: string;
 } | null> {
+  const minUye = await katilimMinUyeOku();
   const adaylar = await prisma.ilanKaynagi.findMany({
     where: {
       tur: TELEGRAM_UYE,
       durum: "ADAY",
       aktif: true,
       kullaniciAdi: { not: null },
-      OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: 50 } }],
+      OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: minUye } }],
     },
     orderBy: [{ oncelik: "desc" }, { uyeSayisi: "desc" }, { id: "asc" }],
     take: 40,
+    select: {
+      id: true,
+      ad: true,
+      kullaniciAdi: true,
+      hedef: true,
+      oncelik: true,
+      uyeSayisi: true,
+      hasatKaynak: true,
+    },
   });
 
   const uygun: {
@@ -77,7 +88,12 @@ async function adaySec(): Promise<{
       console.log(`[cron-katil] RED → PASIF #${a.id} (${red}): ${a.ad}`);
       continue;
     }
-    if (!yukBasligiMi(a.ad)) {
+    // Hasat @username: gerçek grup adı henüz yok — JoinChannel sonrası güncellenir.
+    const hasatUsername =
+      Boolean(a.hasatKaynak?.startsWith("Hasat")) &&
+      Boolean(a.kullaniciAdi) &&
+      a.ad.trim().startsWith("@");
+    if (!yukBasligiMi(a.ad) && !hasatUsername) {
       await prisma.ilanKaynagi.update({
         where: { id: a.id },
         data: {
@@ -90,8 +106,10 @@ async function adaySec(): Promise<{
       continue;
     }
     const koridor = koridorBaslikOnceligi(a.ad);
-    const skor = (a.oncelik ?? 0) + koridor * 10 + Math.min(a.uyeSayisi ?? 0, 5000) / 5000;
-    // Koridor puanı DB onceliğine yaz (panel sırası için)
+    const skor =
+      (a.oncelik ?? 0) +
+      koridor * 10 +
+      Math.min(a.uyeSayisi ?? 0, 5000) / 5000;
     if (koridor > 0 && (a.oncelik ?? 0) < 10 + koridor) {
       await prisma.ilanKaynagi
         .update({

@@ -21,6 +21,7 @@ export default function AiTercihForm({
   waSablon,
   tdmKaraListe,
   tdmGunlukLimit,
+  katilimMinUye = "15",
   autoDeploy,
   autoDeployEnv = false,
   maliyet = { yakitLt100: 32, motorinTl: 48, sabitTlKm: 2.5, hgsTlKm: 0.2 },
@@ -49,6 +50,8 @@ export default function AiTercihForm({
   };
   tdmKaraListe: string;
   tdmGunlukLimit: string;
+  /** Otomatik katılım min üye (varsayılan 15) */
+  katilimMinUye?: string;
   autoDeploy: boolean;
   /** VPS AUTO_DEPLOY=1 — panel kapatsa bile açık */
   autoDeployEnv?: boolean;
@@ -320,6 +323,23 @@ export default function AiTercihForm({
             Telegram gruplarını kendi hesabımla tara
           </span>
         </label>
+        <div>
+          <label htmlFor="katilimMinUye" className="etiket">
+            Otomatik katılım — min üye
+          </label>
+          <input
+            id="katilimMinUye"
+            name="katilimMinUye"
+            type="text"
+            inputMode="numeric"
+            placeholder="15"
+            defaultValue={katilimMinUye}
+            className="alan"
+          />
+          <p className="mt-1 text-xs text-fog">
+            ADAY grup bu üyeden azsa katılma. Varsayılan 15 (eskiden 50).
+          </p>
+        </div>
         <label className="flex cursor-pointer items-center gap-3">
           <input
             type="checkbox"

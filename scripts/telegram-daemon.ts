@@ -186,6 +186,7 @@ async function kacanlariYakala(client: TelegramClient) {
         .map((m) => ({
           mesajId: m.id,
           metin: m.message as string,
+          entities: m.entities ?? null,
           gonderenUserId: gonderenUserIdBul(m),
         }));
       const enBuyuk = mesajlar.reduce((s, m) => (m.id > s ? m.id : s), 0);
@@ -195,7 +196,11 @@ async function kacanlariYakala(client: TelegramClient) {
         const { mesajdanHasatEt } = await import("@/lib/kaynaklar/linkHasat");
         let hasatYeni = 0;
         for (const m of metinler) {
-          const h = await mesajdanHasatEt(m.metin, { id: k.id, ad: k.ad });
+          const h = await mesajdanHasatEt(
+            m.metin,
+            { id: k.id, ad: k.ad },
+            m.entities
+          );
           hasatYeni += h.yeni;
         }
         if (hasatYeni > 0) log(`catch-up hasat #${k.id}: +${hasatYeni}`);
@@ -207,7 +212,11 @@ async function kacanlariYakala(client: TelegramClient) {
         {
           id: k.id,
           sonMesajId: enBuyuk > 0 ? enBuyuk : k.sonMesajId,
-          mesajlar: metinler,
+          mesajlar: metinler.map(({ mesajId, metin, gonderenUserId }) => ({
+            mesajId,
+            metin,
+            gonderenUserId,
+          })),
         },
       ]);
       if (enBuyuk > 0) k.sonMesajId = enBuyuk;
@@ -268,7 +277,11 @@ async function mesajiIsle(event: NewMessageEvent) {
   // Link hasadı — filtre öncesi; elenen mesajdaki davet de değerli.
   try {
     const { mesajdanHasatEt } = await import("@/lib/kaynaklar/linkHasat");
-    const h = await mesajdanHasatEt(metin, { id: k.id, ad: k.ad });
+    const h = await mesajdanHasatEt(
+      metin,
+      { id: k.id, ad: k.ad },
+      msg.entities ?? null
+    );
     if (h.yeni > 0) log(`hasat +${h.yeni} (mevcut=${h.mevcut})`);
   } catch (e) {
     uyari("hasat hata", e instanceof Error ? e.message : e);

@@ -437,6 +437,18 @@ export async function aiTercihKaydet(
     return { hata: kaydedilmedi("Günlük DM limiti (1–30)") };
   }
 
+  const minUyeHam = metinOku(formData.get("katilimMinUye"));
+  const katilimMinUye = minUyeHam
+    ? Number(minUyeHam.replace(/\D/g, ""))
+    : 15;
+  if (
+    !Number.isFinite(katilimMinUye) ||
+    katilimMinUye < 1 ||
+    katilimMinUye > 5000
+  ) {
+    return { hata: kaydedilmedi("Min üye (1–5000)") };
+  }
+
   const autoDeployAcik =
     formData.get("autoDeploy") === "1" ||
     formData.getAll("autoDeploy").includes("1");
@@ -544,6 +556,10 @@ export async function aiTercihKaydet(
       deger: metinOku(formData.get("tdmKaraListe")),
     },
     { anahtar: AYAR_ANAHTARLARI.tdmGunlukLimit, deger: String(tdmLimit) },
+    {
+      anahtar: AYAR_ANAHTARLARI.telegramKatilimMinUye,
+      deger: String(katilimMinUye),
+    },
     { anahtar: AYAR_ANAHTARLARI.tdmOtomatik, deger: "0" },
     {
       anahtar: AYAR_ANAHTARLARI.waMesajSablon,

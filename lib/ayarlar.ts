@@ -44,6 +44,8 @@ export const AYAR_ANAHTARLARI = {
   telegramSonKatilim: "telegram_son_katilim",
   /** FloodWait bitiş ISO — dolana kadar katılım yok */
   telegramFloodBitis: "telegram_flood_bitis",
+  /** Otomatik katılım min üye (varsayılan 15) */
+  telegramKatilimMinUye: "telegram_katilim_min_uye",
   /** WhatsApp mesaj şablonu */
   waSablonAd: "wa_sablon_ad",
   waSablonFirma: "wa_sablon_firma",
@@ -144,6 +146,8 @@ export type AiTercihleri = {
   };
   tdmKaraListe: string;
   tdmGunlukLimit: number;
+  /** Otomatik gruba katılım min üye sayısı */
+  katilimMinUye: number;
   /** VPS: push sonrası otomatik deploy */
   autoDeploy: boolean;
   /** Kâr hesabı parametreleri */
@@ -246,6 +250,11 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       const n = Number(a[AYAR_ANAHTARLARI.tdmGunlukLimit]);
       if (!Number.isFinite(n) || n < 1) return 10;
       return Math.min(30, Math.round(n));
+    })(),
+    katilimMinUye: (() => {
+      const n = Number(a[AYAR_ANAHTARLARI.telegramKatilimMinUye]);
+      if (!Number.isFinite(n) || n < 1) return 15;
+      return Math.min(5000, Math.round(n));
     })(),
     autoDeploy:
       autoDeployEnvAcikMi() || a[AYAR_ANAHTARLARI.autoDeploy] === "1",

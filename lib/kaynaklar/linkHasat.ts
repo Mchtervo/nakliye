@@ -3,7 +3,7 @@
  * OpenAI yok — regex + ADAY kaydı.
  */
 import { prisma } from "@/lib/prisma";
-import { yukBasligiMi } from "@/lib/bolgeler";
+import { sadelestir } from "@/lib/iller";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 
 export type HasatTur = "TME_USER" | "TME_INVITE" | "MENTION" | "WHATSAPP";
@@ -37,7 +37,36 @@ const ATLANACAK_USER = new Set(
   ].map((s) => s.toLowerCase())
 );
 
-/** t.me/xxx, t.me/+xxx, t.me/joinchat/xxx, @xxx, chat.whatsapp.com/xxx */
+const YUK_IPUCU =
+  /y[uü]k|nakliye|nakliyat|t[iı]r|kamyon|lojistik|parsiyel|komple|osb|ara[cç]|[sş]of[oö]r|bo[sş]\s*ara[cç]/i;
+
+/** Metinde nakliye ipucu var mı (@mention için). */
+export function metindeYukIpuçuVar(metin: string): boolean {
+  return YUK_IPUCU.test(sadelestir(metin) || metin);
+}
+
+/**
+ * GramJS MessageEntityTextUrl vb. — gizli URL'leri düz metne ekle.
+ * entities: { url?: string }[] veya className/url taşıyan nesneler.
+ */
+export function entityUrlleriEkle(
+  metin: string,
+  entities: unknown[] | null | undefined
+): string {
+  if (!entities?.length) return metin;
+  const ek: string[] = [];
+  for (const e of entities) {
+    if (!e || typeof e !== "object") continue;
+    const o = e as { url?: string; className?: string };
+    if (typeof o.url === "string" && o.url.trim()) {
+      ek.push(o.url.trim());
+    }
+  }
+  if (ek.length === 0) return metin;
+  return `${metin}\n${ek.join("\n")}`;
+}
+
+/** t.me/xxx, t.me/+xxx, chat.whatsapp.com, whatsapp.com/channel, @xxx */
 export function linkleriHasatEt(metin: string): HasatLink[] {
   const sonuc: HasatLink[] = [];
   const gorulen = new Set<string>();
@@ -78,7 +107,9 @@ export function linkleriHasatEt(metin: string): HasatLink[] {
     });
   }
 
-  const waRe = /(?:https?:\/\/)?chat\.whatsapp\.com\/([A-Za-z0-9]+)/gi;
+  // chat.whatsapp.com/XXX ve whatsapp.com/channel/XXX
+  const waRe =
+    /(?:https?:\/\/)?(?:chat\.whatsapp\.com|whatsapp\.com\/channel)\/([A-Za-z0-9_\-]+)/gi;
   while ((m = waRe.exec(metin)) !== null) {
     const kod = m[1];
     if (!kod) continue;
@@ -91,17 +122,20 @@ export function linkleriHasatEt(metin: string): HasatLink[] {
     });
   }
 
-  const mentionRe = /(?<![A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_]{3,31})\b/g;
-  while ((m = mentionRe.exec(metin)) !== null) {
-    const user = m[1].toLowerCase();
-    if (ATLANACAK_USER.has(user)) continue;
-    ekle({
-      tur: "MENTION",
-      hedef: `u:${user}`,
-      kullaniciAdi: user,
-      ad: `@${user}`,
-      kod: null,
-    });
+  // @mention — sadece metinde yük/nakliye ipucu varsa (kişisel etiketleri ele)
+  if (metindeYukIpuçuVar(metin)) {
+    const mentionRe = /(?<![A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_]{3,31})\b/g;
+    while ((m = mentionRe.exec(metin)) !== null) {
+      const user = m[1].toLowerCase();
+      if (ATLANACAK_USER.has(user)) continue;
+      ekle({
+        tur: "MENTION",
+        hedef: `u:${user}`,
+        kullaniciAdi: user,
+        ad: `@${user}`,
+        kod: null,
+      });
+    }
   }
 
   return sonuc;
@@ -147,13 +181,8 @@ export async function hasatLinkleriniKaydet(
     }
 
     // WhatsApp / invite: kaydet ama otomatik katılma (aktif=false).
-    // Public username: ADAY + aktif → cron-katil öncelikli.
+    // Public username: ADAY + aktif → cron-katil (başlık @ iken Join dener).
     const joinable = l.tur === "TME_USER" || l.tur === "MENTION";
-    if (joinable && l.ad.startsWith("@") && !yukBasligiMi(l.ad)) {
-      // @spam123 gibi — yine kaydet; katılırken başlık kontrolü yapılır.
-      // Çok kısa / sayısal username'leri atlama.
-    }
-
     const oncelik = joinable ? 10 : 1;
 
     try {
@@ -190,12 +219,13 @@ export async function hasatLinkleriniKaydet(
 /** Daemon / catch-up: metinden hasat et ve kaydet + günlük sayaç. */
 export async function mesajdanHasatEt(
   metin: string,
-  kaynak: { id: number; ad: string }
+  kaynak: { id: number; ad: string },
+  entities?: unknown[] | null
 ): Promise<HasatRaporu> {
-  const linkler = linkleriHasatEt(metin);
+  const birlesik = entityUrlleriEkle(metin, entities);
+  const linkler = linkleriHasatEt(birlesik);
   if (linkler.length === 0) return { yeni: 0, mevcut: 0, atlanan: 0 };
   const rapor = await hasatLinkleriniKaydet(linkler, kaynak);
-  // Günlük rapor için sayaç (eleme sayaçlarıyla aynı JSON)
   try {
     const { elemeArtir } = await import("@/lib/kaynaklar/elemeSayac");
     await elemeArtir({

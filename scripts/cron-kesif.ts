@@ -1,12 +1,23 @@
 /**
- * Günde 1 kez: dialog senkronu + Telegram araması → ADAY/AKTİF.
+ * Günde 1–2 kez: dialog senkronu + Telegram araması → ADAY/AKTİF.
  * OpenAI yok. Daemon'dan ayrı GramJS oturumu (kısa bağlan-kop).
+ *
+ * Sorgular dönüşümlü 20’lik dilim (telegram_sorgu_sira) —
+ * her tur aynı ilk 20’yi tekrarlamaz.
  */
 import { Api, TelegramClient, utils } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { prisma } from "@/lib/prisma";
-import { aiTercihleriOku } from "@/lib/ayarlar";
-import { aramaSorgulariUret } from "@/lib/bolgeler";
+import {
+  AYAR_ANAHTARLARI,
+  aiTercihleriOku,
+  ayarOku,
+  ayarYaz,
+} from "@/lib/ayarlar";
+import {
+  aramaSorgulariUret,
+  kesifSorguDilimi,
+} from "@/lib/bolgeler";
 import {
   adaylariDegerlendir,
   type BulunanGrup,
@@ -44,6 +55,33 @@ function sohbetiAdaya(
   return null;
 }
 
+function timeoutMu(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /TIMEOUT|TIMEOUT_EXTRACT|timed?\s*out/i.test(msg);
+}
+
+async function guvenliKop(client: TelegramClient): Promise<void> {
+  try {
+    await Promise.race([
+      client.disconnect(),
+      new Promise<void>((r) => setTimeout(r, 4000)),
+    ]);
+  } catch (e) {
+    if (!timeoutMu(e)) {
+      console.warn(
+        "[cron-kesif] disconnect",
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client as any).destroy?.();
+  } catch {
+    /* yok say */
+  }
+}
+
 async function main() {
   const tercih = await aiTercihleriOku();
   if (!tercih.telegramUyeAcik) {
@@ -65,6 +103,7 @@ async function main() {
   await client.connect();
 
   const adaylar: Aday[] = [];
+  let sorgular: string[] = [];
   try {
     const dialogs = await client.getDialogs({ limit: 1000 });
     for (const d of dialogs) {
@@ -73,11 +112,26 @@ async function main() {
       if (aday?.baslik) adaylar.push(aday);
     }
 
-    const sorgular = aramaSorgulariUret(
-      tercih.bolgeler,
-      tercih.koridorIller
-    ).slice(0, 20);
-    console.log(`[cron-kesif] dialog=${adaylar.length} sorgu=${sorgular.length}`);
+    const tum = aramaSorgulariUret(tercih.bolgeler, tercih.koridorIller);
+    const siraHam = Number(await ayarOku(AYAR_ANAHTARLARI.telegramSorguSira));
+    const sira = Number.isFinite(siraHam) && siraHam >= 0 ? siraHam : 0;
+    const dilim = kesifSorguDilimi(tum, sira);
+    sorgular = dilim.sorgular;
+    await ayarYaz(
+      AYAR_ANAHTARLARI.telegramSorguSira,
+      String(dilim.sonrakiSira)
+    );
+    await ayarYaz(
+      AYAR_ANAHTARLARI.telegramKesifZaman,
+      new Date().toISOString()
+    );
+
+    console.log(
+      `[cron-kesif] dialog=${adaylar.length} sorgu=${sorgular.length} sira=${sira}→${dilim.sonrakiSira} havuz=${tum.length}`
+    );
+    if (sorgular.length > 0) {
+      console.log(`[cron-kesif] sorgu örnek: ${sorgular.slice(0, 5).join(" · ")}`);
+    }
 
     for (const sorgu of sorgular) {
       try {
@@ -89,6 +143,10 @@ async function main() {
           if (aday?.baslik) adaylar.push(aday);
         }
       } catch (e) {
+        if (timeoutMu(e)) {
+          console.warn("[cron-kesif] arama TIMEOUT", sorgu);
+          continue;
+        }
         console.warn(
           "[cron-kesif] arama",
           sorgu,
@@ -97,24 +155,33 @@ async function main() {
       }
     }
   } finally {
-    await client.disconnect().catch(() => null);
+    await guvenliKop(client);
   }
 
   const rapor = await adaylariDegerlendir(adaylar);
   console.log(JSON.stringify({ adayHavuz: adaylar.length, ...rapor }));
 
-  // Keşif sonrası temizlik onayı (Telegram Evet/Hayır)
   try {
     const { cikisOnayiIste } = await import("@/lib/kaynaklar/grupTemizlik");
     const t = await cikisOnayiIste();
     console.log(JSON.stringify({ temizlik: t }));
   } catch (e) {
-    console.warn("[cron-kesif] temizlik", e instanceof Error ? e.message : e);
+    if (timeoutMu(e)) {
+      console.warn("[cron-kesif] temizlik TIMEOUT — yok sayıldı");
+    } else {
+      console.warn("[cron-kesif] temizlik", e instanceof Error ? e.message : e);
+    }
   }
 }
 
 main()
   .catch((e) => {
+    if (timeoutMu(e)) {
+      console.warn(
+        "[cron-kesif] TIMEOUT (bağlantı kapanışı) — akış tamamlandı sayılır"
+      );
+      return;
+    }
     console.error(e);
     process.exit(1);
   })

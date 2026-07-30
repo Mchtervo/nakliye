@@ -50,8 +50,6 @@ import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 export const TELEGRAM_UYE = "TELEGRAM_UYE";
 
-/** Bir keşif turunda denenecek arama sorgusu sayısı. */
-const TUR_BASINA_SORGU = 3;
 /** İki grup araması arasındaki en kısa süre. */
 const KESIF_ARALIGI_MS = 6 * 60 * 60 * 1000;
 /** İlk kez okunan grupta geriye dönük alınacak mesaj sayısı. */
@@ -1148,19 +1146,16 @@ export async function kesifGoreviUret(): Promise<KesifGorevi> {
     tercih.koridorIller
   );
   const siraHam = Number(await ayarOku(AYAR_ANAHTARLARI.telegramSorguSira));
-  const sira = Number.isFinite(siraHam) && siraHam > 0 ? siraHam : 0;
-
-  const sorgular: string[] = [];
-  for (let i = 0; i < Math.min(TUR_BASINA_SORGU, tumSorgular.length); i++) {
-    sorgular.push(tumSorgular[(sira + i) % tumSorgular.length]);
-  }
-
+  const sira = Number.isFinite(siraHam) && siraHam >= 0 ? siraHam : 0;
+  const { kesifSorguDilimi } = await import("@/lib/bolgeler");
+  // Panel/API kısa tur: 5 sorgu (cron 20 kullanır)
+  const dilim = kesifSorguDilimi(tumSorgular, sira, 5);
   await ayarYaz(
     AYAR_ANAHTARLARI.telegramSorguSira,
-    String((sira + sorgular.length) % tumSorgular.length)
+    String(dilim.sonrakiSira)
   );
 
-  return { aktif: true, sorgular, adayKontrol };
+  return { aktif: true, sorgular: dilim.sorgular, adayKontrol };
 }
 
 export type BulunanGrup = {

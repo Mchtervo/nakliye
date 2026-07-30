@@ -336,7 +336,8 @@ export function yukBasligiMi(baslik: string): boolean {
 
 /**
  * Telegram global aramasında denenecek sorgular.
- * Koridor illeri varsa onlar ÖNCE gelir; genel kelimeler sonda.
+ * Koridor + yeni açılar (firma / cins / OSB / sıfat).
+ * cron-kesif her turda listeden 20’lik dilim döndürür (sira ile).
  */
 export function aramaSorgulariUret(
   kodlar: BolgeKodu[],
@@ -345,7 +346,6 @@ export function aramaSorgulariUret(
   const oncelikli: string[] = [];
   const genel: string[] = ["yük ilanları", "nakliye yük", "tır yük grubu"];
 
-  // Koridor odaklı (Ankara–İstanbul hattı) — öncelikli
   const sabitKoridor = [
     "ankara istanbul yük",
     "ankara çıkışlı",
@@ -369,12 +369,66 @@ export function aramaSorgulariUret(
     "kocaeli yük",
     "çankırı nakliye",
   ];
+
+  const firmaAcilar = [
+    "lojistik grup",
+    "nakliyat grubu",
+    "tır sahipleri",
+    "araç sahipleri",
+    "şoförler grubu",
+    "nakliyeci grubu",
+    "tır şoförleri",
+    "kamyon sahipleri",
+  ];
+
+  const yukCinsi = [
+    "parsiyel yük",
+    "komple yük",
+    "palet yük",
+    "kimyasal yük",
+    "gıda yük",
+    "inşaat malzemesi",
+    "damper yük",
+    "tenteli yük",
+  ];
+
+  const ilceOsb = [
+    "ostim",
+    "ivedik",
+    "başkent osb",
+    "hadımköy",
+    "ikitelli",
+    "dilovası",
+    "çerkezköy",
+    "gebze osb",
+    "tosb",
+    "as osb ankara",
+  ];
+
+  const sifat = [
+    "acil yük",
+    "boş araç",
+    "yük paylaşım",
+    "günlük yük",
+    "sıcak yük",
+    "yük var",
+    "araç arıyorum",
+    "yük arıyorum",
+  ];
+
   if (koridorIller.length > 0 || sabitKoridor.length > 0) {
-    oncelikli.push(...sabitKoridor);
+    oncelikli.push(
+      ...sabitKoridor,
+      ...firmaAcilar,
+      ...yukCinsi,
+      ...ilceOsb,
+      ...sifat
+    );
     for (const il of koridorIller) {
       oncelikli.push(`${il} yük`);
       oncelikli.push(`${il} nakliye`);
       oncelikli.push(`${il} çıkışlı`);
+      oncelikli.push(`${il} yük paylaşım`);
     }
   }
 
@@ -389,7 +443,6 @@ export function aramaSorgulariUret(
     }
   }
 
-  // Öncelikli önce, tekrar yok
   const sonuc: string[] = [];
   const gorulen = new Set<string>();
   for (const s of [...oncelikli, ...genel]) {
@@ -399,6 +452,29 @@ export function aramaSorgulariUret(
     sonuc.push(s);
   }
   return sonuc;
+}
+
+/** Her keşif turunda kaç sorgu (dönüşümlü dilim). */
+export const KESIF_TUR_SORGU = 20;
+
+/**
+ * Sıra anahtarına göre dönüşümlü 20 sorgu.
+ * Aynı ilk 20’nin tekrarlanmasını önler.
+ */
+export function kesifSorguDilimi(
+  tumSorgular: string[],
+  sira: number,
+  adet = KESIF_TUR_SORGU
+): { sorgular: string[]; sonrakiSira: number } {
+  if (tumSorgular.length === 0) return { sorgular: [], sonrakiSira: 0 };
+  const n = tumSorgular.length;
+  const bas = ((sira % n) + n) % n;
+  const sorgular: string[] = [];
+  const al = Math.min(adet, n);
+  for (let i = 0; i < al; i++) {
+    sorgular.push(tumSorgular[(bas + i) % n]);
+  }
+  return { sorgular, sonrakiSira: (bas + al) % n };
 }
 
 export type GrupDegerlendirme = {
