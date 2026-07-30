@@ -18,7 +18,7 @@ export default async function MusteriHavuzSayfasi({
   const sp = await searchParams;
   const sekme = SEKMELER.some((s) => s.kod === sp.sekme)
     ? (sp.sekme as string)
-    : "SAHIP";
+    : "HEPSI";
 
   const hepsi = await musteriHavuzuOku({ gun: 60 });
   const liste =
@@ -30,6 +30,7 @@ export default async function MusteriHavuzSayfasi({
 
   const sahipSayisi = hepsi.filter((m) => m.sinif === "YUK_SAHIBI").length;
   const komisyonSayisi = hepsi.filter((m) => m.sinif === "KOMISYONCU").length;
+  const karisikSayisi = hepsi.filter((m) => m.sinif === "KARISIK").length;
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
@@ -45,7 +46,8 @@ export default async function MusteriHavuzSayfasi({
           Doğrudan yük sahibi aramak navlunu %25–30 artırır.
         </p>
         <p className="mt-2 text-xs text-teal">
-          {sahipSayisi} yük sahibi · {komisyonSayisi} komisyoncu (60 gün)
+          {sahipSayisi} yük sahibi · {komisyonSayisi} komisyoncu ·{" "}
+          {karisikSayisi} karışık · {hepsi.length} toplam (60 gün)
         </p>
       </div>
 
@@ -99,6 +101,7 @@ export default async function MusteriHavuzSayfasi({
                 baskinGuzergah: m.baskinGuzergah,
                 haftalikSiklik: m.haftalikSiklik,
                 ilanAdet: m.ilanAdet,
+                rotaAdet: m.rotaAdet,
                 koridorDisi: m.koridorDisi,
                 isaretli: m.isaretli,
                 sonNot: m.sonNot,

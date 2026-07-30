@@ -23,6 +23,7 @@ export type MusteriKartVeri = {
   baskinGuzergah: string | null;
   haftalikSiklik: number;
   ilanAdet: number;
+  rotaAdet: number;
   koridorDisi: boolean;
   isaretli: boolean;
   sonNot: string | null;
@@ -37,6 +38,9 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
     musteriNotKaydet,
     null
   );
+
+  const baslik = (m.firmaAdi || "").trim() || telefonGorunum(m.telefon);
+  const baslikTelefonMu = !(m.firmaAdi || "").trim();
 
   function isaret() {
     baslat(async () => {
@@ -58,14 +62,19 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate font-semibold text-paper">
-            {m.firmaAdi || "İsimsiz"}
-            {m.baskinCikis ? (
+            {baslik}
+            {!baslikTelefonMu && m.baskinCikis ? (
               <span className="font-normal text-fog"> · {m.baskinCikis}</span>
             ) : null}
           </div>
-          <p className="mt-0.5 text-sm font-bold text-teal">
-            {telefonGorunum(m.telefon)}
-          </p>
+          {!baslikTelefonMu && (
+            <p className="mt-0.5 text-sm font-bold text-teal">
+              {telefonGorunum(m.telefon)}
+            </p>
+          )}
+          {baslikTelefonMu && m.baskinCikis && (
+            <p className="mt-0.5 text-xs text-fog">{m.baskinCikis}</p>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <span
@@ -98,7 +107,10 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
           Sıklık: haftada ~{m.haftalikSiklik} ilan
           <span className="text-fog/70"> ({m.ilanAdet} / 60g)</span>
         </p>
-        {m.baskinGuzergah && <p>Güzergah: {m.baskinGuzergah}</p>}
+        <p>
+          {m.rotaAdet} farklı güzergah
+          {m.baskinGuzergah ? ` · baskın: ${m.baskinGuzergah}` : ""}
+        </p>
         <p>Son ilan: {gecenSure(new Date(m.sonIlan))}</p>
         {m.sonNot && (
           <p className="text-paper/80">
@@ -117,9 +129,9 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
         <button
           type="button"
           onClick={() => setNotAcik((v) => !v)}
-          className="rounded-xl border border-black/12 bg-white py-2.5 text-sm font-bold text-paper hover:bg-[#f0f5f4]"
+          className="rounded-xl border border-black/20 bg-[#e8eeec] py-2.5 text-sm font-bold text-asphalt hover:bg-[#dce4e1]"
         >
-          Not
+          Not ekle
         </button>
         <button
           type="button"
@@ -127,11 +139,11 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
           onClick={isaret}
           className={`rounded-xl py-2.5 text-sm font-bold disabled:opacity-60 ${
             isaretli
-              ? "border border-ok/40 bg-ok/15 text-ok"
-              : "border border-black/12 bg-white text-paper hover:bg-[#f0f5f4]"
+              ? "border border-ok/40 bg-ok/20 text-ok"
+              : "border border-black/20 bg-[#e8eeec] text-asphalt hover:bg-[#dce4e1]"
           }`}
         >
-          {isaretli ? "İşaretli" : "Müşteri"}
+          {isaretli ? "İşaretli" : "Müşteri işaretle"}
         </button>
       </div>
 

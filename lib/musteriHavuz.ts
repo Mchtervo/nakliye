@@ -160,9 +160,10 @@ export async function musteriHavuzuOku(opts?: {
       nereden: true,
       yukTipi: true,
       createdAt: true,
+      kaynak: { select: { tur: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 4000,
+    take: 8000,
   });
 
   type Kova = {
@@ -175,6 +176,7 @@ export async function musteriHavuzuOku(opts?: {
     sonIlan: Date;
     koridorIci: number;
     koridorDis: number;
+    webKaynak: boolean;
   };
 
   const map = new Map<string, Kova>();
@@ -196,17 +198,20 @@ export async function musteriHavuzuOku(opts?: {
         sonIlan: i.createdAt,
         koridorIci: 0,
         koridorDis: 0,
+        webKaynak: false,
       };
       map.set(tel, k);
     }
     k.ilanAdet += 1;
+    if (i.kaynak?.tur === "WEB") k.webKaynak = true;
     if (i.createdAt > k.sonIlan) k.sonIlan = i.createdAt;
-    if (i.firmaAdi && !k.firmaAdi) k.firmaAdi = i.firmaAdi;
+    if (i.firmaAdi && (!k.firmaAdi || k.firmaAdi.length < 3)) {
+      k.firmaAdi = i.firmaAdi;
+    }
     if (cikis && varis) {
       const rota = `${cikis}|${varis}`;
       k.rotas.set(rota, (k.rotas.get(rota) || 0) + 1);
-      const ikiUcta =
-        koridor.has(cikis) || koridor.has(varis);
+      const ikiUcta = koridor.has(cikis) || koridor.has(varis);
       if (ikiUcta) k.koridorIci += 1;
       else k.koridorDis += 1;
     }
@@ -221,7 +226,8 @@ export async function musteriHavuzuOku(opts?: {
 
   const sonuc: MusteriOzet[] = [];
   for (const k of map.values()) {
-    if (k.ilanAdet < 2) continue;
+    // Tek ilan da yeter (WEB firma+numara hasadı); eskiden <2 eliyordu
+    if (k.ilanAdet < 1) continue;
     const baskinCikis = baskinAnahtar(k.cikislar);
     const baskinYuk = baskinAnahtar(k.yukTipleri);
     const baskinRota = baskinAnahtar(k.rotas);
