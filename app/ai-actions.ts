@@ -272,10 +272,9 @@ export async function ilanSil(id: number): Promise<void> {
 }
 
 export async function eskiIlanlariTemizle(): Promise<void> {
-  const sinir = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-  await prisma.yukIlani.deleteMany({
-    where: { createdAt: { lt: sinir }, durum: { in: ["YENI", "ELENDI"] } },
-  });
+  // Silme yok — 48s arşiv cron'u (eskiIlanlariArsivle)
+  const { eskiIlanlariArsivle } = await import("@/lib/ilanTazelik");
+  await eskiIlanlariArsivle();
   revalidatePath("/ai/yukler");
 }
 

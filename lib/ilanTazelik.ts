@@ -1,13 +1,14 @@
 /**
  * İlan tazelik / arşiv kuralları.
- * 30 dk üstü → soluk; 2 saat üstü → ARSIV.
+ * 30 dk üstü → soluk; 48 saat üstü → ARSIV (silme yok).
  */
 
 import { prisma } from "@/lib/prisma";
 
 export const SOLUK_DK = 30;
-/** 2 saat çok agresifti — panel boşalıyordu. 8 saatte arşiv. */
-export const ARSIV_DK = 8 * 60;
+/** Panel tazeliği + arşiv eşiği (48 saat). */
+export const ARSIV_DK = 48 * 60;
+export const PANEL_TAZELIK_MS = ARSIV_DK * 60 * 1000;
 
 export function beklemeDakika(tarih: Date | string): number {
   const t = typeof tarih === "string" ? new Date(tarih) : tarih;
@@ -36,11 +37,45 @@ export function arsivlikMi(tarih: Date | string): boolean {
   return beklemeDakika(tarih) >= ARSIV_DK;
 }
 
-/** Eski YENİ ilanları ARSIV'e al — son görülmeye göre (createdAt değil). */
+export function panelTazeSinir(tarih = new Date()): Date {
+  return new Date(tarih.getTime() - PANEL_TAZELIK_MS);
+}
+
+/**
+ * Panel / plan varsayılan: son 48 saat + arşiv/elenmiş değil.
+ * sonGorulme VEYA createdAt taze.
+ */
+export function panelTazeKosulu() {
+  const sinir = panelTazeSinir();
+  return {
+    AND: [
+      {
+        OR: [{ createdAt: { gte: sinir } }, { sonGorulme: { gte: sinir } }],
+      },
+      { durum: { notIn: ["ARSIV", "ELENDI"] } },
+    ],
+  };
+}
+
+/**
+ * 48 saatten eski ilanları ARSIV'e al — SİLME YOK.
+ * Müşteri havuzu frekansı için kayıtlar kalır.
+ */
 export async function eskiIlanlariArsivle(): Promise<number> {
   const sinir = new Date(Date.now() - ARSIV_DK * 60 * 1000);
   const r = await prisma.yukIlani.updateMany({
-    where: { durum: "YENI", sonGorulme: { lt: sinir } },
+    where: {
+      durum: {
+        in: [
+          "YENI",
+          "ILGILENIYOR",
+          "ILETISIME_GECILDI",
+          "PAZARLIKTA",
+          "CEVAP_YOK",
+        ],
+      },
+      sonGorulme: { lt: sinir },
+    },
     data: { durum: "ARSIV" },
   });
   return r.count;

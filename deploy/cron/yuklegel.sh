@@ -2,4 +2,5 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=/dev/null
 source "$DIR/_ortak.sh"
-cron_calistir "yuklegel" npm run ts -- scripts/cron-yuklegel.ts
+# Kayıtlı tüm web siteleri (yuklegel + yeniler) — Ayarlar aktif/pasif
+cron_calistir "web-siteler" npm run ts -- scripts/cron-web-siteler.ts

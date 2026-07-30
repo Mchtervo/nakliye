@@ -2,12 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { htmlKacis, telegramGonder, telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { pushGonder, pushKullanilabilir } from "@/lib/bildirim/push";
-import { ilanKarti } from "@/lib/bot/kart";
-import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
-import {
-  tdmKartButonlari,
-} from "@/lib/kaynaklar/telegramDm";
+import { SUPHE_SINIRI, ilgiliMi } from "@/lib/kaynaklar/filtre";
+import { tdmKartButonlari } from "@/lib/kaynaklar/telegramDm";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
+import { karHesapla } from "@/lib/karHesap";
+import { tlYaz } from "@/lib/para";
 
 export type BildirimSonucu = {
   telegram: number;
@@ -15,6 +14,7 @@ export type BildirimSonucu = {
   hatalar: string[];
   /** Sessiz saatte beklemeye alınan (sabah özeti). */
   ertelenen: number;
+  atlanan: number;
 };
 
 /** Gece sessiz: 23:00–07:00 Europe/Istanbul. */
@@ -35,41 +35,57 @@ function siteAdresi(): string {
   ).replace(/\/$/, "");
 }
 
-function pushMetni(ilan: KaydedilenIlan): string {
+/** Ortak metin — TG HTML + push düz. */
+export function yeniYukMetni(
+  ilan: KaydedilenIlan,
+  maliyet: {
+    yakitLt100: number;
+    motorinTl: number;
+    sabitTlKm: number;
+    hgsTlKm: number;
+    tonaj: number;
+  },
+  html: boolean
+): string {
   const rota = `${ilan.nereden || ilan.cikisIl || "?"} → ${ilan.nereye || ilan.varisIl || "?"}`;
-  const firma = ilan.firmaAdi ? ` · ${ilan.firmaAdi}` : "";
-  const tel = ilan.telefon ? ` · ${ilan.telefon}` : "";
-  return `${rota}${firma}${tel}`;
-}
+  const detay = [
+    ilan.tonaj ? `${ilan.tonaj}t` : null,
+    ilan.aracTipi,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const kar = karHesapla(ilan, maliyet);
+  const fiyat =
+    ilan.ucret && ilan.ucret > 0
+      ? tlYaz(ilan.ucret)
+      : ilan.fiyatTon && ilan.tonaj
+        ? `~${tlYaz(ilan.fiyatTon * ilan.tonaj)}`
+        : null;
+  const net =
+    kar.netTl !== null ? `net ${tlYaz(Math.round(kar.netTl * 100))}` : null;
+  const firma = ilan.firmaAdi || "FİRMA";
+  const tel = ilan.telefon || "";
 
-function kartMetni(ilan: KaydedilenIlan, donusMu: boolean): string {
-  const baslik = donusMu ? "<b>DÖNÜŞ YÜKÜ</b>\n" : "";
+  const satir1 = ["YENİ YÜK", rota, detay || null, fiyat, net]
+    .filter(Boolean)
+    .join(" · ");
+  const satir2 = [firma, tel].filter(Boolean).join(" · ");
+
+  if (!html) return `${satir1}\n${satir2}`;
   return (
-    baslik +
-    ilanKarti({
-      id: ilan.id,
-      nereden: ilan.nereden,
-      nereye: ilan.nereye,
-      cikisIl: ilan.cikisIl,
-      varisIl: ilan.varisIl,
-      tonaj: ilan.tonaj,
-      aracTipi: ilan.aracTipi,
-      yukTipi: null,
-      yuklemeTarihi: null,
-      ucret: ilan.ucret,
-      fiyatTon: ilan.fiyatTon,
-      fiyatBelirsiz: false,
-      telefon: ilan.telefon,
-      firmaAdi: ilan.firmaAdi,
-      ilgiliKisi: ilan.ilgiliKisi,
-      guvenSkoru: ilan.guvenSkoru,
-      createdAt: ilan.createdAt ?? new Date(),
-      kaynakAd: ilan.kaynakAd ?? null,
-    })
+    `<b>YENİ YÜK</b> · ${htmlKacis(rota)}` +
+    (detay ? ` · ${htmlKacis(detay)}` : "") +
+    (fiyat ? ` · ${htmlKacis(fiyat)}` : "") +
+    (net ? ` · ${htmlKacis(net)}` : "") +
+    `\n${htmlKacis(firma)}${tel ? ` · ${htmlKacis(tel)}` : ""}`
   );
 }
 
-/** Yeni bulunan ilanları kullanıcıya bildirir ve kaydı tutar. */
+/**
+ * Yeni bulunan ilanları bildir — tek kayıt, tek bildirim, iki kanal.
+ * WEB kaynak → yok. bildirildi=true → yok. Filtre geçmezse → yok.
+ * Gece 23–07 → biriktir (sabah özeti).
+ */
 export async function yukIlanlariniBildir(
   ilanlar: KaydedilenIlan[]
 ): Promise<BildirimSonucu> {
@@ -78,16 +94,53 @@ export async function yukIlanlariniBildir(
     push: 0,
     hatalar: [],
     ertelenen: 0,
+    atlanan: 0,
   };
-  const guvenli = ilanlar.filter((i) => i.guvenSkoru >= SUPHE_SINIRI);
-  if (guvenli.length === 0) return sonuc;
+  if (ilanlar.length === 0) return sonuc;
+
+  const ids = ilanlar.map((i) => i.id);
+  const dbSatirlar = await prisma.yukIlani.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      bildirildi: true,
+      guvenSkoru: true,
+      kaynak: { select: { tur: true } },
+    },
+  });
+  const dbMap = new Map(dbSatirlar.map((s) => [s.id, s]));
 
   const tercih = await aiTercihleriOku();
   const kok = siteAdresi();
   const sessiz = bildirimSessizMi();
   const gonderilenIdler: number[] = [];
 
-  for (const ilan of guvenli.slice(0, 10)) {
+  const adaylar = ilanlar.filter((i) => {
+    const db = dbMap.get(i.id);
+    if (!db) {
+      sonuc.atlanan += 1;
+      return false;
+    }
+    if (db.bildirildi) {
+      sonuc.atlanan += 1;
+      return false;
+    }
+    if (db.kaynak?.tur === "WEB") {
+      sonuc.atlanan += 1;
+      return false;
+    }
+    if (i.guvenSkoru < SUPHE_SINIRI) {
+      sonuc.atlanan += 1;
+      return false;
+    }
+    if (!ilgiliMi(i, tercih)) {
+      sonuc.atlanan += 1;
+      return false;
+    }
+    return true;
+  });
+
+  for (const ilan of adaylar.slice(0, 10)) {
     if (sessiz && ilan.guvenSkoru < BILDIRIM_ACIL_SKOR) {
       sonuc.ertelenen += 1;
       continue;
@@ -95,9 +148,12 @@ export async function yukIlanlariniBildir(
 
     const donusMu = Boolean(ilan.donusTalebiId);
     const baslik = donusMu ? "Dönüş yükü bulundu" : "Yeni yük bulundu";
-    const metin = kartMetni(ilan, donusMu);
-    let butonSatirlari: Awaited<ReturnType<typeof tdmKartButonlari>> = null;
+    const metinHtml = donusMu
+      ? `<b>DÖNÜŞ YÜKÜ</b>\n` + yeniYukMetni(ilan, tercih.maliyet, true)
+      : yeniYukMetni(ilan, tercih.maliyet, true);
+    const metinDuz = yeniYukMetni(ilan, tercih.maliyet, false);
 
+    let butonSatirlari: Awaited<ReturnType<typeof tdmKartButonlari>> = null;
     if (ilan.gonderenUserId || ilan.telefon) {
       try {
         butonSatirlari = await tdmKartButonlari({
@@ -130,7 +186,7 @@ export async function yukIlanlariniBildir(
 
       const cevap = await telegramGonder(
         tercih.telegramChatId,
-        metin,
+        metinHtml,
         butonlar
       );
 
@@ -139,7 +195,7 @@ export async function yukIlanlariniBildir(
           kanal: "TELEGRAM",
           hedef: tercih.telegramChatId,
           baslik,
-          metin: pushMetni(ilan),
+          metin: metinDuz.slice(0, 500),
           durum: cevap.basarili ? "GONDERILDI" : "HATA",
           hata: cevap.hata,
         },
@@ -157,7 +213,7 @@ export async function yukIlanlariniBildir(
     if (tercih.pushAcik && pushKullanilabilir()) {
       const cevap = await pushGonder({
         baslik,
-        metin: pushMetni(ilan),
+        metin: metinDuz.slice(0, 180),
         url: `/ai/yukler?sekme=HEPSI&id=${ilan.id}`,
       });
       sonuc.push += cevap.gonderilen;
@@ -180,7 +236,7 @@ export async function yukIlanlariniBildir(
 
 /**
  * Sessiz saatte biriken (bildirilmemiş) ilanların sabah özeti.
- * Cron: 07:05 Europe/Istanbul.
+ * Cron: 07:05 Europe/Istanbul. WEB hariç.
  */
 export async function sabahOzetBildir(): Promise<{
   adet: number;
@@ -197,16 +253,19 @@ export async function sabahOzetBildir(): Promise<{
       guvenSkoru: { gte: SUPHE_SINIRI },
       createdAt: { gte: sinir },
       durum: { in: ["YENI", "ILGILENIYOR"] },
+      OR: [
+        { kaynakId: null },
+        { kaynak: { tur: { not: "WEB" } } },
+      ],
     },
     orderBy: [{ guvenSkoru: "desc" }, { createdAt: "desc" }],
     take: 25,
-    include: { kaynak: { select: { ad: true } } },
+    include: { kaynak: { select: { ad: true, tur: true } } },
   });
 
   if (bekleyen.length === 0) return { adet: 0, gonderildi: false };
 
   const tercih = await aiTercihleriOku();
-  const { ilgiliMi } = await import("@/lib/kaynaklar/filtre");
   const uygun = bekleyen.filter((i) =>
     ilgiliMi(
       {

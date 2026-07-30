@@ -5,7 +5,7 @@ import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
 import { ilBul, sehirHavzasi } from "@/lib/iller";
-import { SUPHE_SINIRI, tercihKosulu } from "@/lib/kaynaklar/filtre";
+import { SUPHE_SINIRI, tercihKosulu, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
 import {
   eskiIlanlariTemizle,
   simdiTara,
@@ -19,7 +19,7 @@ import {
   karHesapla,
   karOzetYazi,
 } from "@/lib/karHesap";
-import { solukMu } from "@/lib/ilanTazelik";
+import { panelTazeSinir, solukMu } from "@/lib/ilanTazelik";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -97,12 +97,18 @@ function rotaCipleri(rotalar: string[]): RotaCip[] {
   return sonuc.slice(0, 8);
 }
 
-function sekmeHref(kod: string, nereden: string, nereye: string): string {
+function sekmeHref(
+  kod: string,
+  nereden: string,
+  nereye: string,
+  arsiv = false
+): string {
   if (kod === "MUSTERI") return "/ai/musteriler";
   const p = new URLSearchParams();
   p.set("sekme", kod);
   if (nereden) p.set("nereden", nereden);
   if (nereye) p.set("nereye", nereye);
+  if (arsiv) p.set("arsiv", "1");
   return `/ai/yukler?${p.toString()}`;
 }
 
@@ -114,6 +120,7 @@ export default async function AiYuklerSayfasi({
     id?: string;
     nereden?: string;
     nereye?: string;
+    arsiv?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -123,6 +130,7 @@ export default async function AiYuklerSayfasi({
   const odakId = Number(sp.id);
   const odak =
     Number.isInteger(odakId) && odakId > 0 ? odakId : null;
+  const arsivGoster = sp.arsiv === "1";
 
   const neredenHam = (sp.nereden || "").trim();
   const nereyeHam = (sp.nereye || "").trim();
@@ -202,14 +210,46 @@ export default async function AiYuklerSayfasi({
     rotaKosul = { varisIl };
   }
 
+  const tazeSinir = panelTazeSinir();
+  const tazelikKosul: Prisma.YukIlaniWhereInput = arsivGoster
+    ? {
+        // Arşiv filtresi açık: ARSIV dahil, 60 güne kadar (havuz gibi)
+        OR: [
+          { durum: "ARSIV" },
+          {
+            AND: [
+              {
+                OR: [
+                  { createdAt: { gte: tazeSinir } },
+                  { sonGorulme: { gte: tazeSinir } },
+                ],
+              },
+              { durum: { notIn: ["ELENDI"] } },
+            ],
+          },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { gte: tazeSinir } },
+          { sonGorulme: { gte: tazeSinir } },
+        ],
+        durum: { notIn: ["ARSIV", "ELENDI"] },
+      };
+
   const filtre: Prisma.YukIlaniWhereInput = {
-    AND: [tabanFiltre, rotaKosul],
+    AND: [tabanFiltre, rotaKosul, tazelikKosul, webKaynakHaricKosulu()],
   };
   const tekSehirArama = Boolean(
     (cikisIl && !nereyeHam && !neredenHata) ||
       (varisIl && !neredenHam && !nereyeHata)
   );
   const tekSehirAd = cikisIl || varisIl;
+
+  const sayacTazelik: Prisma.YukIlaniWhereInput = {
+    OR: [{ createdAt: { gte: tazeSinir } }, { sonGorulme: { gte: tazeSinir } }],
+    durum: { notIn: ["ARSIV", "ELENDI"] },
+  };
 
   const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
     await Promise.all([
@@ -221,10 +261,28 @@ export default async function AiYuklerSayfasi({
       }),
       prisma.ilanKaynagi.count({ where: { aktif: true } }),
       prisma.yukIlani.count({
-        where: { durum: "YENI", ...tercihKosulu(tercih) },
+        where: {
+          AND: [
+            { durum: "YENI" },
+            sayacTazelik,
+            tercihKosulu(tercih),
+          ],
+        },
       }),
-      prisma.yukIlani.count({ where: { donusTalebiId: { not: null } } }),
-      prisma.yukIlani.count({ where: { guvenSkoru: { lt: SUPHE_SINIRI } } }),
+      prisma.yukIlani.count({
+        where: {
+          AND: [{ donusTalebiId: { not: null } }, sayacTazelik, webKaynakHaricKosulu()],
+        },
+      }),
+      prisma.yukIlani.count({
+        where: {
+          AND: [
+            { guvenSkoru: { lt: SUPHE_SINIRI } },
+            sayacTazelik,
+            webKaynakHaricKosulu(),
+          ],
+        },
+      }),
       hatOrtalamalariYukle(),
     ]);
 
@@ -333,6 +391,14 @@ export default async function AiYuklerSayfasi({
             sinif="btn btn-amber !px-3 !py-2 text-xs sm:text-sm"
           />
           <Link
+            href={sekmeHref(sekme, neredenHam, nereyeHam, !arsivGoster)}
+            className={`btn !px-3 !py-2 text-xs sm:text-sm ${
+              arsivGoster ? "btn-amber" : "btn-ghost"
+            }`}
+          >
+            {arsivGoster ? "Arşiv açık" : "Arşivi göster"}
+          </Link>
+          <Link
             href="/ayarlar#ai"
             className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm"
           >
@@ -395,7 +461,7 @@ export default async function AiYuklerSayfasi({
           return (
             <Link
               key={s.kod}
-              href={sekmeHref(s.kod, neredenHam, nereyeHam)}
+              href={sekmeHref(s.kod, neredenHam, nereyeHam, arsivGoster)}
               className={`sekme-oge ${aktif ? "aktif" : ""}`}
             >
               {s.ad}

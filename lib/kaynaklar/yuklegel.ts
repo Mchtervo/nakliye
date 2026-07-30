@@ -258,15 +258,7 @@ async function kaynakIdAl(): Promise<number> {
     select: { id: true },
   });
   if (mevcut) {
-    await prisma.ilanKaynagi.update({
-      where: { id: mevcut.id },
-      data: {
-        aktif: true,
-        durum: "AKTIF",
-        oncelik: 1,
-        sonTarama: new Date(),
-      },
-    });
+    // aktif'e dokunma — Ayarlar Duraklat/Başlat geçerli kalsın
     return mevcut.id;
   }
   const yeni = await prisma.ilanKaynagi.create({

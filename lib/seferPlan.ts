@@ -8,6 +8,7 @@ import {
   type MaliyetAyarlari,
   VARSAYILAN_MALIYET,
 } from "@/lib/karHesap";
+import { panelTazeSinir } from "@/lib/ilanTazelik";
 
 const BOS_MAX_KM = 100;
 const ADAY_LIMIT = 100;
@@ -97,12 +98,12 @@ function planOzet(
 export async function planAdaylariniGetir(opts?: {
   maxTonaj?: number | null;
 }): Promise<PlanAdayIlan[]> {
-  const sinir = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const sinir = panelTazeSinir();
   const maxTonaj = opts?.maxTonaj ?? null;
   const satirlar = await prisma.yukIlani.findMany({
     where: {
       durum: {
-        in: ["YENI", "ILGILENIYOR", "ILETISIME_GECILDI", "PAZARLIKTA", "ARSIV"],
+        in: ["YENI", "ILGILENIYOR", "ILETISIME_GECILDI", "PAZARLIKTA"],
       },
       guvenSkoru: { gte: 40 },
       cikisIl: { not: null },

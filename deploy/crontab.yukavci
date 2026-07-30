@@ -17,6 +17,9 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 # Sessiz saat birikimi — sabah 07:05 özet
 5 7 * * * /bin/bash $GUVENLI sabah-ozet.sh
 
+# 48s+ ilanları ARSIV (silme yok) — 06:00
+0 6 * * * /bin/bash $GUVENLI arsiv.sh
+
 # Grup keşfi — günde 3: 08:00, 14:00, 20:00
 0 8,14,20 * * * /bin/bash $GUVENLI grup-kesif.sh
 
@@ -41,7 +44,7 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 # gonderenUserId geriye dönük — Pazartesi 06:10
 10 6 * * 1 /bin/bash $GUVENLI uid-doldur.sh
 
-# yuklegel.com firma+numara — günde 3 (Firecrawl kota ~1000 sayfa/ay)
+# Kayıtlı web siteleri (yuklegel…) — günde 3; Ayarlar Duraklat/Başlat
 0 8,14,20 * * * /bin/bash $GUVENLI yuklegel.sh
 
 # Otomatik deploy — dakikada 1 (AUTO_DEPLOY=1 veya Ayarlar açık)

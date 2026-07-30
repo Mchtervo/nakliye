@@ -1,11 +1,19 @@
 /**
- * yuklegel.com firma+numara hasadı — günde 3 (08/14/20).
- *   npm run ts -- scripts/cron-yuklegel.ts
+ * Geriye dönük: tek site. Tercihen cron-web-siteler.ts kullan.
  */
 import { prisma } from "@/lib/prisma";
 import { yuklegelTara } from "@/lib/kaynaklar/yuklegel";
 
 async function main() {
+  const kaynak = await prisma.ilanKaynagi.findFirst({
+    where: { tur: "WEB", hedef: "https://yuklegel.com/" },
+    select: { aktif: true },
+  });
+  if (kaynak && !kaynak.aktif) {
+    console.log("[yuklegel] Ayarlar'da duraklatıldı — atlandı");
+    return;
+  }
+
   const r = await yuklegelTara();
   if (r.kotaAtlandi) {
     console.log(

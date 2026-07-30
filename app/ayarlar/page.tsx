@@ -29,6 +29,10 @@ import {
 import { elemeSayaclariOku } from "@/lib/kaynaklar/elemeSayac";
 import { aiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
 import AiMaliyetPaneli from "@/components/AiMaliyetPaneli";
+import {
+  WEB_SITELER,
+  siteKaynaginiGarantiEt,
+} from "@/lib/kaynaklar/siteler/kayit";
 
 function bugunAy(): string {
   const d = new Date();
@@ -53,6 +57,9 @@ function DurumRozeti({ tamam, ad }: { tamam: boolean; ad: string }) {
 
 export default async function AyarlarSayfasi() {
   const ay = bugunAy();
+
+  // Kayıtlı site tarayıcılarını IlanKaynagi'na senkronla (Ayarlar listesinde görünsün)
+  await Promise.all(WEB_SITELER.map((s) => siteKaynaginiGarantiEt(s)));
 
   const [
     hizliAra,
@@ -356,7 +363,10 @@ export default async function AyarlarSayfasi() {
             Diğer yük kaynakları
           </h2>
           <p className="text-sm text-fog">
-            İlan siteleri, AI web araması ve bot eklediğin gruplar.
+            İlan siteleri (yuklegel…), AI araması ve bot grupları. Site
+            Duraklat/Başlat ile aç-kapa; yeni site kodu{" "}
+            <code className="text-paper/80">lib/kaynaklar/siteler/</code> altına
+            eklenir.
           </p>
         </div>
 

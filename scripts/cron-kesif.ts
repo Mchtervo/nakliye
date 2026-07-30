@@ -20,6 +20,7 @@ import {
 } from "@/lib/bolgeler";
 import {
   adaylariDegerlendir,
+  TELEGRAM_UYE,
   type BulunanGrup,
 } from "@/lib/kaynaklar/telegramUye";
 
@@ -164,8 +165,39 @@ async function main() {
     await guvenliKop(client);
   }
 
+  const onceAktif = await prisma.ilanKaynagi.count({
+    where: { tur: TELEGRAM_UYE, durum: "AKTIF", aktif: true },
+  });
+
   const rapor = await adaylariDegerlendir(adaylar);
   console.log(JSON.stringify({ adayHavuz: adaylar.length, ...rapor }));
+
+  const sonraAktif = await prisma.ilanKaynagi.count({
+    where: { tur: TELEGRAM_UYE, durum: "AKTIF", aktif: true },
+  });
+  const katilan = rapor.hazirUyelik + rapor.terfi;
+  const ozet =
+    `Keşif: ${rapor.yeniAday} aday grup bulundu, ` +
+    `${katilan}'sine katıldı, ${onceAktif}→${sonraAktif} grup.`;
+  console.log(`[cron-kesif] ${ozet}`);
+
+  try {
+    const { telegramGonder, telegramKullanilabilir } = await import(
+      "@/lib/bildirim/telegram"
+    );
+    if (
+      tercih.telegramAcik &&
+      tercih.telegramChatId &&
+      telegramKullanilabilir()
+    ) {
+      await telegramGonder(tercih.telegramChatId, ozet);
+    }
+  } catch (e) {
+    console.warn(
+      "[cron-kesif] özet bildirim",
+      e instanceof Error ? e.message : e
+    );
+  }
 
   try {
     const { cikisOnayiIste } = await import("@/lib/kaynaklar/grupTemizlik");
