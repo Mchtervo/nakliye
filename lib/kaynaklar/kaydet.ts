@@ -165,8 +165,13 @@ async function yenileVeBelkiBildir(
   },
   yeniler: KaydedilenIlan[]
 ): Promise<void> {
+  const onceki = await prisma.yukIlani.findUnique({
+    where: { id },
+    select: { bildirildi: true, durum: true },
+  });
   const { revived } = await rotayiYenile(id, ilan, hamMetin, kaynakId, kimlik);
-  if (!revived) return;
+  // ARSIV canlanması VEYA daha önce bildirim tamamlanmamış (TG fail + push OK) → tekrar dene
+  if (!revived && onceki?.bildirildi !== false) return;
   const kayit = await prisma.yukIlani.findUnique({ where: { id } });
   if (!kayit) return;
   yeniler.push({

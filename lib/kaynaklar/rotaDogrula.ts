@@ -41,6 +41,14 @@ export function rotaAyniSatirdaMi(
     }
   }
 
+  // "Esenyurt ➡" + sonraki satır "Aksaray tır" — ok satır sonunda kırılmış
+  for (let i = 0; i < satirlar.length - 1; i++) {
+    const a = satirlar[i];
+    const b = satirlar[i + 1];
+    if (!/[→➡➜▶️►]\s*$/.test(a.trim())) continue;
+    if (yerSatirda(nereden, a) && yerSatirda(nereye, b)) return true;
+  }
+
   // Ortak çıkış: bağlamda çıkış, rota satırında yalnızca varış (başka çıkış ili yok)
   const baglam = satirlar.filter((s) => !rotaSatiriMi(s)).join("\n");
   const cIl = ilBul(nereden);

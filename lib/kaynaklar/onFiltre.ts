@@ -110,6 +110,16 @@ export function rotaSatiriMi(satir: string): boolean {
   ) {
     return illeriBul(satir).length > 0;
   }
+  // Ortak çıkış listeleri: "EDREMİT TIR", "ADANA KAPALI TIR" (tek il + araç)
+  // → rota say ki DÜZCE YÜKLEMELİ + satır varış istisnası çalışsın.
+  if (
+    illeriBul(satir).length === 1 &&
+    /\b(tir|tır|kamyon|kamyonet|dorse|tenteli|kapali|frigo|kirkayak|10\s*teker)\b/i.test(
+      sade
+    )
+  ) {
+    return true;
+  }
   return false;
 }
 
