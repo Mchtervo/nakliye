@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { htmlKacis, telegramGonder, telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { pushGonder, pushKullanilabilir } from "@/lib/bildirim/push";
-import { SUPHE_SINIRI, ilgiliMi } from "@/lib/kaynaklar/filtre";
+import { SUPHE_SINIRI, ilgiliMi, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
 import { tdmKartButonlari } from "@/lib/kaynaklar/telegramDm";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 import { karHesapla } from "@/lib/karHesap";
@@ -15,6 +15,10 @@ export type BildirimSonucu = {
   /** Sessiz saatte beklemeye alınan (sabah özeti). */
   ertelenen: number;
   atlanan: number;
+  /** Bu turda işlenen (deneme artan). */
+  islenen?: number;
+  /** 3 denemede vazgeçilen. */
+  vazgecilen?: number;
 };
 
 /** Gece sessiz: 23:00–07:00 Europe/Istanbul. */
@@ -23,8 +27,14 @@ export function bildirimSessizMi(tarih = new Date()): boolean {
   return saat >= 23 || saat < 7;
 }
 
-/** Sessiz saatte bile giden acil eşik. */
+/** Sessiz saatte bile giden acil eşik (anlık tur — kuyruk gece tamamen bekler). */
 export const BILDIRIM_ACIL_SKOR = 90;
+
+/** Telegram + push birlikte max deneme; aşınca kuyruktan düşer. */
+export const BILDIRIM_MAX_DENEME = 3;
+
+/** Bağımsız tur: tur başına üst sınır. */
+export const BILDIRIM_TUR_LIMIT = 5;
 
 function siteAdresi(): string {
   return (
@@ -81,13 +91,93 @@ export function yeniYukMetni(
   );
 }
 
+function kaydaDon(
+  i: {
+    id: number;
+    firmaAdi: string | null;
+    ilgiliKisi: string | null;
+    telefon: string | null;
+    nereden: string | null;
+    nereye: string | null;
+    cikisIl: string | null;
+    varisIl: string | null;
+    ucret: number | null;
+    fiyatTon: number | null;
+    tonaj: number | null;
+    aracTipi: string | null;
+    aracTipiKod: string | null;
+    guvenSkoru: number;
+    hamMetin: string;
+    donusTalebiId: number | null;
+    createdAt: Date;
+    gonderenUserId?: string | null;
+    kaynakMesajId?: number | null;
+    hamMesajId?: number | null;
+    kaynak?: { ad: string | null } | null;
+  }
+): KaydedilenIlan {
+  return {
+    id: i.id,
+    firmaAdi: i.firmaAdi,
+    ilgiliKisi: i.ilgiliKisi,
+    telefon: i.telefon,
+    nereden: i.nereden,
+    nereye: i.nereye,
+    cikisIl: i.cikisIl,
+    varisIl: i.varisIl,
+    ucret: i.ucret,
+    fiyatTon: i.fiyatTon,
+    tonaj: i.tonaj,
+    aracTipi: i.aracTipi,
+    aracTipiKod: i.aracTipiKod,
+    guvenSkoru: i.guvenSkoru,
+    hamMetin: i.hamMetin,
+    donusTalebiId: i.donusTalebiId,
+    createdAt: i.createdAt,
+    gonderenUserId: i.gonderenUserId ?? null,
+    kaynakMesajId: i.kaynakMesajId ?? null,
+    hamMesajId: i.hamMesajId ?? null,
+    kaynakAd: i.kaynak?.ad ?? null,
+  };
+}
+
 /**
- * Yeni bulunan ilanları bildir — tek kayıt, tek bildirim, iki kanal.
- * WEB kaynak → yok. bildirildi=true → yok. Filtre geçmezse → yok.
- * Gece 23–07 → biriktir (sabah özeti).
+ * Kayıt akışından çağrılır — GÖNDERMEZ.
+ * Bildirim bağımsız cron turunda (bekleyenBildirimleriIsle).
  */
 export async function yukIlanlariniBildir(
   ilanlar: KaydedilenIlan[]
+): Promise<BildirimSonucu> {
+  return {
+    telegram: 0,
+    push: 0,
+    hatalar: [],
+    ertelenen: 0,
+    atlanan: ilanlar.length,
+  };
+}
+
+type KuyrukSatir = {
+  id: number;
+  bildirimDeneme: number;
+  bildirimPush: boolean;
+  guvenSkoru: number;
+  donusTalebiId: number | null;
+  gonderenUserId: string | null;
+  telefon: string | null;
+  kayit: KaydedilenIlan;
+};
+
+/**
+ * Bağımsız bildirim kuyruğu — cron her 5 dk.
+ * - bildirildi=false, deneme < 3, sonGorulme ≤24s, WEB hariç
+ * - koridor+araç (ilgiliMi)
+ * - gece 23–07: gönderme, biriktir (sabah özeti)
+ * - TG fail → bildirildi false; push ayrı bayrak (tekrar push yok)
+ * - ikisi de (açıksa) başarılı → bildirildi=true
+ */
+export async function bekleyenBildirimleriIsle(
+  limit = BILDIRIM_TUR_LIMIT
 ): Promise<BildirimSonucu> {
   const sonuc: BildirimSonucu = {
     telegram: 0,
@@ -95,58 +185,76 @@ export async function yukIlanlariniBildir(
     hatalar: [],
     ertelenen: 0,
     atlanan: 0,
+    islenen: 0,
+    vazgecilen: 0,
   };
-  if (ilanlar.length === 0) return sonuc;
 
-  const ids = ilanlar.map((i) => i.id);
-  const dbSatirlar = await prisma.yukIlani.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      bildirildi: true,
-      guvenSkoru: true,
-      kaynak: { select: { tur: true } },
-    },
-  });
-  const dbMap = new Map(dbSatirlar.map((s) => [s.id, s]));
+  if (bildirimSessizMi()) {
+    const bekleyen = await prisma.yukIlani.count({
+      where: {
+        bildirildi: false,
+        bildirimDeneme: { lt: BILDIRIM_MAX_DENEME },
+        sonGorulme: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        guvenSkoru: { gte: SUPHE_SINIRI },
+        durum: { notIn: ["ARSIV", "ELENDI"] },
+        AND: [webKaynakHaricKosulu()],
+      },
+    });
+    sonuc.ertelenen = bekleyen;
+    return sonuc;
+  }
 
   const tercih = await aiTercihleriOku();
-  const kok = siteAdresi();
-  const sessiz = bildirimSessizMi();
-  const gonderilenIdler: number[] = [];
+  const sinir = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const adayLimit = Math.max(1, Math.min(limit, 20)) * 4;
 
-  const adaylar = ilanlar.filter((i) => {
-    const db = dbMap.get(i.id);
-    if (!db) {
-      sonuc.atlanan += 1;
-      return false;
-    }
-    if (db.bildirildi) {
-      sonuc.atlanan += 1;
-      return false;
-    }
-    if (db.kaynak?.tur === "WEB") {
-      sonuc.atlanan += 1;
-      return false;
-    }
-    if (i.guvenSkoru < SUPHE_SINIRI) {
-      sonuc.atlanan += 1;
-      return false;
-    }
-    if (!ilgiliMi(i, tercih)) {
-      sonuc.atlanan += 1;
-      return false;
-    }
-    return true;
+  const ham = await prisma.yukIlani.findMany({
+    where: {
+      bildirildi: false,
+      bildirimDeneme: { lt: BILDIRIM_MAX_DENEME },
+      sonGorulme: { gte: sinir },
+      guvenSkoru: { gte: SUPHE_SINIRI },
+      durum: { notIn: ["ARSIV", "ELENDI"] },
+      AND: [webKaynakHaricKosulu()],
+    },
+    orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
+    take: adayLimit,
+    include: { kaynak: { select: { ad: true, tur: true } } },
   });
 
-  for (const ilan of adaylar.slice(0, 10)) {
-    if (sessiz && ilan.guvenSkoru < BILDIRIM_ACIL_SKOR) {
-      sonuc.ertelenen += 1;
+  const kuyruk: KuyrukSatir[] = [];
+  for (const i of ham) {
+    const kayit = kaydaDon(i);
+    if (!ilgiliMi(kayit, tercih)) {
+      sonuc.atlanan += 1;
       continue;
     }
+    kuyruk.push({
+      id: i.id,
+      bildirimDeneme: i.bildirimDeneme,
+      bildirimPush: i.bildirimPush,
+      guvenSkoru: i.guvenSkoru,
+      donusTalebiId: i.donusTalebiId,
+      gonderenUserId: i.gonderenUserId,
+      telefon: i.telefon,
+      kayit,
+    });
+    if (kuyruk.length >= Math.max(1, Math.min(limit, 20))) break;
+  }
 
-    const donusMu = Boolean(ilan.donusTalebiId);
+  const kok = siteAdresi();
+  const tgGerekli =
+    tercih.telegramAcik &&
+    Boolean(tercih.telegramChatId) &&
+    telegramKullanilabilir();
+  const pushGerekli = tercih.pushAcik && pushKullanilabilir();
+
+  for (const satir of kuyruk) {
+    sonuc.islenen = (sonuc.islenen || 0) + 1;
+    const deneme = satir.bildirimDeneme + 1;
+    const ilan = satir.kayit;
+
+    const donusMu = Boolean(satir.donusTalebiId);
     const baslik = donusMu ? "Dönüş yükü bulundu" : "Yeni yük bulundu";
     const metinHtml = donusMu
       ? `<b>DÖNÜŞ YÜKÜ</b>\n` + yeniYukMetni(ilan, tercih.maliyet, true)
@@ -154,12 +262,12 @@ export async function yukIlanlariniBildir(
     const metinDuz = yeniYukMetni(ilan, tercih.maliyet, false);
 
     let butonSatirlari: Awaited<ReturnType<typeof tdmKartButonlari>> = null;
-    if (ilan.gonderenUserId || ilan.telefon) {
+    if (satir.gonderenUserId || satir.telefon) {
       try {
         butonSatirlari = await tdmKartButonlari({
-          id: ilan.id,
-          gonderenUserId: ilan.gonderenUserId ?? null,
-          telefon: ilan.telefon,
+          id: satir.id,
+          gonderenUserId: satir.gonderenUserId,
+          telefon: satir.telefon,
         });
       } catch (e) {
         console.warn(
@@ -170,20 +278,14 @@ export async function yukIlanlariniBildir(
     }
 
     const panelUrl = kok
-      ? `${kok}/ai/yukler?sekme=HEPSI&id=${ilan.id}`
+      ? `${kok}/ai/yukler?sekme=HEPSI&id=${satir.id}`
       : null;
-    const panelButon: { metin: string; url: string } | null = panelUrl
+    const panelButon = panelUrl
       ? { metin: "Panelde Aç", url: panelUrl }
       : null;
 
-    let tgOk = false;
-    const tgGerekli =
-      tercih.telegramAcik &&
-      Boolean(tercih.telegramChatId) &&
-      telegramKullanilabilir();
-
+    let tgOk = !tgGerekli; // TG kapalıysa kanal tamam sayılır
     if (tgGerekli && tercih.telegramChatId) {
-      // [Bilgi Sor] (+ varsa) + [Panelde Aç] — tel:/Ara yok (TG 400).
       const satir1 = butonSatirlari?.[0] ? [...butonSatirlari[0]] : [];
       if (panelButon) satir1.push(panelButon);
       const butonlar =
@@ -213,37 +315,55 @@ export async function yukIlanlariniBildir(
       if (cevap.basarili) {
         tgOk = true;
         sonuc.telegram += 1;
-      } else if (cevap.hata) {
-        sonuc.hatalar.push(cevap.hata);
+      } else {
+        tgOk = false;
+        if (cevap.hata) sonuc.hatalar.push(cevap.hata);
       }
     }
 
-    let pushOk = false;
-    if (tercih.pushAcik && pushKullanilabilir()) {
+    let pushOk = satir.bildirimPush || !pushGerekli;
+    if (pushGerekli && !satir.bildirimPush) {
       const cevap = await pushGonder({
         baslik,
         metin: metinDuz.slice(0, 180),
-        url: `/ai/yukler?sekme=HEPSI&id=${ilan.id}`,
+        url: `/ai/yukler?sekme=HEPSI&id=${satir.id}`,
       });
-      sonuc.push += cevap.gonderilen;
-      pushOk = cevap.gonderilen > 0;
-      if (cevap.hata) sonuc.hatalar.push(cevap.hata);
+      if (cevap.gonderilen > 0) {
+        pushOk = true;
+        sonuc.push += cevap.gonderilen;
+      } else {
+        pushOk = false;
+        if (cevap.hata) sonuc.hatalar.push(cevap.hata);
+      }
     }
 
-    // TG açıksa başarısız TG → bildirildi=false kalsın (retry / sabah özeti).
-    // Sadece push başarısı TG hatasını "gönderildi" saymasın.
-    if (tgGerekli) {
-      if (tgOk) gonderilenIdler.push(ilan.id);
-    } else if (pushOk) {
-      gonderilenIdler.push(ilan.id);
-    }
-  }
+    const tamam = tgOk && pushOk;
+    const guncelle: {
+      bildirimDeneme: number;
+      bildirildi?: boolean;
+      bildirimPush?: boolean;
+    } = { bildirimDeneme: deneme };
 
-  if (gonderilenIdler.length > 0) {
-    await prisma.yukIlani.updateMany({
-      where: { id: { in: gonderilenIdler } },
-      data: { bildirildi: true },
+    if (pushOk && !satir.bildirimPush && pushGerekli) {
+      guncelle.bildirimPush = true;
+    }
+    if (tamam) {
+      guncelle.bildirildi = true;
+      if (pushGerekli) guncelle.bildirimPush = true;
+    }
+
+    await prisma.yukIlani.update({
+      where: { id: satir.id },
+      data: guncelle,
     });
+
+    if (!tamam && deneme >= BILDIRIM_MAX_DENEME) {
+      sonuc.vazgecilen = (sonuc.vazgecilen || 0) + 1;
+      console.warn(
+        `[bildirim] vazgeçildi #${satir.id} deneme=${deneme}` +
+          ` tg=${tgOk} push=${pushOk}`
+      );
+    }
   }
 
   return sonuc;
@@ -265,15 +385,13 @@ export async function sabahOzetBildir(): Promise<{
   const bekleyen = await prisma.yukIlani.findMany({
     where: {
       bildirildi: false,
+      bildirimDeneme: { lt: BILDIRIM_MAX_DENEME },
       guvenSkoru: { gte: SUPHE_SINIRI },
-      createdAt: { gte: sinir },
+      sonGorulme: { gte: sinir },
       durum: { in: ["YENI", "ILGILENIYOR"] },
-      OR: [
-        { kaynakId: null },
-        { kaynak: { tur: { not: "WEB" } } },
-      ],
+      AND: [webKaynakHaricKosulu()],
     },
-    orderBy: [{ guvenSkoru: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: 25,
     include: { kaynak: { select: { ad: true, tur: true } } },
   });
@@ -281,33 +399,16 @@ export async function sabahOzetBildir(): Promise<{
   if (bekleyen.length === 0) return { adet: 0, gonderildi: false };
 
   const tercih = await aiTercihleriOku();
-  const uygun = bekleyen.filter((i) =>
-    ilgiliMi(
-      {
-        id: i.id,
-        firmaAdi: i.firmaAdi,
-        ilgiliKisi: i.ilgiliKisi,
-        telefon: i.telefon,
-        nereden: i.nereden,
-        nereye: i.nereye,
-        cikisIl: i.cikisIl,
-        varisIl: i.varisIl,
-        ucret: i.ucret,
-        fiyatTon: i.fiyatTon,
-        tonaj: i.tonaj,
-        aracTipi: i.aracTipi,
-        aracTipiKod: i.aracTipiKod,
-        guvenSkoru: i.guvenSkoru,
-        hamMetin: i.hamMetin,
-        donusTalebiId: i.donusTalebiId,
-        createdAt: i.createdAt,
-        kaynakAd: i.kaynak?.ad ?? null,
-      },
-      tercih
-    )
-  );
+  const uygun = bekleyen
+    .map(kaydaDon)
+    .filter((i) => ilgiliMi(i, tercih));
 
   if (uygun.length === 0) return { adet: 0, gonderildi: false };
+
+  // Sabah: önce özet, sonra aynı turda tek tek de deneyebilir —
+  // özet yeterli; kuyruk 5 dk sonra tek tek de dener. Özet sonrası
+  // işaretleme YOK — bekleyenBildirimleriIsle gün içinde tek tek göndersin.
+  // Kullanıcı "07:05'te tek özet" istedi → özet gönder + bildirildi=true.
 
   const kok = siteAdresi();
   const ozetSatirlar = uygun.slice(0, 12).map((i) => {
@@ -320,30 +421,38 @@ export async function sabahOzetBildir(): Promise<{
     ozetSatirlar.join("\n") +
     (uygun.length > 12 ? `\n… +${uygun.length - 12} daha` : "");
 
+  let tgOk = false;
   if (tercih.telegramAcik && tercih.telegramChatId && telegramKullanilabilir()) {
-    await telegramGonder(
+    const cevap = await telegramGonder(
       tercih.telegramChatId,
       metin,
       kok
         ? [{ metin: "Listeye git", url: `${kok}/ai/yukler` }]
         : undefined
     );
+    tgOk = cevap.basarili;
   }
 
+  let pushOk = false;
   if (tercih.pushAcik && pushKullanilabilir()) {
-    await pushGonder({
+    const cevap = await pushGonder({
       baslik: `Sabah: ${uygun.length} yük`,
       metin: ozetSatirlar[0]?.replace(/<[^>]+>/g, "") || "Gece biriken yükler",
       url: "/ai/yukler",
     });
+    pushOk = cevap.gonderilen > 0;
   }
 
-  await prisma.yukIlani.updateMany({
-    where: { id: { in: uygun.map((i) => i.id) } },
-    data: { bildirildi: true },
-  });
+  // Özet gittiğinde kuyruğu kapat (çift bildirim olmasın).
+  if (tgOk || pushOk) {
+    await prisma.yukIlani.updateMany({
+      where: { id: { in: uygun.map((i) => i.id) } },
+      data: { bildirildi: true, bildirimPush: true },
+    });
+    return { adet: uygun.length, gonderildi: true };
+  }
 
-  return { adet: uygun.length, gonderildi: true };
+  return { adet: uygun.length, gonderildi: false };
 }
 
 /**

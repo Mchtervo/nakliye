@@ -188,6 +188,10 @@ model YukIlani {
   donusTalebiId Int?
   donusTalebi   DonusTalebi? @relation(fields: [donusTalebiId], references: [id], onDelete: SetNull)
   bildirildi    Boolean      @default(false)
+  /** Bağımsız bildirim turu deneme sayısı (max 3). */
+  bildirimDeneme Int         @default(0)
+  /** Push kanalı bu ilan için başarıyla gitti mi (TG retry'da tekrar push yok). */
+  bildirimPush  Boolean      @default(false)
   /** İlanı atan Telegram kullanıcı id (GramJS DM). */
   gonderenUserId String?
   /** Kaynak gruptaki orijinal Telegram mesaj id. */

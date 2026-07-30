@@ -14,6 +14,9 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 # AI kuyruk — 5 dk (AI_KAPALI ise script atlar)
 */5 * * * * /bin/bash $GUVENLI ai-kuyruk.sh
 
+# Bildirim kuyruğu — 5 dk (bildirildi=false → TG+PUSH; gece biriktir)
+*/5 * * * * /bin/bash $GUVENLI bildirim.sh
+
 # Sessiz saat birikimi — sabah 07:05 özet
 5 7 * * * /bin/bash $GUVENLI sabah-ozet.sh
 

@@ -133,7 +133,14 @@ async function rotayiYenile(
       yukTipi: n.yukTipi ?? undefined,
       guvenSkoru: n.guvenSkoru,
       yuklemeTarihi: n.yuklemeTarihi,
-      ...(revived ? { durum: "YENI", bildirildi: false } : {}),
+      ...(revived
+        ? {
+            durum: "YENI",
+            bildirildi: false,
+            bildirimDeneme: 0,
+            bildirimPush: false,
+          }
+        : {}),
       ...(kaynakId ? { kaynakId } : {}),
       ...(kimlik?.gonderenUserId
         ? { gonderenUserId: kimlik.gonderenUserId }
