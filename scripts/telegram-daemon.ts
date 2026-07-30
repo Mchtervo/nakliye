@@ -148,7 +148,10 @@ async function entityBul(client: TelegramClient, k: Kaynak) {
   }
 }
 
-/** Açılışta sonMesajId'den bu yana kaçan mesajları bir kez çeker. */
+/** Açılışta sonMesajId'den bu yana kaçan mesajları bir kez çeker.
+ *  reverse+minId ile eskiden yeniye sayfalar — limit=80 tek pencerede
+ *  ortadaki mesajları atlamaz. sonMesajId her zaman Math.max ile ilerler.
+ */
 async function kacanlariYakala(client: TelegramClient) {
   log(`Catch-up başlıyor (${kaynaklar.size} grup)...`);
   for (const k of kaynaklar.values()) {
@@ -177,58 +180,129 @@ async function kacanlariYakala(client: TelegramClient) {
         continue;
       }
 
-      const mesajlar = await client.getMessages(varlik, {
-        limit: k.sonMesajId ? 80 : ILK_OKUMA_ADEDI,
-        ...(k.sonMesajId ? { minId: k.sonMesajId } : {}),
-      });
-      const metinler = mesajlar
-        .filter((m) => typeof m.message === "string" && m.message.trim())
-        .map((m) => ({
-          mesajId: m.id,
-          metin: m.message as string,
-          entities: m.entities ?? null,
-          gonderenUserId: gonderenUserIdBul(m),
-        }));
-      const enBuyuk = mesajlar.reduce((s, m) => (m.id > s ? m.id : s), 0);
+      const SAYFA = 100;
+      const MAX_SAYFA = 40; // güvenlik: ~4000 mesaj
+      let cursor = k.sonMesajId ?? 0;
+      let toplamMesaj = 0;
+      let toplamKuyruk = 0;
 
-      // Catch-up hasadı
-      try {
-        const { mesajdanHasatEt } = await import("@/lib/kaynaklar/linkHasat");
-        let hasatYeni = 0;
-        for (const m of metinler) {
-          const h = await mesajdanHasatEt(
-            m.metin,
-            { id: k.id, ad: k.ad },
-            m.entities,
-            istemci
-          );
-          hasatYeni += h.yeni;
-          if (h.kisiBot > 0 || h.cozulemedi > 0) {
-            log(
-              `catch-up hasat filtre #${k.id}: grup=${h.grup} kisiBot=${h.kisiBot} cozulemedi=${h.cozulemedi}`
+      if (!k.sonMesajId) {
+        // İlk okuma: en son N mesaj (yeniden eskiye)
+        const mesajlar = await client.getMessages(varlik, {
+          limit: ILK_OKUMA_ADEDI,
+        });
+        const metinler = mesajlar
+          .filter((m) => typeof m.message === "string" && m.message.trim())
+          .map((m) => ({
+            mesajId: m.id,
+            metin: m.message as string,
+            entities: m.entities ?? null,
+            gonderenUserId: gonderenUserIdBul(m),
+          }));
+        const enBuyuk = mesajlar.reduce((s, m) => (m.id > s ? m.id : s), 0);
+
+        try {
+          const { mesajdanHasatEt } = await import("@/lib/kaynaklar/linkHasat");
+          let hasatYeni = 0;
+          for (const m of metinler) {
+            const h = await mesajdanHasatEt(
+              m.metin,
+              { id: k.id, ad: k.ad },
+              m.entities,
+              istemci
             );
+            hasatYeni += h.yeni;
+            if (h.kisiBot > 0 || h.cozulemedi > 0) {
+              log(
+                `catch-up hasat filtre #${k.id}: grup=${h.grup} kisiBot=${h.kisiBot} cozulemedi=${h.cozulemedi}`
+              );
+            }
           }
+          if (hasatYeni > 0) log(`catch-up hasat #${k.id}: +${hasatYeni}`);
+        } catch (e) {
+          uyari("catch-up hasat", e instanceof Error ? e.message : e);
         }
-        if (hasatYeni > 0) log(`catch-up hasat #${k.id}: +${hasatYeni}`);
-      } catch (e) {
-        uyari("catch-up hasat", e instanceof Error ? e.message : e);
+
+        const rapor = await mesajlariKuyrugaAl([
+          {
+            id: k.id,
+            sonMesajId: enBuyuk > 0 ? enBuyuk : k.sonMesajId,
+            mesajlar: metinler.map(({ mesajId, metin, gonderenUserId }) => ({
+              mesajId,
+              metin,
+              gonderenUserId,
+            })),
+          },
+        ]);
+        if (enBuyuk > 0) k.sonMesajId = Math.max(k.sonMesajId ?? 0, enBuyuk);
+        toplamMesaj = metinler.length;
+        toplamKuyruk = rapor.kuyruga;
+      } else {
+        // Restart gap: minId'den itibaren eskiden yeniye sayfala
+        for (let sayfa = 0; sayfa < MAX_SAYFA; sayfa++) {
+          const mesajlar = await client.getMessages(varlik, {
+            limit: SAYFA,
+            minId: cursor,
+            reverse: true,
+          });
+          if (mesajlar.length === 0) break;
+
+          const metinler = mesajlar
+            .filter((m) => typeof m.message === "string" && m.message.trim())
+            .map((m) => ({
+              mesajId: m.id,
+              metin: m.message as string,
+              entities: m.entities ?? null,
+              gonderenUserId: gonderenUserIdBul(m),
+            }));
+          const enBuyuk = mesajlar.reduce((s, m) => (m.id > s ? m.id : s), 0);
+
+          try {
+            const { mesajdanHasatEt } = await import("@/lib/kaynaklar/linkHasat");
+            let hasatYeni = 0;
+            for (const m of metinler) {
+              const h = await mesajdanHasatEt(
+                m.metin,
+                { id: k.id, ad: k.ad },
+                m.entities,
+                istemci
+              );
+              hasatYeni += h.yeni;
+              if (h.kisiBot > 0 || h.cozulemedi > 0) {
+                log(
+                  `catch-up hasat filtre #${k.id}: grup=${h.grup} kisiBot=${h.kisiBot} cozulemedi=${h.cozulemedi}`
+                );
+              }
+            }
+            if (hasatYeni > 0) log(`catch-up hasat #${k.id}: +${hasatYeni}`);
+          } catch (e) {
+            uyari("catch-up hasat", e instanceof Error ? e.message : e);
+          }
+
+          const rapor = await mesajlariKuyrugaAl([
+            {
+              id: k.id,
+              sonMesajId: enBuyuk > 0 ? enBuyuk : cursor,
+              mesajlar: metinler.map(({ mesajId, metin, gonderenUserId }) => ({
+                mesajId,
+                metin,
+                gonderenUserId,
+              })),
+            },
+          ]);
+          toplamMesaj += metinler.length;
+          toplamKuyruk += rapor.kuyruga;
+          if (enBuyuk > 0) {
+            cursor = enBuyuk;
+            k.sonMesajId = Math.max(k.sonMesajId ?? 0, enBuyuk);
+          }
+          if (mesajlar.length < SAYFA) break;
+        }
       }
 
-      const rapor = await mesajlariKuyrugaAl([
-        {
-          id: k.id,
-          sonMesajId: enBuyuk > 0 ? enBuyuk : k.sonMesajId,
-          mesajlar: metinler.map(({ mesajId, metin, gonderenUserId }) => ({
-            mesajId,
-            metin,
-            gonderenUserId,
-          })),
-        },
-      ]);
-      if (enBuyuk > 0) k.sonMesajId = enBuyuk;
-      if (metinler.length > 0) {
+      if (toplamMesaj > 0) {
         log(
-          `catch-up #${k.id}: ${metinler.length} mesaj, kuyruk +${rapor.kuyruga}`
+          `catch-up #${k.id}: ${toplamMesaj} mesaj, kuyruk +${toplamKuyruk}`
         );
       }
     } catch (e) {
@@ -310,7 +384,7 @@ async function mesajiIsle(event: NewMessageEvent) {
         mesajlar: [{ mesajId, metin, gonderenUserId: fromUser }],
       },
     ]);
-    k.sonMesajId = mesajId;
+    k.sonMesajId = Math.max(k.sonMesajId ?? 0, mesajId);
     if (rapor.kuyruga > 0) {
       log(`kuyruk +${rapor.kuyruga} (elenen: ${JSON.stringify(rapor.elenen)})`);
     } else if (Object.keys(rapor.elenen).length > 0) {

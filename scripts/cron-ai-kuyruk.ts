@@ -33,7 +33,21 @@ async function main() {
   }
 
   const rapor = await kuyrugunuCoz(22);
-  console.log(JSON.stringify(rapor));
+  // dedupAtlanan her zaman görünsün (erken dönüşte de 0)
+  console.log(
+    JSON.stringify({
+      islenen: rapor.islenen,
+      yeniIlan: rapor.yeniIlan,
+      dedupAtlanan: rapor.dedupAtlanan ?? 0,
+      bildirilen: rapor.bildirilen,
+      kalan: rapor.kalan,
+      hata: rapor.hata,
+      geceErtelendi: rapor.geceErtelendi,
+      bolgeElenen: rapor.bolgeElenen,
+      cagriSayisi: rapor.cagriSayisi,
+      mesajIdler: rapor.mesajIdler,
+    })
+  );
   if (rapor.kalan === 0) {
     try {
       await kuyrugaBakim();

@@ -59,21 +59,40 @@ function ilanSinyaliVarMi(metin: string): boolean {
   );
 }
 
+/** Kısa mesaj eşiği. Telefondaysa uzunluk yok sayılır. */
+const KISA_ESIK = 25;
+
 /**
  * Mesaj AI'a gönderilmeli mi? Gönderilmemeliyse sebebini döndürür.
  * `hedefIller` boşsa bölge kontrolü yapılmaz.
+ *
+ * `illeriBul` ilçe/semt takma adlarını da çözer (Ostim→Ankara, Gebze→Kocaeli).
+ * Tablo tutmazsa bile rota/telefon/araç sinyali varsa ELEME — AI karar versin;
+ * yanlış eleme, gereksiz AI çağrısından pahalıdır.
  */
 export function elemeSebebi(metin: string, hedefIller: Set<string>): ElemeSebebi {
   const ham = metin.trim();
-  if (ham.length < 15 || ham.length > 3000) return "KISA";
+  const telefonVar = TELEFON_ISARETI.test(ham);
+
+  if (ham.length > 3000) return "KISA";
+  // Telefon VEYA rota/fiyat/araç sinyali varsa kısa olsa da kuyruğa
+  if (ham.length < KISA_ESIK && !telefonVar && !ilanSinyaliVarMi(ham)) {
+    return "KISA";
+  }
 
   const sade = sadelestir(ham);
   if (spamMi(sade)) return "SPAM";
 
   const iller = illeriBul(ham);
-  if (iller.length === 0) return "IL_YOK";
+  const sinyal = ilanSinyaliVarMi(ham);
 
-  if (!ilanSinyaliVarMi(ham)) return "SINYAL_YOK";
+  if (iller.length === 0) {
+    // İlçe tablosu kaçırdıysa / bilinmeyen yer — şüpheliyse kuyruğa
+    if (sinyal) return null;
+    return "IL_YOK";
+  }
+
+  if (!sinyal) return "SINYAL_YOK";
 
   if (hedefIller.size > 0 && !iller.some((il) => hedefIller.has(il))) {
     return "BOLGE_DISI";

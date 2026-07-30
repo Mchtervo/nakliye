@@ -147,6 +147,11 @@ export async function mesajlariKuyrugaAl(
   const ele = (sebep: string, n = 1) => {
     rapor.elenen[sebep] = (rapor.elenen[sebep] ?? 0) + n;
   };
+  /** Daemon log: sayı yetmez, metnin ilk 100 karakteri. */
+  const elemeOrnekLogla = (sebep: string, metin: string) => {
+    const ornek = metin.replace(/\s+/g, " ").trim().slice(0, 100);
+    console.log(`elenen ${sebep}: ${JSON.stringify(ornek)}`);
+  };
 
   const tercih = await aiTercihleriOku();
   const hedefIller = new Set(koridorIlKumesi(tercih.koridorIller));
@@ -158,7 +163,7 @@ export async function mesajlariKuyrugaAl(
   for (const grup of gruplar) {
     const kaynak = await prisma.ilanKaynagi.findUnique({
       where: { id: grup.id },
-      select: { id: true, tur: true },
+      select: { id: true, tur: true, sonMesajId: true },
     });
     if (!kaynak || kaynak.tur !== TELEGRAM_UYE) continue;
 
@@ -166,9 +171,10 @@ export async function mesajlariKuyrugaAl(
     rapor.alinan += grup.mesajlar.length;
 
     const grupElenen: Record<string, number> = {};
-    const eleGrup = (sebep: string, n = 1) => {
+    const eleGrup = (sebep: string, metin: string, n = 1) => {
       ele(sebep, n);
       grupElenen[sebep] = (grupElenen[sebep] ?? 0) + n;
+      elemeOrnekLogla(sebep, metin);
     };
 
     const adaylar: {
@@ -181,7 +187,7 @@ export async function mesajlariKuyrugaAl(
     for (const m of grup.mesajlar.slice(0, 200)) {
       const sebep = elemeSebebi(m.metin, hedefIller);
       if (sebep) {
-        eleGrup(sebep);
+        eleGrup(sebep, m.metin);
         continue;
       }
 
@@ -199,7 +205,7 @@ export async function mesajlariKuyrugaAl(
       rapor.satirAtlanan += secim.atlanan;
 
       if (!secim.metin) {
-        eleGrup("SATIR_TEKRAR");
+        eleGrup("SATIR_TEKRAR", m.metin);
         continue;
       }
 
@@ -207,7 +213,7 @@ export async function mesajlariKuyrugaAl(
       const onDedup = await aiOncesiHazirla(secim.metin);
       if (onDedup.tur === "atla") {
         await sonGorulmeleriYenile(onDedup.yenilenen);
-        eleGrup("ROTA_DEDUP", onDedup.rotaSayisi || 1);
+        eleGrup("ROTA_DEDUP", m.metin, onDedup.rotaSayisi || 1);
         continue;
       }
       if (onDedup.yenilenen.length > 0) {
@@ -217,7 +223,7 @@ export async function mesajlariKuyrugaAl(
       const kuyrukMetin = onDedup.metin;
       const hash = metinHashUret(kuyrukMetin);
       if (adaylar.some((a) => a.hash === hash)) {
-        eleGrup("TEKRAR");
+        eleGrup("TEKRAR", m.metin);
         continue;
       }
 
@@ -296,7 +302,10 @@ export async function mesajlariKuyrugaAl(
         ...(typeof grup.sonMesajId === "number" &&
         grup.sonMesajId > 0 &&
         !entityYok
-          ? { sonMesajId: grup.sonMesajId }
+          ? {
+              // Canlı olay + catch-up yarışı: asla geri alma
+              sonMesajId: Math.max(kaynak.sonMesajId ?? 0, grup.sonMesajId),
+            }
           : {}),
       },
     });
