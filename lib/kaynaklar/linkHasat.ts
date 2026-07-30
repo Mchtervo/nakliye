@@ -6,6 +6,7 @@
 import type { TelegramClient } from "telegram";
 import { prisma } from "@/lib/prisma";
 import { sadelestir } from "@/lib/iller";
+import { yukBasligiMi } from "@/lib/bolgeler";
 import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 import { usernamePeerTipi } from "@/lib/kaynaklar/telegramPeerTip";
 
@@ -144,12 +145,14 @@ export type HasatRaporu = {
   yeni: number;
   mevcut: number;
   atlanan: number;
-  /** Channel/Chat olarak kayda geçen */
+  /** Channel/Chat + nakliye başlığı */
   grup: number;
   /** User/Bot diye atlanan */
   kisiBot: number;
   /** getEntity başarısız — kaydedilmedi */
   cozulemedi: number;
+  /** Tip OK ama başlıkta yük/nakliye yok (veya anlamsız) */
+  baslikEleme: number;
 };
 
 type KaydetOpts = {
@@ -173,6 +176,7 @@ export async function hasatLinkleriniKaydet(
     grup: 0,
     kisiBot: 0,
     cozulemedi: 0,
+    baslikEleme: 0,
   };
   if (linkler.length === 0) return rapor;
 
@@ -207,6 +211,12 @@ export async function hasatLinkleriniKaydet(
       }
       if (tip.tip === "bilinmiyor") {
         rapor.cozulemedi += 1;
+        continue;
+      }
+
+      // Tip OK — başlıkta nakliye terimi şart ("Ğ", petrol kooperatifi ele)
+      if (!yukBasligiMi(tip.baslik)) {
+        rapor.baslikEleme += 1;
         continue;
       }
 
@@ -294,6 +304,7 @@ export async function mesajdanHasatEt(
       grup: 0,
       kisiBot: 0,
       cozulemedi: 0,
+      baslikEleme: 0,
     };
   }
   const rapor = await hasatLinkleriniKaydet(linkler, kaynak, { client });
@@ -306,6 +317,7 @@ export async function mesajdanHasatEt(
       HASAT_KISI_BOT: rapor.kisiBot,
       HASAT_GRUP: rapor.grup,
       HASAT_COZULEMEDI: rapor.cozulemedi,
+      HASAT_BASLIK: rapor.baslikEleme,
     });
   } catch {
     /* sayaç opsiyonel */

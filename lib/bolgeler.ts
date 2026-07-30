@@ -326,10 +326,15 @@ export function koridorBaslikOnceligi(baslik: string): number {
   return puan;
 }
 
-/** Başlık otomatik takibe uygun mu? */
+/** Başlık otomatik takibe / hasata uygun mu? */
 export function yukBasligiMi(baslik: string): boolean {
+  const ham = (baslik || "").trim();
+  if (ham.length < 3) return false;
   if (katilimRedSebebi(baslik)) return false;
-  const sade = sadelestir(baslik);
+  const sade = sadelestir(ham);
+  // "Ğ", emoji-only, anlamsız kısa
+  const harf = sade.replace(/[^a-z0-9]+/g, "");
+  if (harf.length < 3) return false;
   if (!sade) return false;
   return YUK_SADE.some((terim) => sade.includes(terim));
 }

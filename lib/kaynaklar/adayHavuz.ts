@@ -59,11 +59,7 @@ export async function adayHavuzOzeti(
       ozet.red += 1;
       continue;
     }
-    const hasatUsername =
-      Boolean(a.hasatKaynak?.startsWith("Hasat")) &&
-      Boolean(a.kullaniciAdi) &&
-      a.ad.trim().startsWith("@");
-    if (!yukBasligiMi(a.ad) && !hasatUsername) {
+    if (!yukBasligiMi(a.ad)) {
       ozet.baslikEleme += 1;
       continue;
     }
