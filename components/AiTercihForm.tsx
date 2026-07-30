@@ -32,6 +32,7 @@ export default function AiTercihForm({
     tonaj: 26,
   },
   budama = { sessizGun: 4, sifirIlanGun: 5, isabetGun: 7, korumaGun: 4 },
+  sayacBaslangic = "",
 }: {
   sehir: string;
   rotalar: string;
@@ -75,6 +76,8 @@ export default function AiTercihForm({
     isabetGun: number;
     korumaGun: number;
   };
+  /** YYYY-MM-DD — budama sayaç sıfırlama */
+  sayacBaslangic?: string;
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
     aiTercihKaydet,
@@ -542,8 +545,22 @@ export default function AiTercihForm({
         </div>
         <p className="text-xs text-fog">
           Onaysız çıkılmaz. Günde max 3 çıkış, 30 dk ara. Yeni gruba koruma
-          süresi tanınır.
+          süresi tanınır. Sayaç başlangıcından 5 gün geçmeden 0-ilan / isabet
+          kuralları çalışmaz (boru hattı bozukken yanlış budama olmasın).
         </p>
+        <div>
+          <label htmlFor="sayacBaslangic" className="etiket">
+            Sayaç başlangıç (YYYY-MM-DD)
+          </label>
+          <input
+            id="sayacBaslangic"
+            name="sayacBaslangic"
+            type="text"
+            placeholder="2026-07-30"
+            defaultValue={sayacBaslangic}
+            className="alan"
+          />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="budamaSessizGun" className="etiket">

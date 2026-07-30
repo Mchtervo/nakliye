@@ -6,7 +6,7 @@ import { illeriBul, sadelestir } from "@/lib/iller";
  * Asıl maliyet tasarrufu burada: elenen mesaj hiç token harcamaz.
  */
 
-/** Yük ilanı olmayan ama şehir adı geçen mesajlar. */
+/** Yük ilanı olmayan ama şehir adı geçen / çöp mesajlar. */
 const SPAM_KALIPLARI = [
   "evden eve", "ev tasima", "parca esya", "asansorlu", "ceyiz",
   "ogrenci tasima", "personel servis", "oto kurtarma", "cekici hizmet",
@@ -15,6 +15,14 @@ const SPAM_KALIPLARI = [
   "kanalimiza katil", "gruba davet", "reklam", "sponsor",
   "ensest", "ifsa", "sanal yok", "escort", "gizli numara", "sohbet hatti",
   "kripto", "bitcoin", "forex", "bahis", "iddaa", "casino",
+  // Eskort / saatlik-gecelik
+  "saatlik", "gecelik", "saatlik yada", "gecelik yada",
+  "vip bayan", "masoz", "otel oda", "resepsiyon",
+  // Boşta şoför / elden ödeme spam
+  "musaitiz", "müsaitiz", "arkadasiz", "arkadaşız", "elden odeme",
+  "elden ödeme", "yazz", "yazın abiler",
+  // Evden eve hizmet reklamı (nakliyat firması tanıtımı)
+  "7/24", "724 evden", "asansorlu tasima",
 ];
 
 /** İlan sinyali: rota / fiyat / telefon / araç tipi. */
@@ -47,16 +55,25 @@ export function satirHashUret(satir: string): string {
 }
 
 function spamMi(sade: string): boolean {
-  return SPAM_KALIPLARI.some((k) => sade.includes(k));
+  return SPAM_KALIPLARI.some((k) => sade.includes(sadelestir(k)));
 }
 
-function ilanSinyaliVarMi(metin: string): boolean {
+/** Rota / fiyat / telefon / araç — ilan sinyali (keşif + budama paylaşır). */
+export function ilanSinyaliVarMi(metin: string): boolean {
   return (
     ROTA_ISARETI.test(metin) ||
     FIYAT_ISARETI.test(metin) ||
     TELEFON_ISARETI.test(metin) ||
     ARAC_ISARETI.test(metin)
   );
+}
+
+/** Metin listesinde ilan sinyali oranı (0–1). */
+export function ilanSinyalOrani(metinler: string[]): number {
+  const dolu = metinler.map((m) => m.trim()).filter(Boolean);
+  if (dolu.length === 0) return 0;
+  const hit = dolu.filter((m) => ilanSinyaliVarMi(m)).length;
+  return hit / dolu.length;
 }
 
 /** Kısa mesaj eşiği. Telefondaysa uzunluk yok sayılır. */
@@ -73,15 +90,16 @@ const KISA_ESIK = 25;
 export function elemeSebebi(metin: string, hedefIller: Set<string>): ElemeSebebi {
   const ham = metin.trim();
   const telefonVar = TELEFON_ISARETI.test(ham);
+  const sade = sadelestir(ham);
+
+  // Spam önce — kısa eskort/hizmet reklamı IL_YOK/KISA'ya düşmesin
+  if (spamMi(sade)) return "SPAM";
 
   if (ham.length > 3000) return "KISA";
   // Telefon VEYA rota/fiyat/araç sinyali varsa kısa olsa da kuyruğa
   if (ham.length < KISA_ESIK && !telefonVar && !ilanSinyaliVarMi(ham)) {
     return "KISA";
   }
-
-  const sade = sadelestir(ham);
-  if (spamMi(sade)) return "SPAM";
 
   const iller = illeriBul(ham);
   const sinyal = ilanSinyaliVarMi(ham);

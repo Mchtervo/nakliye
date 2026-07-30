@@ -517,6 +517,16 @@ export async function aiTercihKaydet(
   const budamaKoruma = gunSayi("budamaKorumaGun", 4);
   if (typeof budamaKoruma === "object") return budamaKoruma;
 
+  const sayacHam = metinOku(formData.get("sayacBaslangic"));
+  let sayacBaslangic = sayacHam;
+  if (sayacBaslangic && !/^\d{4}-\d{2}-\d{2}$/.test(sayacBaslangic)) {
+    return { hata: kaydedilmedi("sayacBaslangic (YYYY-MM-DD)") };
+  }
+  if (!sayacBaslangic) {
+    const { sayacBaslangicGaranti } = await import("@/lib/ayarlar");
+    sayacBaslangic = await sayacBaslangicGaranti();
+  }
+
   // Max tonaj formu: boşsa istiap (maliyetTonaj) kullan
   const efektifMaxTonaj = maxTonaj || maliyetTonaj;
 
@@ -627,6 +637,10 @@ export async function aiTercihKaydet(
     {
       anahtar: AYAR_ANAHTARLARI.budamaKorumaGun,
       deger: String(budamaKoruma),
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.sayacBaslangic,
+      deger: sayacBaslangic,
     },
   ];
 

@@ -11,6 +11,29 @@ import {
   VARSAYILAN_KORIDOR_ILLER,
 } from "@/lib/koridor";
 import { VARSAYILAN_MALIYET } from "@/lib/karHesap";
+import { bugunAnahtar } from "@/lib/kaynaklar/elemeSayac";
+
+/** Sayaç kuralları için minimum birikim (gün). */
+export const SAYAC_MIN_VERI_GUN = 5;
+
+/**
+ * Sayaç başlangıç tarihi. Yoksa bugünü yazar (bir kerelik sıfırlama).
+ * Dönüş: YYYY-MM-DD (TR günü).
+ */
+export async function sayacBaslangicGaranti(): Promise<string> {
+  const mevcut = await ayarOku(AYAR_ANAHTARLARI.sayacBaslangic);
+  if (mevcut && /^\d{4}-\d{2}-\d{2}$/.test(mevcut.trim())) {
+    return mevcut.trim();
+  }
+  const bugun = bugunAnahtar();
+  await ayarYaz(AYAR_ANAHTARLARI.sayacBaslangic, bugun);
+  return bugun;
+}
+
+/** YYYY-MM-DD → Date (TR günü başlangıcı, UTC+3 geceyarısı ≈ UTC-3 prev day 21:00 — basit: T00:00Z yeter). */
+export function sayacBaslangicDate(isoGun: string): Date {
+  return new Date(`${isoGun.trim()}T00:00:00+03:00`);
+}
 
 export const AYAR_ANAHTARLARI = {
   hizliAraTelefon: "hizli_ara_telefon",
@@ -82,6 +105,11 @@ export const AYAR_ANAHTARLARI = {
   budamaIsabetGun: "budama_isabet_gun",
   /** Budama: yeni gruba koruma (gün) */
   budamaKorumaGun: "budama_koruma_gun",
+  /**
+   * Budama/isabet sayaç başlangıcı (YYYY-MM-DD, TR).
+   * Boru hattı bozukken biriken 0-ilan verisi yok sayılsın.
+   */
+  sayacBaslangic: "sayac_baslangic",
 } as const;
 
 export type AyarAnahtari =
@@ -176,6 +204,11 @@ export type AiTercihleri = {
     isabetGun: number;
     korumaGun: number;
   };
+  /**
+   * Sayaç sıfırlama tarihi (YYYY-MM-DD).
+   * Budama sayaç kuralları bu tarihten +5 gün sonra devreye girer.
+   */
+  sayacBaslangic: string;
 };
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
@@ -213,6 +246,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.budamaSifirIlanGun,
     AYAR_ANAHTARLARI.budamaIsabetGun,
     AYAR_ANAHTARLARI.budamaKorumaGun,
+    AYAR_ANAHTARLARI.sayacBaslangic,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
@@ -331,5 +365,10 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
         Math.round(sayiOku(a[AYAR_ANAHTARLARI.budamaKorumaGun], 4))
       ),
     },
+    sayacBaslangic: (() => {
+      const ham = (a[AYAR_ANAHTARLARI.sayacBaslangic] || "").trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ham)) return ham;
+      return bugunAnahtar();
+    })(),
   };
 }

@@ -170,6 +170,15 @@ export async function mesajlariKuyrugaAl(
     rapor.grup += 1;
     rapor.alinan += grup.mesajlar.length;
 
+    // Ön filtre öncesi tampon — budama konu dışı için
+    if (grup.mesajlar.length > 0) {
+      const { grupSonMesajEkle } = await import("@/lib/kaynaklar/grupSonMesaj");
+      await grupSonMesajEkle(
+        kaynak.id,
+        grup.mesajlar.map((m) => m.metin)
+      ).catch(() => null);
+    }
+
     const grupElenen: Record<string, number> = {};
     const eleGrup = (sebep: string, metin: string, n = 1) => {
       ele(sebep, n);
@@ -979,9 +988,16 @@ export async function grupDurumlari(): Promise<GrupDurumu[]> {
 
   const tercih = await aiTercihleriOku();
   const koridor = new Set(koridorIlKumesi(tercih.koridorIller));
+  const { sayacBaslangicGaranti, sayacBaslangicDate } = await import(
+    "@/lib/ayarlar"
+  );
+  const sayacGun = await sayacBaslangicGaranti();
+  const sayacBas = sayacBaslangicDate(sayacGun);
 
   const dun = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const yediGun = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const yediGunHam = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // İsabet/ilan: sayaçtan eski veri yok say
+  const yediGun = new Date(Math.max(yediGunHam.getTime(), sayacBas.getTime()));
   const ids = gruplar.map((g) => g.id);
   const [
     sonGun,

@@ -352,7 +352,7 @@ async function mesajiIsle(event: NewMessageEvent) {
   if (!k) return;
 
   const mesajId = msg.id;
-  log(`olay grup=#${k.id} msg=${mesajId} from=${fromUser || "?"} len=${metin.length}`);
+  log(`olay grup=#${k.id} "${k.ad}" msg=${mesajId} from=${fromUser || "?"} len=${metin.length}`);
 
   // Link hasadı — filtre öncesi; elenen mesajdaki davet de değerli.
   try {

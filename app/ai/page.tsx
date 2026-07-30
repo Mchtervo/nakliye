@@ -65,6 +65,13 @@ export default async function AiMerkeziSayfasi() {
       renk: "text-teal",
     },
     {
+      href: "/ai/gruplar",
+      baslik: "Grup kalite",
+      aciklama: "İsabet %, 7g mesaj/ilan, trafik dengesi — çöp grupları gör",
+      rozet: null,
+      renk: "text-ember",
+    },
+    {
       href: "/ai/analiz",
       baslik: "Analiz Merkezi",
       aciklama: "Kârlı rota, yakıt, tahsilat ve KDV üzerine günlük değerlendirme",

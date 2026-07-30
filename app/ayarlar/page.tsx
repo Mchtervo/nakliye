@@ -9,7 +9,7 @@ import KaynakForm from "@/components/KaynakForm";
 import PushIzinButonu from "@/components/PushIzinButonu";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import { prisma } from "@/lib/prisma";
-import { aiTercihleriOku, autoDeployEnvAcikMi } from "@/lib/ayarlar";
+import { aiTercihleriOku, autoDeployEnvAcikMi, sayacBaslangicGaranti } from "@/lib/ayarlar";
 import { aiKullanilabilir } from "@/lib/ai/istemci";
 import { telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
@@ -70,6 +70,7 @@ export default async function AyarlarSayfasi() {
     maliyet,
     eleme,
     pushAboneSayisi,
+    sayacBaslangic,
   ] = await Promise.all([
     prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
     aiTercihleriOku(),
@@ -79,7 +80,10 @@ export default async function AyarlarSayfasi() {
     aiMaliyetOzeti(),
     elemeSayaclariOku(),
     prisma.pushAbone.count(),
+    sayacBaslangicGaranti(),
   ]);
+
+  const tercihGuncel = { ...tercih, sayacBaslangic };
 
   const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
   const adaylar = gruplar
@@ -163,6 +167,7 @@ export default async function AyarlarSayfasi() {
           autoDeployEnv={autoDeployEnvAcikMi()}
           maliyet={tercih.maliyet}
           budama={tercih.budama}
+          sayacBaslangic={tercihGuncel.sayacBaslangic}
         />
 
         <TestBildirimButonu />
@@ -195,7 +200,10 @@ export default async function AyarlarSayfasi() {
             t.me / @ grup linkleri ADAY olarak hasat edilir.{" "}
             <span className="text-paper/80">
               İsabet % = 7g rotalarda en az bir uç koridorda.
-            </span>
+            </span>{" "}
+            <a href="/ai/gruplar" className="text-amber underline">
+              Kalite raporu →
+            </a>
           </p>
         </div>
 
