@@ -2,9 +2,12 @@ import { prisma } from "@/lib/prisma";
 import {
   BOS_BOLGE_KIRILIM,
   bolgeKirilimTopla,
-  ilanlariCozumle,
+  bosCozumEle,
+  cozumEleTopla,
+  GUVEN_MIN_KAYIT,
   mesajlariCozumle,
   type BolgeEleKirilim,
+  type CozumEleSayac,
   type CozumFiltre,
   type CozulmusIlan,
   type MesajIlani,
@@ -338,6 +341,21 @@ export async function mesajlariKuyrugaAl(
 
 // --- Kuyruk çözümleme ---------------------------------------------------
 
+/** AI→kayıt funnel — cron JSON'da görünür. */
+export type KayitFunnel = {
+  aiCevapBos: number;
+  rotaYok: number;
+  guvenDusuk: number;
+  satirEle: number;
+  aracRed: number;
+  tonajRed: number;
+  dedupAtlanan: number;
+  bolgeElenen: number;
+  kayitHatasi: number;
+  yeniIlan: number;
+  guvenMinKayit: number;
+};
+
 export type KuyrukRaporu = {
   islenen: number;
   yeniIlan: number;
@@ -352,6 +370,8 @@ export type KuyrukRaporu = {
   cagriSayisi?: number;
   /** Bu turda seçilen ham mesaj id'leri (test tekrarı için). */
   mesajIdler?: number[];
+  /** AI sonrası kayıp kırılımı. */
+  funnel?: KayitFunnel;
 };
 
 type PartiMesaj = { id: number; metin: string };
@@ -394,14 +414,24 @@ async function tekMesajCozumle(
   basarili: number[];
   basarisiz: number[];
   cagri: number;
+  bolgeElenen: number;
+  bolgeKirilim: BolgeEleKirilim;
+  ele: CozumEleSayac;
 }> {
   try {
-    const ilanlar = await ilanlariCozumle(mesaj.metin, kapsam, filtre);
+    const rapor = await mesajlariCozumle(
+      [{ anahtar: mesaj.id, metin: mesaj.metin }],
+      kapsam,
+      filtre
+    );
     return {
-      sonuc: ilanlar.map((ilan) => ({ anahtar: mesaj.id, ilan })),
+      sonuc: rapor.ilanlar,
       basarili: [mesaj.id],
       basarisiz: [],
       cagri: 1,
+      bolgeElenen: rapor.bolgeElenen,
+      bolgeKirilim: rapor.bolgeKirilim,
+      ele: rapor.ele,
     };
   } catch (hata) {
     const { aiSertDurdurma } = await import("@/lib/ai/istemci");
@@ -412,7 +442,15 @@ async function tekMesajCozumle(
       where: { id: mesaj.id },
       data: { hata: metin.slice(0, 300) },
     });
-    return { sonuc: [], basarili: [], basarisiz: [mesaj.id], cagri: 1 };
+    return {
+      sonuc: [],
+      basarili: [],
+      basarisiz: [mesaj.id],
+      cagri: 1,
+      bolgeElenen: 0,
+      bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
+      ele: bosCozumEle(),
+    };
   }
 }
 
@@ -433,6 +471,7 @@ async function bolerekCozumle(
   bolgeElenen: number;
   bolgeKirilim: BolgeEleKirilim;
   cagri: number;
+  ele: CozumEleSayac;
 }> {
   if (parti.length === 0) {
     return {
@@ -442,6 +481,7 @@ async function bolerekCozumle(
       bolgeElenen: 0,
       bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
       cagri: 0,
+      ele: bosCozumEle(),
     };
   }
   if (Date.now() > bitis) {
@@ -452,12 +492,12 @@ async function bolerekCozumle(
       bolgeElenen: 0,
       bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
       cagri: 0,
+      ele: bosCozumEle(),
     };
   }
 
   if (parti.length === 1) {
-    const tek = await tekMesajCozumle(parti[0], kapsam, filtre);
-    return { ...tek, bolgeElenen: 0, bolgeKirilim: { ...BOS_BOLGE_KIRILIM } };
+    return tekMesajCozumle(parti[0]!, kapsam, filtre);
   }
 
   try {
@@ -473,6 +513,7 @@ async function bolerekCozumle(
       bolgeElenen: rapor.bolgeElenen,
       bolgeKirilim: rapor.bolgeKirilim,
       cagri: 1,
+      ele: rapor.ele,
     };
   } catch (hata) {
     const { aiSertDurdurma } = await import("@/lib/ai/istemci");
@@ -499,6 +540,7 @@ async function bolerekCozumle(
       bolgeElenen: sol.bolgeElenen + sag.bolgeElenen,
       bolgeKirilim: bolgeKirilimTopla(sol.bolgeKirilim, sag.bolgeKirilim),
       cagri: sol.cagri + sag.cagri,
+      ele: cozumEleTopla(sol.ele, sag.ele),
     };
   }
 }
@@ -745,6 +787,18 @@ export async function kuyrugunuCoz(
   if (cozum.cagri > 0) {
     await elemeArtir({ AI_CAGRI: cozum.cagri });
   }
+  if (cozum.ele.aiCevapBos > 0) {
+    await elemeArtir({ AI_CEVAP_BOS: cozum.ele.aiCevapBos });
+  }
+  if (cozum.ele.rotaYok > 0) {
+    await elemeArtir({ AI_ROTA_YOK: cozum.ele.rotaYok });
+  }
+  if (cozum.ele.guvenDusuk > 0) {
+    await elemeArtir({ AI_GUVEN_DUSUK: cozum.ele.guvenDusuk });
+  }
+  if (cozum.ele.satirEle > 0) {
+    await elemeArtir({ AI_SATIR_ELE: cozum.ele.satirEle });
+  }
 
   const metinler = new Map(aiParti.map((m) => [m.id, m.metin]));
   const kaynaklar = new Map(aiParti.map((m) => [m.id, m.kaynakId]));
@@ -769,6 +823,12 @@ export async function kuyrugunuCoz(
   let aracElenen = 0;
   let uzakElenen = 0;
   let tonajElenen = 0;
+  let kayitRotaYok = 0;
+  let kayitHatasi = 0;
+  const kaydaAdayMesaj = new Set<number>();
+  const tonajMesaj = new Set<number>();
+  const aracMesaj = new Set<number>();
+  const bolgeMesaj = new Set<number>();
   const istiap = tercih.maliyet.tonaj;
   for (const { anahtar, ilan } of cozulenler) {
     const hamMetin = hamTam.get(anahtar) ?? metinler.get(anahtar) ?? "";
@@ -794,11 +854,25 @@ export async function kuyrugunuCoz(
         { durum: "ELENDI" }
       );
       tonajElenen += 1;
+      tonajMesaj.add(anahtar);
       continue;
     }
     if (!ilanKaydaUygunMu(ilan, tercih, anaUs, koridorSet, hamMetin)) {
-      if (!araciUyuyorMu(ilan, tercih, hamMetin)) aracElenen += 1;
-      else uzakElenen += 1;
+      if (!araciUyuyorMu(ilan, tercih, hamMetin)) {
+        aracElenen += 1;
+        aracMesaj.add(anahtar);
+        console.log(
+          `[kuyruk] aracRed ham=#${anahtar} g=${ilan.guvenSkoru} ` +
+            `${ilan.cikisIl}→${ilan.varisIl} tip=${ilan.aracTipiKod || ilan.aracTipi || "?"}`
+        );
+      } else {
+        uzakElenen += 1;
+        bolgeMesaj.add(anahtar);
+        console.log(
+          `[kuyruk] bolgeRed ham=#${anahtar} g=${ilan.guvenSkoru} ` +
+            `${ilan.cikisIl}→${ilan.varisIl}`
+        );
+      }
       continue;
     }
     const kaynakId = kaynaklar.get(anahtar) ?? null;
@@ -819,6 +893,7 @@ export async function kuyrugunuCoz(
       hamMesajId: anahtar, // HamMesaj.id — kalıcı bağ
     });
     kaynagaGore.set(kaynakId, liste);
+    kaydaAdayMesaj.add(anahtar);
   }
   if (aracElenen > 0) await elemeArtir({ ARAC_TIP: aracElenen });
   if (uzakElenen > 0) await elemeArtir({ BOLGE_ROTA: uzakElenen });
@@ -829,6 +904,8 @@ export async function kuyrugunuCoz(
     const kayit = await ilanlariKaydet(kaynakId, bulunanlar);
     yeniler.push(...kayit.yeniler);
     rapor.dedupAtlanan += kayit.dedupAtlanan;
+    kayitRotaYok += kayit.rotaYok;
+    kayitHatasi += kayit.kayitHatasi;
 
     if (kaynakId && kayit.yeniler.length > 0) {
       await prisma.ilanKaynagi.update({
@@ -838,12 +915,54 @@ export async function kuyrugunuCoz(
     }
   }
 
-  // Başarılılar işlendi. Başarısızlar deneme hakkı varsa kuyrukta kalır;
-  // denemeSayisi > MAX olanlar yukarıda kalıcı HATA yazıldı.
-  if (cozum.basarili.length > 0) {
-    await prisma.hamMesaj.updateMany({
-      where: { id: { in: cozum.basarili } },
-      data: { islendi: true, hata: null },
+  const funnel: KayitFunnel = {
+    aiCevapBos: cozum.ele.aiCevapBos,
+    rotaYok: cozum.ele.rotaYok + kayitRotaYok,
+    guvenDusuk: cozum.ele.guvenDusuk,
+    satirEle: cozum.ele.satirEle,
+    aracRed: aracElenen,
+    tonajRed: tonajElenen,
+    dedupAtlanan: rapor.dedupAtlanan,
+    bolgeElenen: cozum.bolgeElenen + uzakElenen,
+    kayitHatasi,
+    yeniIlan: yeniler.length,
+    guvenMinKayit: GUVEN_MIN_KAYIT,
+  };
+  rapor.funnel = funnel;
+  console.log(`[kuyruk] funnel ${JSON.stringify(funnel)}`);
+
+  // Başarılı AI çağrısı — iz: yeni ilan yoksa hata alanına sebep yaz.
+  const yeniMesaj = new Set(
+    yeniler.map((y) => y.hamMesajId).filter((x): x is number => x != null)
+  );
+  for (const id of cozum.basarili) {
+    let hata: string | null = null;
+    if (yeniMesaj.has(id)) {
+      hata = null;
+    } else if (kaydaAdayMesaj.has(id)) {
+      hata = "Kayıt adayıydı — dedup/yenileme (yeni satır yok)";
+    } else if (tonajMesaj.has(id)) {
+      hata = "Tonaj aşımı → ELENDI kaydı";
+    } else if (aracMesaj.has(id)) {
+      hata = "Araç tipi reddi";
+    } else if (bolgeMesaj.has(id)) {
+      hata = "Koridor/uzak varış reddi";
+    } else if (cozulenler.some((c) => c.anahtar === id)) {
+      hata = "İlan üretildi ama kayıt öncesi elendi";
+    } else if (cozum.ele.aiCevapBos > 0) {
+      hata = "AI boş ilan listesi (koridor dışı / ilan değil)";
+    } else {
+      hata = `AI ilan yok (rota/güven<${GUVEN_MIN_KAYIT}/satır elemesi)`;
+    }
+    const metin = (hamTam.get(id) ?? metinler.get(id) ?? "").slice(0, 80);
+    if (hata) {
+      console.log(
+        `[kuyruk] ham=#${id} hata=${hata} metin=${JSON.stringify(metin)}`
+      );
+    }
+    await prisma.hamMesaj.update({
+      where: { id },
+      data: { islendi: true, hata },
     });
   }
 

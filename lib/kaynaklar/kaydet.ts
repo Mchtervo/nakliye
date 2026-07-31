@@ -35,6 +35,10 @@ export type KaydetRaporu = {
   yeniler: KaydedilenIlan[];
   /** Aynı hash/rota 48s içinde → yenileme, yeni satır yok. */
   dedupAtlanan: number;
+  /** create öncesi cikis/varis yok. */
+  rotaYok: number;
+  /** create catch / unique race dışı hata. */
+  kayitHatasi: number;
 };
 
 /** İlçe→il sonrası normalize (Temelli→Ankara, Gebze→Kocaeli). */
@@ -259,6 +263,8 @@ export async function ilanlariKaydet(
 ): Promise<KaydetRaporu> {
   const yeniler: KaydedilenIlan[] = [];
   let dedupAtlanan = 0;
+  let rotaYok = 0;
+  let kayitHatasi = 0;
   const batchRota = new Set<string>();
   const hedefDurum = opts?.durum || "YENI";
   const elendiMi = hedefDurum === "ELENDI";
@@ -271,7 +277,14 @@ export async function ilanlariKaydet(
     hamMesajId,
   } of bulunanlar) {
     const ilan = ilaniRotaNormalize(hamIlan);
-    if (!ilan.cikisIl || !ilan.varisIl) continue;
+    if (!ilan.cikisIl || !ilan.varisIl) {
+      rotaYok += 1;
+      console.log(
+        `[kaydet] rotaYok hamMesaj=#${hamMesajId ?? "-"} ` +
+          `${ilan.nereden || "?"}→${ilan.nereye || "?"}`
+      );
+      continue;
+    }
 
     const rotaKey = `${ilan.telefon || ""}|${ilan.cikisIl}|${ilan.varisIl}`;
     if (batchRota.has(rotaKey)) {
@@ -427,7 +440,7 @@ export async function ilanlariKaydet(
         kaynakMesajId: kayit.kaynakMesajId,
         hamMesajId: kayit.hamMesajId,
       });
-    } catch {
+    } catch (e) {
       const yarisan = await prisma.yukIlani.findUnique({
         where: { dedupHash },
         select: { id: true },
@@ -453,10 +466,17 @@ export async function ilanlariKaydet(
             yeniler
           );
         }
+      } else {
+        kayitHatasi += 1;
+        console.error(
+          `[kaydet] kayitHatasi hamMesaj=#${hamMesajId ?? "-"} ` +
+            `${ilan.cikisIl}→${ilan.varisIl}: ` +
+            (e instanceof Error ? e.message : e)
+        );
       }
     }
   }
 
-  return { yeniler, dedupAtlanan };
+  return { yeniler, dedupAtlanan, rotaYok, kayitHatasi };
 }
 

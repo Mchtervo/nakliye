@@ -57,7 +57,10 @@ Kurallar:
   X+KDV liste formatı ("VAN 2400+", "900+KDV") → TON_BASI. "komple",
   "navlun", "toplam", "araç" ile verilen tek büyük tutar → KOMPLE.
   Anlaşılmıyorsa ucretTl null ve ucretTuru BELIRSIZ.
-- Ücret "8500", "8.500 TL", "8500tl" gibi yazılabilir; sadece sayıyı ver.
+- Ücret "8500", "8.500 TL", "8500tl" gibi yazılabilir; sadece sayıyı ver
+  (Türkçe binlik: 13.600 = on üç bin altı yüz → 13600). "13.60" gibi
+  iki ondalık genelde 13600 komple navlundur, 13.6 TL/ton DEĞİL.
+  Ton başı genelde 200–5000 TL; komple navlun genelde 2000–150000 TL.
   Ücret yazmıyorsa null bırak.
 - tonaj: yükün ton cinsinden ağırlığı ("24 ton" -> 24). "3 TİR", "10 araç"
   gibi ifadeler ARAÇ ADEDİDİR, tonaj değildir; onları tonaja yazma.
@@ -88,6 +91,70 @@ export type CozulmusIlan = {
   yukTipi: string | null;
   guvenSkoru: number;
 };
+
+/** Kayda alma alt sınırı — panel SUPHE_SINIRI (50) ile karıştırma. */
+export const GUVEN_MIN_KAYIT = 15;
+
+/** AI → kayıt funnel sayaçları (kör kayıp yok). */
+export type CozumEleSayac = {
+  aiCevapBos: number;
+  rotaYok: number;
+  guvenDusuk: number;
+  satirEle: number;
+  bolgeElenen: number;
+  modelCikti: number;
+};
+
+export function bosCozumEle(): CozumEleSayac {
+  return {
+    aiCevapBos: 0,
+    rotaYok: 0,
+    guvenDusuk: 0,
+    satirEle: 0,
+    bolgeElenen: 0,
+    modelCikti: 0,
+  };
+}
+
+export function cozumEleTopla(
+  a: CozumEleSayac,
+  b: CozumEleSayac
+): CozumEleSayac {
+  return {
+    aiCevapBos: a.aiCevapBos + b.aiCevapBos,
+    rotaYok: a.rotaYok + b.rotaYok,
+    guvenDusuk: a.guvenDusuk + b.guvenDusuk,
+    satirEle: a.satirEle + b.satirEle,
+    bolgeElenen: a.bolgeElenen + b.bolgeElenen,
+    modelCikti: a.modelCikti + b.modelCikti,
+  };
+}
+
+/** Komple navlun / ton başı akıl sınırları (TL). */
+export const FIYAT_AKIL = {
+  kompleMin: 2_000,
+  kompleMax: 150_000,
+  tonMin: 200,
+  tonMax: 5_000,
+} as const;
+
+/** Kayıtlı fiyat mantıklı mı? (kuruş cinsinden alanlar) */
+export function fiyatAkliDisiMi(ilan: {
+  ucret: number | null;
+  fiyatTon: number | null;
+  fiyatBelirsiz?: boolean;
+}): boolean {
+  if (ilan.fiyatBelirsiz) return true;
+  if (ilan.ucret != null && ilan.ucret > 0) {
+    const tl = ilan.ucret / 100;
+    if (tl < FIYAT_AKIL.kompleMin || tl > FIYAT_AKIL.kompleMax) return true;
+  }
+  if (ilan.fiyatTon != null && ilan.fiyatTon > 0) {
+    const tl = ilan.fiyatTon / 100;
+    if (tl < FIYAT_AKIL.tonMin || tl > FIYAT_AKIL.tonMax) return true;
+  }
+  return false;
+}
 
 function telefonTemizle(ham: string | null): string | null {
   if (!ham) return null;
@@ -217,8 +284,8 @@ function ilaniNormalize(
     skor = Math.min(skor, 35);
   }
 
-  const fiyat = ucretKurusaCevir(i.ucretTl);
-  const tur = fiyat === null ? null : i.ucretTuru;
+  const fiyatHam = ucretKurusaCevir(i.ucretTl);
+  const turHam = fiyatHam === null ? null : i.ucretTuru;
 
   let firmaAdi = i.firmaAdi?.trim() || null;
   let ilgiliKisi = i.ilgiliKisi?.trim() || null;
@@ -253,6 +320,31 @@ function ilaniNormalize(
   const irtibat = irtibatTelefonuBul(baglam.ham);
   const telefon = irtibat || telefonTemizle(i.telefon);
 
+  // Fiyat akıl kontrolü: 13,60 TL/ton veya 50 TL komple → belirsiz
+  let ucret: number | null = turHam === "KOMPLE" ? fiyatHam : null;
+  let fiyatTon: number | null = turHam === "TON_BASI" ? fiyatHam : null;
+  let fiyatBelirsiz = turHam === "BELIRSIZ" || turHam === null;
+  if (ucret != null) {
+    const tl = ucret / 100;
+    if (tl < FIYAT_AKIL.kompleMin || tl > FIYAT_AKIL.kompleMax) {
+      console.log(
+        `[ilanCozumle] FIYAT_AKIL komple ${tl} TL → belirsiz (${FIYAT_AKIL.kompleMin}–${FIYAT_AKIL.kompleMax})`
+      );
+      ucret = null;
+      fiyatBelirsiz = true;
+    }
+  }
+  if (fiyatTon != null) {
+    const tl = fiyatTon / 100;
+    if (tl < FIYAT_AKIL.tonMin || tl > FIYAT_AKIL.tonMax) {
+      console.log(
+        `[ilanCozumle] FIYAT_AKIL ton ${tl} TL → belirsiz (${FIYAT_AKIL.tonMin}–${FIYAT_AKIL.tonMax})`
+      );
+      fiyatTon = null;
+      fiyatBelirsiz = true;
+    }
+  }
+
   return {
     firmaAdi,
     ilgiliKisi,
@@ -262,9 +354,9 @@ function ilaniNormalize(
     cikisIl,
     varisIl,
     yuklemeTarihi: tarihCevir(i.yuklemeTarihi),
-    ucret: tur === "KOMPLE" ? fiyat : null,
-    fiyatTon: tur === "TON_BASI" ? fiyat : null,
-    fiyatBelirsiz: tur === "BELIRSIZ",
+    ucret,
+    fiyatTon,
+    fiyatBelirsiz,
     tonaj: tonajTemizle(i.tonaj),
     aracTipi: aracTipi || (aracTipiKod ? aracTipiKod : null),
     aracTipiKod,
@@ -276,9 +368,18 @@ function ilaniNormalize(
 /**
  * Kayda alınacak mı? Her iki uç da bilinen ile çözülmeli.
  * Tek uçlu (Çanakkale→?) kayıtlar dedup'u deliyor ve çöp üretiyordu.
+ * Eşik: GUVEN_MIN_KAYIT (15). Panel bildirim/liste: SUPHE_SINIRI (50).
  */
 function kullanilabilirMi(i: CozulmusIlan): boolean {
-  return Boolean(i.cikisIl && i.varisIl) && i.guvenSkoru >= 15;
+  return Boolean(i.cikisIl && i.varisIl) && i.guvenSkoru >= GUVEN_MIN_KAYIT;
+}
+
+function kullanilamazSebebi(
+  i: CozulmusIlan
+): "rotaYok" | "guvenDusuk" | null {
+  if (!i.cikisIl || !i.varisIl) return "rotaYok";
+  if (i.guvenSkoru < GUVEN_MIN_KAYIT) return "guvenDusuk";
+  return null;
 }
 
 /** Aynı il çifti (ilçe→il sonrası) tek kalsın. */
@@ -308,12 +409,17 @@ async function tekParcaCozumle(
   promptIlleri: string[],
   kaynak: string,
   filtre: CozumFiltre = {}
-): Promise<CozulmusIlan[]> {
+): Promise<{ ilanlar: CozulmusIlan[]; ele: CozumEleSayac }> {
   const model = filtre.model || MODEL_HIZLI;
+  const girdi = guvenliKirp(parca, 12000);
+  console.log(
+    `[ilanCozumle] hamGirdi ${kaynak} guvenMin=${GUVEN_MIN_KAYIT}: ` +
+      JSON.stringify(girdi.slice(0, 280))
+  );
   const cikti = await aiJson<IlanCikti>({
     model,
     sistem: `${SISTEM}${kapsamTalimati(promptIlleri)}`,
-    metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${guvenliKirp(parca, 12000)}`,
+    metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${girdi}`,
     semaAdi: "yuk_ilanlari",
     sema: ILAN_LISTESI_SEMASI,
     // nano: minimal yok — none en ucuz geçerli effort
@@ -321,14 +427,32 @@ async function tekParcaCozumle(
     maxCikti: AI_MAX_CIKTI,
     kaynak,
   });
+  console.log(
+    `[ilanCozumle] hamCevap ${kaynak}: ` +
+      JSON.stringify(cikti).slice(0, 500)
+  );
+
+  const ele = bosCozumEle();
+  const hamListe = cikti.ilanlar || [];
+  if (hamListe.length === 0) ele.aiCevapBos += 1;
 
   const baglam = baglamCikar(parca);
   const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
   const sonuc: CozulmusIlan[] = [];
-  for (const ham of cikti.ilanlar || []) {
+  for (const ham of hamListe) {
     const ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null);
-    if (!kullanilabilirMi(ilan)) continue;
+    const sebep = kullanilamazSebebi(ilan);
+    if (sebep) {
+      ele[sebep] += 1;
+      console.log(
+        `[ilanCozumle] ${sebep} g=${ilan.guvenSkoru} ` +
+          `${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
+          `(${ilan.cikisIl || "-"}→${ilan.varisIl || "-"})`
+      );
+      continue;
+    }
     if (!rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, parca)) {
+      ele.satirEle += 1;
       console.log(
         `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
           `(çıkış/varış aynı satırda değil)`
@@ -336,15 +460,18 @@ async function tekParcaCozumle(
       continue;
     }
     if (kapsamDisiMi(ilan, filtreSet)) {
+      ele.bolgeElenen += 1;
+      ele.modelCikti += 1;
       console.log(
         `[ilanCozumle] BÖLGE_ELE ${ilan.cikisIl}→${ilan.varisIl}` +
           ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
       );
       continue;
     }
+    ele.modelCikti += 1;
     sonuc.push(ilan);
   }
-  return rotaNormDedup(sonuc);
+  return { ilanlar: rotaNormDedup(sonuc), ele };
 }
 
 /** Serbest metinden yük ilanlarını çıkarır. Uzun listeler 5'er rota parçalanır. */
@@ -359,12 +486,13 @@ export async function ilanlariCozumle(
 
   const parcalar = mesajiAiParcalarinaBol(metin, AI_MAX_ROTA_PARCA);
   if (parcalar.length <= 1) {
-    return tekParcaCozumle(
+    const r = await tekParcaCozumle(
       metin,
       kapsamIlleri,
       `${onek}ilanCozumle.tek`,
       filtre
     );
+    return r.ilanlar;
   }
 
   const sonuc: CozulmusIlan[] = [];
@@ -375,7 +503,7 @@ export async function ilanlariCozumle(
       `${onek}ilanCozumle.tek.p${i + 1}`,
       filtre
     );
-    sonuc.push(...dilim);
+    sonuc.push(...dilim.ilanlar);
   }
   return sonuc;
 }
@@ -431,6 +559,8 @@ export type MesajCozumRaporu = {
   bolgeKirilim: BolgeEleKirilim;
   /** Modelden gelen toplam ilan (elemeden önce). */
   modelCikti: number;
+  /** Funnel kırılımı. */
+  ele: CozumEleSayac;
 };
 
 /**
@@ -501,6 +631,11 @@ async function partiPaketiCozumle(
   const govde = paket
     .map((m, sira) => `[${sira + 1}]\n${guvenliKirp(m.metin.trim(), 1200)}`)
     .join("\n\n");
+  console.log(
+    `[ilanCozumle] hamGirdi ${kaynak} ids=${paket.map((p) => p.anahtar).join(",")} ` +
+      `guvenMin=${GUVEN_MIN_KAYIT}: ` +
+      JSON.stringify(govde.slice(0, 400))
+  );
 
   const cikti = await aiJson<MesajIlanCikti>({
     model: filtre.model || MODEL_HIZLI,
@@ -516,6 +651,9 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     maxCikti: AI_MAX_CIKTI,
     kaynak,
   });
+  console.log(
+    `[ilanCozumle] hamCevap ${kaynak}: ` + JSON.stringify(cikti).slice(0, 500)
+  );
 
   const baglamlar = paket.map((m) => baglamCikar(m.metin));
   const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
@@ -523,15 +661,27 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
   let bolgeElenen = 0;
   const bolgeKirilim: BolgeEleKirilim = { ...BOS_BOLGE_KIRILIM };
   let modelCikti = 0;
+  const ele = bosCozumEle();
+  const hamListe = cikti.ilanlar || [];
+  if (hamListe.length === 0) ele.aiCevapBos += 1;
 
-  for (const ham of cikti.ilanlar || []) {
+  for (const ham of hamListe) {
     const sira = Math.round(ham.mesajNo) - 1;
     const kaynakMesaj = paket[sira];
     if (!kaynakMesaj) continue;
 
     const ilan = ilaniNormalize(ham, baglamlar[sira], filtre.anaUs ?? null);
-    if (!kullanilabilirMi(ilan)) continue;
+    const sebep = kullanilamazSebebi(ilan);
+    if (sebep) {
+      ele[sebep] += 1;
+      console.log(
+        `[ilanCozumle] ${sebep} g=${ilan.guvenSkoru} ham=#${kaynakMesaj.anahtar} ` +
+          `${ilan.nereden || "?"}→${ilan.nereye || "?"}`
+      );
+      continue;
+    }
     if (!rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, kaynakMesaj.metin)) {
+      ele.satirEle += 1;
       console.log(
         `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
           `(çıkış/varış aynı satırda değil)`
@@ -539,9 +689,11 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
       continue;
     }
     modelCikti += 1;
+    ele.modelCikti += 1;
     const eleTur = bolgeEleTuru(ilan.cikisIl, ilan.varisIl, filtreSet);
     if (eleTur) {
       bolgeElenen += 1;
+      ele.bolgeElenen += 1;
       bolgeKirilim[eleTur] += 1;
       console.log(
         `[ilanCozumle] BÖLGE_ELE ${eleTur} ${ilan.cikisIl}→${ilan.varisIl}` +
@@ -552,7 +704,7 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
   }
 
-  return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti };
+  return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti, ele };
 }
 
 function raporBirlestir(a: MesajCozumRaporu, b: MesajCozumRaporu): MesajCozumRaporu {
@@ -561,6 +713,7 @@ function raporBirlestir(a: MesajCozumRaporu, b: MesajCozumRaporu): MesajCozumRap
     bolgeElenen: a.bolgeElenen + b.bolgeElenen,
     bolgeKirilim: bolgeKirilimTopla(a.bolgeKirilim, b.bolgeKirilim),
     modelCikti: a.modelCikti + b.modelCikti,
+    ele: cozumEleTopla(a.ele, b.ele),
   };
 }
 
@@ -613,24 +766,32 @@ async function paketKesilmeyeDiren(
       console.warn(
         `[ilanCozumle] KESILDI vazgeçildi ${kaynak} — ~${tahmini} rota kaybedildi`
       );
-      return { ilanlar: [], bolgeElenen: 0, bolgeKirilim: { ...BOS_BOLGE_KIRILIM }, modelCikti: 0 };
+      return {
+        ilanlar: [],
+        bolgeElenen: 0,
+        bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
+        modelCikti: 0,
+        ele: bosCozumEle(),
+      };
     }
 
     const ilanlar: MesajIlani[] = [];
     let bolgeElenen = 0;
     let bolgeKirilim: BolgeEleKirilim = { ...BOS_BOLGE_KIRILIM };
     let modelCikti = 0;
+    let ele = bosCozumEle();
     const hedefler = dilimler.length > 1 ? dilimler : [m.metin];
     for (let i = 0; i < hedefler.length; i++) {
       try {
-        const parcaIlanlar = await tekParcaCozumle(
+        const parca = await tekParcaCozumle(
           hedefler[i],
           promptIlleri,
           `${kaynak}.tek${i + 1}`,
           filtre
         );
-        modelCikti += parcaIlanlar.length;
-        for (const ilan of parcaIlanlar) {
+        modelCikti += parca.ilanlar.length;
+        ele = cozumEleTopla(ele, parca.ele);
+        for (const ilan of parca.ilanlar) {
           ilanlar.push({ anahtar: m.anahtar, ilan });
         }
       } catch (e) {
@@ -646,12 +807,13 @@ async function paketKesilmeyeDiren(
           bolgeElenen += alt.bolgeElenen;
           bolgeKirilim = bolgeKirilimTopla(bolgeKirilim, alt.bolgeKirilim);
           modelCikti += alt.modelCikti;
+          ele = cozumEleTopla(ele, alt.ele);
           continue;
         }
         throw e;
       }
     }
-    return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti };
+    return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti, ele };
   }
 }
 
@@ -672,6 +834,7 @@ export async function mesajlariCozumle(
       bolgeElenen: 0,
       bolgeKirilim: { ...BOS_BOLGE_KIRILIM },
       modelCikti: 0,
+      ele: bosCozumEle(),
     };
   }
 
@@ -680,6 +843,7 @@ export async function mesajlariCozumle(
   let bolgeElenen = 0;
   let bolgeKirilim: BolgeEleKirilim = { ...BOS_BOLGE_KIRILIM };
   let modelCikti = 0;
+  let ele = bosCozumEle();
 
   for (let i = 0; i < paketler.length; i++) {
     const kaynak =
@@ -694,16 +858,15 @@ export async function mesajlariCozumle(
     bolgeElenen += rapor.bolgeElenen;
     bolgeKirilim = bolgeKirilimTopla(bolgeKirilim, rapor.bolgeKirilim);
     modelCikti += rapor.modelCikti;
+    ele = cozumEleTopla(ele, rapor.ele);
   }
 
-  if (bolgeElenen > 0) {
+  if (bolgeElenen > 0 || ele.aiCevapBos > 0 || ele.rotaYok > 0) {
     console.log(
-      `[ilanCozumle] bölge dışı rota elendi: ${bolgeElenen}` +
-        ` (çıkış=${bolgeKirilim.cikisDisi} varış=${bolgeKirilim.varisDisi}` +
-        ` ikisi=${bolgeKirilim.ikisiDisi}` +
-        `; kabul: ${ilanlar.length}, model: ${modelCikti})`
+      `[ilanCozumle] ele funnel: ` +
+        JSON.stringify({ ...ele, bolgeKirilim, kabul: ilanlar.length })
     );
   }
 
-  return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti };
+  return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti, ele };
 }

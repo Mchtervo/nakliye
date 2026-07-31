@@ -1,3 +1,4 @@
+import { fiyatAkliDisiMi } from "@/lib/ai/ilanCozumle";
 import { tlYazKisa } from "@/lib/para";
 
 export type FiyatAlanlari = {
@@ -19,8 +20,13 @@ export type FiyatGorunumu = {
 /**
  * "900+KDV" ton başıdır, "38.000" komple. İkisini aynı biçimde yazmak
  * kullanıcıyı 24 kat yanıltıyor; bu yüzden tür her zaman gösterilir.
+ * Akıl dışı tutarlar (₺13/ton, ₺50 komple) → belirsiz.
  */
 export function fiyatGorunumu(ilan: FiyatAlanlari): FiyatGorunumu {
+  if (fiyatAkliDisiMi(ilan) || ilan.fiyatBelirsiz) {
+    return { ana: null, tahmin: null, belirsiz: true };
+  }
+
   if (ilan.fiyatTon !== null && ilan.fiyatTon > 0) {
     const tonaj = ilan.tonaj ?? null;
     return {

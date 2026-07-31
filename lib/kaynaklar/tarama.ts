@@ -73,7 +73,12 @@ export async function kaynaklariTara(limit = 2): Promise<TaramaRaporu> {
     });
 
     const kaydedilen = sonuc.hata
-      ? { yeniler: [] as Awaited<ReturnType<typeof ilanlariKaydet>>["yeniler"], dedupAtlanan: 0 }
+      ? {
+          yeniler: [] as Awaited<ReturnType<typeof ilanlariKaydet>>["yeniler"],
+          dedupAtlanan: 0,
+          rotaYok: 0,
+          kayitHatasi: 0,
+        }
       : await ilanlariKaydet(kaynak.id, sonuc.bulunanlar);
     yeniler.push(...kaydedilen.yeniler);
 

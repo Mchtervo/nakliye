@@ -13,6 +13,7 @@ import {
 import AksiyonButonu from "@/components/AksiyonButonu";
 import IlanAramaCubugu, { type RotaCip } from "@/components/IlanAramaCubugu";
 import IlanKart from "@/components/IlanKart";
+import { fiyatAkliDisiMi } from "@/lib/ai/ilanCozumle";
 import {
   hatAnahtar,
   hatOrtalamalariYukle,
@@ -352,9 +353,41 @@ export default async function AiYuklerSayfasi({
   function karIcin(ilan: (typeof sirali)[0]) {
     const key = hatAnahtar(ilan.cikisIl, ilan.varisIl);
     const hat = key ? hatMap.get(key) : null;
+    // Anlamsız fiyat (₺13/ton vb.) → kâr gösterme
+    if (
+      ilan.fiyatBelirsiz ||
+      fiyatAkliDisiMi(ilan) ||
+      ((!ilan.ucret || ilan.ucret <= 0) &&
+        (!ilan.fiyatTon || ilan.fiyatTon <= 0))
+    ) {
+      const ozet = karHesapla(
+        { ...ilan, ucret: null, fiyatTon: null },
+        tercih.maliyet,
+        hat
+      );
+      const yazi = karOzetYazi(ozet);
+      return {
+        mesafe: yazi.mesafe,
+        yakit: null,
+        hgs: null,
+        net: "fiyat okunamadı",
+        tlKm: null,
+        uyari: null,
+        netPozitif: undefined as boolean | undefined,
+      };
+    }
     const ozet = karHesapla(ilan, tercih.maliyet, hat);
     const yazi = karOzetYazi(ozet);
     if (!yazi.mesafe && !yazi.net) return null;
+    // Negatif net → yanlış fiyat okuması; yanıltma
+    if (ozet.netTl !== null && ozet.netTl < 0) {
+      return {
+        ...yazi,
+        net: "fiyat okunamadı",
+        netPozitif: undefined as boolean | undefined,
+        uyari: "Fiyat akıl dışı — kâr hesaplanmadı",
+      };
+    }
     return {
       ...yazi,
       netPozitif: ozet.netTl === null ? undefined : ozet.netTl >= 0,

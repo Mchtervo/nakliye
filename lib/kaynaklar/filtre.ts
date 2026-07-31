@@ -5,7 +5,11 @@ import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 import { rotaSatiriniBul } from "@/lib/kaynaklar/rotaDogrula";
 
-/** Varsayılan listede gösterilmeyen, "Şüpheli" sekmesine düşen sınır. */
+/**
+ * Bildirim + "Şüpheli" sekmesi eşiği.
+ * Kayıt eşiği ayrı: GUVEN_MIN_KAYIT = 15 (lib/ai/ilanCozumle).
+ * guven 30 → kayda girer, bildirilmez (şüpheli).
+ */
 export const SUPHE_SINIRI = 50;
 
 type AracBilgisi = {
