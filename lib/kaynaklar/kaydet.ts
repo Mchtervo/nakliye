@@ -283,7 +283,8 @@ export async function ilanlariKaydet(
     hamMesajId,
   } of bulunanlar) {
     const ilan = ilaniRotaNormalize(hamIlan);
-    if (!ilan.cikisIl || !ilan.varisIl) {
+    // Varışsız yükleme (CIKIS) serbest; tamamen rotasız değil
+    if (!ilan.cikisIl && !ilan.varisIl) {
       rotaYok += 1;
       console.log(
         `[kaydet] rotaYok hamMesaj=#${hamMesajId ?? "-"} ` +
@@ -291,16 +292,27 @@ export async function ilanlariKaydet(
       );
       continue;
     }
+    if (!ilan.cikisIl) {
+      rotaYok += 1;
+      console.log(
+        `[kaydet] rotaYok (çıkış yok) hamMesaj=#${hamMesajId ?? "-"} ` +
+          `→${ilan.varisIl || "?"}`
+      );
+      continue;
+    }
 
-    const rotaKey = `${ilan.telefon || ""}|${ilan.cikisIl}|${ilan.varisIl}`;
+    const rotaKey = `${ilan.telefon || ""}|${ilan.cikisIl}|${ilan.varisIl || "_"}`;
     if (batchRota.has(rotaKey)) {
       dedupAtlanan += 1;
       continue;
     }
-    const rotaSonek = `|${ilan.cikisIl}|${ilan.varisIl}`;
-    if ([...batchRota].some((k) => k.endsWith(rotaSonek))) {
-      dedupAtlanan += 1;
-      continue;
+    // Tam rota çiftlerinde aynı çift tekrarını atla; varışsızları atlama
+    if (ilan.varisIl) {
+      const rotaSonek = `|${ilan.cikisIl}|${ilan.varisIl}`;
+      if ([...batchRota].some((k) => k.endsWith(rotaSonek))) {
+        dedupAtlanan += 1;
+        continue;
+      }
     }
     batchRota.add(rotaKey);
 
@@ -321,7 +333,10 @@ export async function ilanlariKaydet(
             sonGorulme: new Date(),
             tonaj: ilan.tonaj ?? undefined,
             hamMetin: guvenliKirp(
-              `[tonaj aşımı] ${hamMetin}`.slice(0, 4000),
+              (hamMetin.startsWith("[")
+                ? hamMetin
+                : `[elendi] ${hamMetin}`
+              ).slice(0, 4000),
               4000
             ),
           },
@@ -351,7 +366,10 @@ export async function ilanlariKaydet(
             sonGorulme: new Date(),
             tonaj: ilan.tonaj ?? undefined,
             hamMetin: guvenliKirp(
-              `[tonaj aşımı] ${hamMetin}`.slice(0, 4000),
+              (hamMetin.startsWith("[")
+                ? hamMetin
+                : `[elendi] ${hamMetin}`
+              ).slice(0, 4000),
               4000
             ),
           },
@@ -378,7 +396,9 @@ export async function ilanlariKaydet(
         data: {
           kaynakId,
           hamMetin: guvenliKirp(
-            elendiMi ? `[tonaj aşımı] ${hamMetin}` : hamMetin,
+            elendiMi && !hamMetin.startsWith("[")
+              ? `[elendi] ${hamMetin}`
+              : hamMetin,
             4000
           ),
           firmaAdi: ilan.firmaAdi,

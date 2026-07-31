@@ -20,6 +20,9 @@ import {
   AI_MAX_ROTA_PARCA,
   mesajiAiParcalarinaBol,
   rotaSatirSayisi,
+  satirlaraBol,
+  telefonVarMi,
+  yuklemeIfadesiVarMi,
 } from "@/lib/kaynaklar/onFiltre";
 import { rotaAyniSatirdaMi } from "@/lib/kaynaklar/rotaDogrula";
 import { irtibatTelefonuBul } from "@/lib/kaynaklar/onDedup";
@@ -44,10 +47,11 @@ Kurallar:
   "Çanakkale kırkayak" → nereye=null, aracTipi=kırkayak.
 - "Ankara > Bolu", "Ankara-Bolu", "Ankaradan Boluya" gibi yazımların hepsi
   çıkış ve varış demektir.
-- SATIR KURALI (SERT): Bir rotanın çıkışı ve varışı AYNI satırda olmalı.
-  Farklı satırlardan yer birleştirme YASAK. Örnek YANLIŞ: satır1
-  "KÜTAHYA - KIRIKKALE", satır2 "TEKİRDAĞ - BOLU" iken
-  "Kırıkkale→Bolu" birleştirme. Her ilanın fiyatı da KENDİ satırından gelir.
+- SATIR KURALI: Bir rotanın çıkışı ve varışı AYNI satırda olmalı.
+  Farklı satırlardan yer birleştirme YASAK.
+- YÜKLEME İLANI: "ANKARA YÜKLEME", "GEBZE YÜKLEMELİ", "çıkışlı" =
+  çıkış o il, varış BİLİNMİYOR → nereye=null, nereden=il.
+  Bunları atlama; telefon varsa özellikle yaz.
 - ÇOK GÜZERGAHLI MESAJ: Bir mesajda birden çok güzergah listelenmiş olabilir
   ("ÇAN'DAN: VAN 2400+, KONYA 850+, MERSİN 1100+"). Her satırı AYRI ilan yap.
   Ortak çıkış yerini (başlık satırı) hepsine uygula ama bir satırın varışını
@@ -423,32 +427,67 @@ function ilaniNormalize(
 }
 
 /**
- * Kayda alınacak mı? Her iki uç da bilinen ile çözülmeli.
- * Tek uçlu (Çanakkale→?) kayıtlar dedup'u deliyor ve çöp üretiyordu.
+ * Kayda alınacak mı?
+ * İki uç VEYA (çıkış + telefon — varışsız yükleme).
  * Eşik: GUVEN_MIN_KAYIT (15). Panel bildirim/liste: SUPHE_SINIRI (50).
  */
 function kullanilabilirMi(i: CozulmusIlan): boolean {
-  return Boolean(i.cikisIl && i.varisIl) && i.guvenSkoru >= GUVEN_MIN_KAYIT;
+  if (i.guvenSkoru < GUVEN_MIN_KAYIT) return false;
+  if (i.cikisIl && i.varisIl) return true;
+  // Varışsız yükleme — telefon varsa kaydet (kullanıcı arar)
+  if (i.cikisIl && i.telefon) return true;
+  return false;
 }
 
 function kullanilamazSebebi(
   i: CozulmusIlan
 ): "rotaYok" | "guvenDusuk" | null {
-  if (!i.cikisIl || !i.varisIl) return "rotaYok";
   if (i.guvenSkoru < GUVEN_MIN_KAYIT) return "guvenDusuk";
-  return null;
+  if (i.cikisIl && i.varisIl) return null;
+  if (i.cikisIl && i.telefon) return null;
+  return "rotaYok";
 }
 
-/** Aynı il çifti (ilçe→il sonrası) tek kalsın. */
+/** Aynı il çifti (ilçe→il sonrası) tek kalsın; varışsız da tekil. */
 function rotaNormDedup(ilanlar: CozulmusIlan[]): CozulmusIlan[] {
   const map = new Map<string, CozulmusIlan>();
   for (const i of ilanlar) {
-    if (!i.cikisIl || !i.varisIl) continue;
-    const k = `${i.telefon || ""}|${i.cikisIl}|${i.varisIl}`;
+    if (!i.cikisIl) continue;
+    const k = `${i.telefon || ""}|${i.cikisIl}|${i.varisIl || "_"}`;
     const eski = map.get(k);
     if (!eski || i.guvenSkoru > eski.guvenSkoru) map.set(k, i);
   }
   return [...map.values()];
+}
+
+/**
+ * Satır elemesi / eksik rota yerine kurtar:
+ * telefon + koridor ili + yükleme → varışsız CIKIS kaydı.
+ */
+function yuklemeOlarakKurtar(
+  ilan: CozulmusIlan,
+  ham: string,
+  koridor: Set<string>
+): CozulmusIlan | null {
+  if (!telefonVarMi(ham) && !ilan.telefon) return null;
+  const cikis = ilan.cikisIl || ilBul(ilan.nereden);
+  if (!cikis || !koridor.has(cikis)) return null;
+  // Yükleme ifadesi satırda veya tüm metinde
+  const satirOk =
+    yuklemeIfadesiVarMi(ham) ||
+    yuklemeIfadesiVarMi(ilan.nereden || "") ||
+    !ilan.varisIl;
+  if (!satirOk && ilan.varisIl) return null;
+  return {
+    ...ilan,
+    cikisIl: cikis,
+    nereden: ilan.nereden || cikis,
+    varisIl: null,
+    nereye: null,
+    koridorTipi: "CIKIS",
+    guvenSkoru: Math.min(Math.max(ilan.guvenSkoru, GUVEN_MIN_KAYIT), 40),
+    telefon: ilan.telefon,
+  };
 }
 
 export type CozumFiltre = {
@@ -497,28 +536,70 @@ async function tekParcaCozumle(
   const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
   const sonuc: CozulmusIlan[] = [];
   for (const ham of hamListe) {
-    const ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null);
-    const sebep = kullanilamazSebebi(ilan);
-    if (sebep) {
-      ele[sebep] += 1;
-      console.log(
-        `[ilanCozumle] ${sebep} g=${ilan.guvenSkoru} ` +
-          `${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
-          `(${ilan.cikisIl || "-"}→${ilan.varisIl || "-"})`
-      );
-      continue;
+    let ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null);
+    if (!ilan.telefon) ilan.telefon = irtibatTelefonuBul(parca);
+
+    let sebep = kullanilamazSebebi(ilan);
+    if (sebep === "rotaYok") {
+      const kurtar = yuklemeOlarakKurtar(ilan, parca, filtreSet);
+      if (kurtar) {
+        ilan = kurtar;
+        sebep = null;
+        console.log(
+          `[ilanCozumle] YUKLEME_KURTAR ${ilan.cikisIl} (varış yok)`
+        );
+      }
     }
-    if (!rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, parca)) {
-      ele.satirEle += 1;
-      console.log(
-        `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
-          `(çıkış/varış aynı satırda değil)`
-      );
-      continue;
+    if (sebep) {
+      // Telefon + koridor ili → düşük güvenle yine de dene
+      const kurtar = yuklemeOlarakKurtar(ilan, parca, filtreSet);
+      if (kurtar) {
+        ilan = kurtar;
+      } else {
+        ele[sebep] += 1;
+        console.log(
+          `[ilanCozumle] ${sebep} g=${ilan.guvenSkoru} ` +
+            `${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
+            `(${ilan.cikisIl || "-"}→${ilan.varisIl || "-"})`
+        );
+        continue;
+      }
+    }
+    if (
+      ilan.varisIl &&
+      !rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, parca)
+    ) {
+      const kurtar = yuklemeOlarakKurtar(ilan, parca, filtreSet);
+      if (kurtar) {
+        ilan = kurtar;
+        console.log(
+          `[ilanCozumle] SATIR→YUKLEME ${ilan.cikisIl} (satır elemesi yerine)`
+        );
+      } else if (ilan.telefon && ilan.cikisIl && filtreSet.has(ilan.cikisIl)) {
+        // Telefon + koridor — atma, düşük güven
+        ilan.guvenSkoru = Math.min(ilan.guvenSkoru, 35);
+        console.log(
+          `[ilanCozumle] SATIR_GEVSEK ${ilan.cikisIl}→${ilan.varisIl} g=${ilan.guvenSkoru}`
+        );
+      } else {
+        ele.satirEle += 1;
+        console.log(
+          `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
+            `(çıkış/varış aynı satırda değil)`
+        );
+        continue;
+      }
     }
     const { ele: kapsamEle, tip } = kapsamEleVeTip(ilan, filtreSet);
     ele.modelCikti += 1;
     if (kapsamEle === "DISI") {
+      // Telefon + koridor çıkış → yükleme kurtar
+      const kurtar = yuklemeOlarakKurtar(ilan, parca, filtreSet);
+      if (kurtar) {
+        sonuc.push(kurtar);
+        console.log(`[ilanCozumle] DISI→YUKLEME ${kurtar.cikisIl}`);
+        continue;
+      }
       ele.bolgeElenen += 1;
       console.log(
         `[ilanCozumle] BÖLGE_ELE DISI ${ilan.cikisIl}→${ilan.varisIl}` +
@@ -527,6 +608,13 @@ async function tekParcaCozumle(
       continue;
     }
     if (kapsamEle === "CIKIS") {
+      // Varış null → kaydet; varış dışarıda biliniyorsa sadece say
+      if (!ilan.varisIl) {
+        ilan.koridorTipi = "CIKIS";
+        console.log(`[ilanCozumle] koridor=CIKIS(yükleme) ${ilan.cikisIl}`);
+        sonuc.push(ilan);
+        continue;
+      }
       ele.cikisSay += 1;
       console.log(
         `[ilanCozumle] CIKIS_SAY ${ilan.cikisIl}→${ilan.varisIl}` +
@@ -535,9 +623,16 @@ async function tekParcaCozumle(
       continue;
     }
     console.log(
-      `[ilanCozumle] koridor=${tip} ${ilan.cikisIl}→${ilan.varisIl}`
+      `[ilanCozumle] koridor=${tip} ${ilan.cikisIl}→${ilan.varisIl || "?"}`
     );
     sonuc.push(ilan);
+  }
+  // AI kaç/kaçırdı → yükleme kurtarma
+  if (sonuc.length === 0 && (telefonVarMi(parca) || irtibatTelefonuBul(parca))) {
+    for (const ilan of yuklemeIlanlariMetinden(parca, filtreSet)) {
+      sonuc.push(ilan);
+      console.log(`[ilanCozumle] METIN_KURTAR ${ilan.cikisIl}`);
+    }
   }
   return { ilanlar: rotaNormDedup(sonuc), ele };
 }
@@ -641,9 +736,10 @@ function kapsamTalimati(iller: string[]): string {
 
 KAPSAM (KORİDOR):
 - VARIŞ şu illerden biriyse ilanı YAZ (çıkış dışarıda olsa da —
-  ör. Elazığ→Ankara, Van→İstanbul = dönüş yükü, değerlidir).
-- Sadece ÇIKIŞ listede olup VARIŞ dışarıdaysa (Ankara→İzmir,
-  İstanbul→Antalya) HİÇ yazma.
+  ör. Elazığ→Ankara = dönüş yükü).
+- "ANKARA YÜKLEME" / çıkışlı (varış yok) → YAZ, nereye=null.
+- Sadece ÇIKIŞ listede + VARIŞ bilinen dışarıdaysa (Ankara→İzmir)
+  HİÇ yazma.
 - İki uç da dışarıdaysa yazma.
 İller: ${iller.join(", ")}
 İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul,
@@ -651,8 +747,9 @@ Yahşihan→Kırıkkale, Gölbaşı→Ankara, Cerrahpaşa→İstanbul).`;
 }
 
 /**
- * Kayda alınmayacak koridor tipi mi? DISI + CIKIS elenir;
- * TAM + VARIS geçer (koridorTipi set edilir).
+ * Kayda alınmayacak mı?
+ * DISI elenir; CIKIS+varış bilinen dış elenir (sadece say);
+ * CIKIS+varış null ve TAM/VARIS geçer.
  */
 function kapsamEleVeTip(
   ilan: CozulmusIlan,
@@ -661,7 +758,8 @@ function kapsamEleVeTip(
   const tip = koridorTipiBelirle(iller, ilan.cikisIl, ilan.varisIl);
   ilan.koridorTipi = tip;
   if (tip === "DISI") return { ele: "DISI", tip };
-  if (tip === "CIKIS") return { ele: "CIKIS", tip };
+  // CIKIS + bilinen dış varış → say, kaydetme; varışsız → kaydet
+  if (tip === "CIKIS" && ilan.varisIl) return { ele: "CIKIS", tip };
   return { ele: null, tip };
 }
 
@@ -747,28 +845,55 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     const kaynakMesaj = paket[sira];
     if (!kaynakMesaj) continue;
 
-    const ilan = ilaniNormalize(ham, baglamlar[sira], filtre.anaUs ?? null);
-    const sebep = kullanilamazSebebi(ilan);
+    let ilan = ilaniNormalize(ham, baglamlar[sira], filtre.anaUs ?? null);
+    if (!ilan.telefon) ilan.telefon = irtibatTelefonuBul(kaynakMesaj.metin);
+
+    let sebep = kullanilamazSebebi(ilan);
     if (sebep) {
-      ele[sebep] += 1;
-      console.log(
-        `[ilanCozumle] ${sebep} g=${ilan.guvenSkoru} ham=#${kaynakMesaj.anahtar} ` +
-          `${ilan.nereden || "?"}→${ilan.nereye || "?"}`
-      );
-      continue;
+      const kurtar = yuklemeOlarakKurtar(ilan, kaynakMesaj.metin, filtreSet);
+      if (kurtar) {
+        ilan = kurtar;
+        sebep = null;
+      } else {
+        ele[sebep] += 1;
+        console.log(
+          `[ilanCozumle] ${sebep} g=${ilan.guvenSkoru} ham=#${kaynakMesaj.anahtar} ` +
+            `${ilan.nereden || "?"}→${ilan.nereye || "?"}`
+        );
+        continue;
+      }
     }
-    if (!rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, kaynakMesaj.metin)) {
-      ele.satirEle += 1;
-      console.log(
-        `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
-          `(çıkış/varış aynı satırda değil)`
-      );
-      continue;
+    if (
+      ilan.varisIl &&
+      !rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, kaynakMesaj.metin)
+    ) {
+      const kurtar = yuklemeOlarakKurtar(ilan, kaynakMesaj.metin, filtreSet);
+      if (kurtar) {
+        ilan = kurtar;
+      } else if (
+        ilan.telefon &&
+        ilan.cikisIl &&
+        filtreSet.has(ilan.cikisIl)
+      ) {
+        ilan.guvenSkoru = Math.min(ilan.guvenSkoru, 35);
+      } else {
+        ele.satirEle += 1;
+        console.log(
+          `[ilanCozumle] SATIR_ELE ${ilan.nereden || "?"}→${ilan.nereye || "?"} ` +
+            `(çıkış/varış aynı satırda değil)`
+        );
+        continue;
+      }
     }
     modelCikti += 1;
     ele.modelCikti += 1;
     const { ele: kapsamEle, tip } = kapsamEleVeTip(ilan, filtreSet);
     if (kapsamEle === "DISI") {
+      const kurtar = yuklemeOlarakKurtar(ilan, kaynakMesaj.metin, filtreSet);
+      if (kurtar) {
+        ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan: kurtar });
+        continue;
+      }
       bolgeElenen += 1;
       ele.bolgeElenen += 1;
       bolgeKirilim.ikisiDisi += 1;
@@ -779,8 +904,13 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
       continue;
     }
     if (kapsamEle === "CIKIS") {
+      if (!ilan.varisIl) {
+        ilan.koridorTipi = "CIKIS";
+        ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
+        continue;
+      }
       ele.cikisSay += 1;
-      bolgeKirilim.varisDisi += 1; // çıkış OK, varış dışı
+      bolgeKirilim.varisDisi += 1;
       console.log(
         `[ilanCozumle] CIKIS_SAY ${ilan.cikisIl}→${ilan.varisIl}` +
           ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
@@ -788,16 +918,77 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
       continue;
     }
     if (tip === "VARIS") {
-      bolgeKirilim.cikisDisi += 1; // bilgi: dönüş adayı (kayda alındı)
+      bolgeKirilim.cikisDisi += 1;
     }
     console.log(
       `[ilanCozumle] koridor=${tip} ham=#${kaynakMesaj.anahtar} ` +
-        `${ilan.cikisIl}→${ilan.varisIl}`
+        `${ilan.cikisIl}→${ilan.varisIl || "?"}`
     );
     ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
   }
 
+  // AI boş / hepsi elendi ama telefon+koridor yükleme var → kurtar
+  for (const m of paket) {
+    if (ilanlar.some((x) => x.anahtar === m.anahtar)) continue;
+    if (!telefonVarMi(m.metin) && !irtibatTelefonuBul(m.metin)) continue;
+    const kurtarilan = yuklemeIlanlariMetinden(m.metin, filtreSet);
+    for (const ilan of kurtarilan) {
+      ilanlar.push({ anahtar: m.anahtar, ilan });
+      console.log(
+        `[ilanCozumle] METIN_KURTAR ham=#${m.anahtar} ${ilan.cikisIl}`
+      );
+    }
+  }
+
   return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti, ele };
+}
+
+/**
+ * Ham metinden "ANKARA YÜKLEME" satırlarını çıkar (AI kaçırdıysa).
+ */
+export function yuklemeIlanlariMetinden(
+  metin: string,
+  koridor: Set<string>
+): CozulmusIlan[] {
+  const tel =
+    irtibatTelefonuBul(metin) ||
+    telefonTemizle(
+      (metin.match(
+        /(?:\+?90|0)\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/
+      ) || [])[0] || null
+    );
+  if (!tel && !telefonVarMi(metin)) return [];
+  const sonuc: CozulmusIlan[] = [];
+  const gorulen = new Set<string>();
+  for (const satir of satirlaraBol(metin)) {
+    if (!yuklemeIfadesiVarMi(satir)) continue;
+    const iller = illeriBul(satir).filter((il) => koridor.has(il));
+    for (const il of iller) {
+      if (gorulen.has(il)) continue;
+      gorulen.add(il);
+      sonuc.push({
+        firmaAdi: null,
+        ilgiliKisi: null,
+        telefon: tel,
+        nereden: il,
+        nereye: null,
+        cikisIl: il,
+        varisIl: null,
+        yuklemeTarihi: null,
+        ucret: null,
+        fiyatTon: null,
+        fiyatBelirsiz: true,
+        tonaj: null,
+        aracTipi: /tenteli|13[.,]?60/i.test(metin) ? "tenteli" : null,
+        aracTipiKod: /tenteli|13[.,]?60/i.test(metin) ? "TENTELI" : null,
+        aracUzunluk: /13[.,]?60/.test(metin) ? 13.6 : null,
+        koridorTipi: "CIKIS",
+        yukTipi: null,
+        guvenSkoru: 40,
+      });
+    }
+  }
+  return sonuc;
 }
 
 function raporBirlestir(a: MesajCozumRaporu, b: MesajCozumRaporu): MesajCozumRaporu {

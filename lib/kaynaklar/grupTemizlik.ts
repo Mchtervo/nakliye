@@ -95,9 +95,9 @@ async function ertelemeYaz(map: Record<string, string>): Promise<void> {
     if (Number.isFinite(t) && t > simdi) temiz[id] = iso;
   }
   if (Object.keys(temiz).length === 0) {
-    await prisma.ayar
-      .delete({ where: { anahtar: GRUP_CIKIS_ERTELEME_ANAHTAR } })
-      .catch(() => null);
+    await prisma.ayar.deleteMany({
+      where: { anahtar: GRUP_CIKIS_ERTELEME_ANAHTAR },
+    });
     return;
   }
   await prisma.ayar.upsert({
@@ -441,9 +441,9 @@ export async function cikisOnayOku(): Promise<CikisOnayKayit> {
 
 async function onayYaz(d: CikisOnayKayit | null): Promise<void> {
   if (!d || d.tur === "bos") {
-    await prisma.ayar
-      .delete({ where: { anahtar: GRUP_CIKIS_ONAY_ANAHTAR } })
-      .catch(() => null);
+    await prisma.ayar.deleteMany({
+      where: { anahtar: GRUP_CIKIS_ONAY_ANAHTAR },
+    });
     return;
   }
   await prisma.ayar.upsert({
@@ -467,9 +467,9 @@ export async function cikisKuyrukOku(): Promise<CikisKuyrukKayit> {
 
 async function kuyrukYaz(d: CikisKuyrukKayit): Promise<void> {
   if (d.idler.length === 0) {
-    await prisma.ayar
-      .delete({ where: { anahtar: GRUP_CIKIS_KUYRUK_ANAHTAR } })
-      .catch(() => null);
+    await prisma.ayar.deleteMany({
+      where: { anahtar: GRUP_CIKIS_KUYRUK_ANAHTAR },
+    });
     return;
   }
   await prisma.ayar.upsert({
@@ -498,8 +498,8 @@ export async function cikisOnayiIste(): Promise<{
   );
   if (adaylar.length === 0) return { aday: 0, gonderildi: false };
 
-  // Tek grup — rakamlı mesaj + [Evet][Hayır][3 gün daha]
-  const dilim = adaylar.slice(0, 1);
+  // Tüm adaylar tek onayda (max 12 — Telegram mesaj boyutu)
+  const dilim = adaylar.slice(0, 12);
   await onayYaz({
     tur: "bekliyor",
     adaylar: dilim,
@@ -512,20 +512,25 @@ export async function cikisOnayiIste(): Promise<{
     return { aday: dilim.length, gonderildi: false };
   }
 
-  const a = dilim[0]!;
-  const isabetYazi =
-    a.isabetYuzde !== null ? `isabet %${a.isabetYuzde}` : "isabet —";
-  const gunYazi = a.pencereGun > 0 ? `${a.pencereGun} günde` : "şimdi";
+  const satirlar = dilim.map((a, i) => {
+    const isabetYazi =
+      a.isabetYuzde !== null ? `isabet %${a.isabetYuzde}` : "isabet —";
+    const gunYazi = a.pencereGun > 0 ? `${a.pencereGun}g` : "şimdi";
+    return (
+      `${i + 1}) #${a.id} ${htmlKacis(a.ad)}` +
+      `${a.kullaniciAdi ? ` (@${htmlKacis(a.kullaniciAdi)})` : ""}\n` +
+      `   ${gunYazi} ${a.mesajSayisi} msg, ${a.ilanSayisi} ilan, ${isabetYazi}\n` +
+      `   → ${htmlKacis(a.sebep)}`
+    );
+  });
+
   const metin =
-    `<b>Grup çıkış onayı</b>\n` +
-    `#${a.id} ${htmlKacis(a.ad)}` +
-    `${a.kullaniciAdi ? ` (@${htmlKacis(a.kullaniciAdi)})` : ""}\n` +
-    `${gunYazi} ${a.mesajSayisi} mesaj, ${a.ilanSayisi} ilan, ${isabetYazi}.\n` +
-    `→ ${htmlKacis(a.sebep)}\n\n` +
-    `Çıkalım mı?`;
+    `<b>Grup çıkış onayı</b> (${dilim.length} aday)\n\n` +
+    satirlar.join("\n\n") +
+    `\n\nHepsi için çıkalım mı?`;
 
   await telegramGonder(tercih.telegramChatId, metin, [
-    { metin: "Evet", callback: "gcik:evet" },
+    { metin: "Evet (hepsi)", callback: "gcik:evet" },
     { metin: "Hayır", callback: "gcik:hayir" },
     { metin: "3 gün daha bekle", callback: "gcik:bekle" },
   ]);
@@ -559,10 +564,9 @@ export async function cikisOnayiniIsle(
     }
     await ertelemeYaz(map);
     await onayYaz(null);
-    const ad = mevcut.adaylar[0]?.ad || "Grup";
     return {
       ok: true,
-      mesaj: `${ad} — ${ERTELEME_GUN} gün ertelendi, tekrar sorulmayacak.`,
+      mesaj: `${mevcut.adaylar.length} grup — ${ERTELEME_GUN} gün ertelendi, tekrar sorulmayacak.`,
     };
   }
 

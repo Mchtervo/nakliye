@@ -134,11 +134,26 @@ export function elemeSebebi(metin: string, hedefIller: Set<string>): ElemeSebebi
  * Boş ve çok kısa satırlar atılır.
  */
 export function satirlaraBol(metin: string): string[] {
-  // Satır sonu yoksa emoji/bullet başlarını da ayırıcı say.
+  // Satır sonu yoksa emoji/bullet/pipe başlarını da ayırıcı say.
+  // "ANKARA YÜKLEME | GEBZE YÜKLEME | …" tek satırda kalmasın.
   const parcalar = metin
-    .replace(/([📍🚛🚚⛔✨⭐🟡🔴🏀✈️▶️👉•●▪])/g, "\n$1")
+    .replace(/\|/g, "\n")
+    .replace(/([📍🚛🚚⛔✨⭐🟡🔴🏀✈️▶️👉•●▪✅🔸])/g, "\n$1")
     .split("\n");
   return parcalar.map((s) => s.trim()).filter((s) => s.length >= 6);
+}
+
+/** "ANKARA YÜKLEME" / "çıkışlı" / "yüklemeli" — varışsız çıkış sinyali. */
+const YUKLEME_KALIP =
+  /\b(yukleme|yükleme|yuklemeli|yüklemeli|cikisli|çıkışlı|cikis\b|çıkış\b)\b/i;
+
+export function yuklemeIfadesiVarMi(metin: string): boolean {
+  return YUKLEME_KALIP.test(metin);
+}
+
+/** Telefon regex — kurtarma / kayıt felsefesi için. */
+export function telefonVarMi(metin: string): boolean {
+  return TELEFON_ISARETI.test(metin);
 }
 
 /**

@@ -466,7 +466,7 @@ function ilanKaydaUygunMu(
   hamMetin?: string
 ): boolean {
   if (!araciUyuyorMu(ilan, tercih, hamMetin)) return false;
-  if (!ilan.cikisIl || !ilan.varisIl) return false;
+  if (!ilan.cikisIl) return false;
 
   const tip =
     ilan.koridorTipi ||
@@ -476,7 +476,8 @@ function ilanKaydaUygunMu(
     return false;
   }
 
-  if (anaUs) {
+  // Varışsız yükleme — uzak kontrol yok
+  if (ilan.varisIl && anaUs) {
     const km = yaklasikKarayoluKm(anaUs, ilan.varisIl);
     if (km !== null && km > VARIS_UZA_KM) return false;
   }
@@ -969,20 +970,19 @@ export async function kuyrugunuCoz(
   const istiap = tercih.maliyet.tonaj;
   for (const { anahtar, ilan } of cozulenler) {
     const hamMetin = hamTam.get(anahtar) ?? metinler.get(anahtar) ?? "";
-    // Tonaj aşımı → kaydet ama ELENDI (sebep hamMetin öneki + durum)
+    // Tonaj aşımı → kaydet ELENDI (Şüpheli'de görünsün)
     if (
       ilan.tonaj != null &&
       ilan.tonaj > istiap &&
-      ilan.cikisIl &&
-      ilan.varisIl
+      ilan.cikisIl
     ) {
       const kaynakId = kaynaklar.get(anahtar) ?? null;
       await ilanlariKaydet(
         kaynakId,
         [
           {
-            ilan,
-            hamMetin,
+            ilan: { ...ilan, guvenSkoru: Math.min(ilan.guvenSkoru, 40) },
+            hamMetin: `[tonaj aşımı] ${hamMetin}`,
             gonderenUserId: gonderenler.get(anahtar) ?? null,
             kaynakMesajId: kaynakMesajlar.get(anahtar) ?? null,
             hamMesajId: anahtar,
@@ -996,11 +996,30 @@ export async function kuyrugunuCoz(
     }
     if (!ilanKaydaUygunMu(ilan, tercih, anaUs, koridorSet, hamMetin)) {
       if (!araciUyuyorMu(ilan, tercih, hamMetin)) {
+        // Araç reddi → yine kaydet (ELENDI), Şüpheli'de görünsün
+        const kaynakId = kaynaklar.get(anahtar) ?? null;
+        const elenen = {
+          ...ilan,
+          guvenSkoru: Math.min(ilan.guvenSkoru, 40),
+        };
+        await ilanlariKaydet(
+          kaynakId,
+          [
+            {
+              ilan: elenen,
+              hamMetin: `[araç tipi] ${hamMetin}`,
+              gonderenUserId: gonderenler.get(anahtar) ?? null,
+              kaynakMesajId: kaynakMesajlar.get(anahtar) ?? null,
+              hamMesajId: anahtar,
+            },
+          ],
+          { durum: "ELENDI" }
+        );
         aracElenen += 1;
         aracMesaj.add(anahtar);
         console.log(
-          `[kuyruk] aracRed ham=#${anahtar} g=${ilan.guvenSkoru} ` +
-            `${ilan.cikisIl}→${ilan.varisIl} tip=${ilan.aracTipiKod || ilan.aracTipi || "?"}`
+          `[kuyruk] aracRed→ELENDI ham=#${anahtar} g=${elenen.guvenSkoru} ` +
+            `${ilan.cikisIl}→${ilan.varisIl || "?"} tip=${ilan.aracTipiKod || ilan.aracTipi || "?"}`
         );
       } else {
         const tip = koridorTipiBelirle(
@@ -1008,7 +1027,7 @@ export async function kuyrugunuCoz(
           ilan.cikisIl,
           ilan.varisIl
         );
-        if (tip === "CIKIS") {
+        if (tip === "CIKIS" && ilan.varisIl) {
           cikisMesaj.add(anahtar);
           console.log(
             `[kuyruk] cikisSay ham=#${anahtar} g=${ilan.guvenSkoru} ` +
@@ -1019,7 +1038,7 @@ export async function kuyrugunuCoz(
           bolgeMesaj.add(anahtar);
           console.log(
             `[kuyruk] bolgeRed ham=#${anahtar} g=${ilan.guvenSkoru} ` +
-              `${ilan.cikisIl}→${ilan.varisIl} tip=${tip}`
+              `${ilan.cikisIl}→${ilan.varisIl || "?"} tip=${tip}`
           );
         }
       }
@@ -1118,7 +1137,7 @@ export async function kuyrugunuCoz(
       hata = "Tonaj aşımı → ELENDI kaydı";
       ata(id, "tonajRed");
     } else if (aracMesaj.has(id)) {
-      hata = "Araç tipi reddi";
+      hata = "Araç tipi → ELENDI kaydı (Şüpheli)";
       ata(id, "aracRed");
     } else if (cikisMesaj.has(id)) {
       hata = "Koridor CIKIS — sadece sayıldı, kaydedilmedi";

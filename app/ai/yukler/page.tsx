@@ -158,7 +158,12 @@ export default async function AiYuklerSayfasi({
   // Bilgi Sor / Ara sonrası durum ILETISIME_GECILDI oluyor, Yeni'de 0 kalıyordu.
   let tabanFiltre: Prisma.YukIlaniWhereInput =
     sekme === "SUPHELI"
-      ? { guvenSkoru: { lt: SUPHE_SINIRI } }
+      ? {
+          OR: [
+            { guvenSkoru: { lt: SUPHE_SINIRI }, durum: { not: "ARSIV" } },
+            { durum: "ELENDI" },
+          ],
+        }
       : sekme === "HEPSI"
         ? {
             guvenSkoru: { gte: SUPHE_SINIRI },
@@ -231,18 +236,28 @@ export default async function AiYuklerSayfasi({
                   { sonGorulme: { gte: tazeSinir } },
                 ],
               },
-              { durum: { notIn: ["ELENDI"] } },
+              ...(sekme === "SUPHELI"
+                ? []
+                : [{ durum: { notIn: ["ELENDI"] } }]),
             ],
           },
         ],
       }
-    : {
-        OR: [
-          { createdAt: { gte: tazeSinir } },
-          { sonGorulme: { gte: tazeSinir } },
-        ],
-        durum: { notIn: ["ARSIV", "ELENDI"] },
-      };
+    : sekme === "SUPHELI"
+      ? {
+          OR: [
+            { createdAt: { gte: tazeSinir } },
+            { sonGorulme: { gte: tazeSinir } },
+          ],
+          durum: { not: "ARSIV" },
+        }
+      : {
+          OR: [
+            { createdAt: { gte: tazeSinir } },
+            { sonGorulme: { gte: tazeSinir } },
+          ],
+          durum: { notIn: ["ARSIV", "ELENDI"] },
+        };
 
   const filtre: Prisma.YukIlaniWhereInput = {
     AND: [tabanFiltre, rotaKosul, tazelikKosul, webKaynakHaricKosulu()],
@@ -293,8 +308,19 @@ export default async function AiYuklerSayfasi({
       prisma.yukIlani.count({
         where: {
           AND: [
-            { guvenSkoru: { lt: SUPHE_SINIRI } },
-            sayacTazelik,
+            {
+              OR: [
+                { guvenSkoru: { lt: SUPHE_SINIRI }, durum: { not: "ARSIV" } },
+                { durum: "ELENDI" },
+              ],
+            },
+            {
+              OR: [
+                { createdAt: { gte: tazeSinir } },
+                { sonGorulme: { gte: tazeSinir } },
+              ],
+              durum: { not: "ARSIV" },
+            },
             webKaynakHaricKosulu(),
           ],
         },

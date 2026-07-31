@@ -50,7 +50,8 @@ export function koridorIlKumesi(
  * Koridor sınıflandırması:
  * - TAM   = çıkış VE varış koridorda → bildirim + Yeni sekmesi
  * - VARIS = sadece varış koridorda (Elazığ→Ankara) → Dönüş sekmesi, bildirim yok
- * - CIKIS = sadece çıkış koridorda → kaydetme, sadece say
+ * - CIKIS = sadece çıkış / varış belirsiz yükleme → kaydet, "varış belirtilmemiş"
+ *           (bilinen varış koridor dışıysa kaydetme — sadece say)
  * - DISI  = ikisi de dışarıda → kaydetme
  */
 export type KoridorTipi = "TAM" | "VARIS" | "CIKIS" | "DISI";
@@ -67,9 +68,12 @@ export function koridorTipiBelirle(
   if (kapsam.size === 0) return "TAM"; // filtre kapalı
   const cikis = ilBul(cikisIl);
   const varis = ilBul(varisIl);
-  if (!cikis || !varis) return "DISI";
-  const cOk = kapsam.has(cikis);
-  const vOk = kapsam.has(varis);
+  if (!cikis && !varis) return "DISI";
+  // Varış yok: koridor çıkışlı yükleme ilanı
+  if (cikis && !varis) return kapsam.has(cikis) ? "CIKIS" : "DISI";
+  if (!cikis && varis) return kapsam.has(varis) ? "VARIS" : "DISI";
+  const cOk = kapsam.has(cikis!);
+  const vOk = kapsam.has(varis!);
   if (cOk && vOk) return "TAM";
   if (vOk) return "VARIS";
   if (cOk) return "CIKIS";
@@ -85,14 +89,20 @@ export function koridoraUyuyorMu(
   return koridorTipiBelirle(koridorIller, cikisIl, varisIl) === "TAM";
 }
 
-/** Kayda alınır mı? TAM + VARIS (dönüş). CIKIS/DISI hayır. */
+/**
+ * Kayda alınır mı?
+ * TAM + VARIS + CIKIS(varış null = yükleme).
+ * CIKIS + bilinen dış varış (Ankara→İzmir) → hayır.
+ */
 export function koridorKaydaAlinirMi(
   koridorIller: string[] | Set<string> | null | undefined,
   cikisIl: string | null | undefined,
   varisIl: string | null | undefined
 ): boolean {
   const tip = koridorTipiBelirle(koridorIller, cikisIl, varisIl);
-  return tip === "TAM" || tip === "VARIS";
+  if (tip === "TAM" || tip === "VARIS") return true;
+  if (tip === "CIKIS" && !ilBul(varisIl)) return true;
+  return false;
 }
 
 /** Panel placeholder / doğrulama için. */

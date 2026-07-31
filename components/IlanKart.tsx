@@ -64,7 +64,9 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
   const [menuAcik, setMenuAcik] = useState(false);
 
   const fiyat = fiyatGorunumu(ilan);
-  const rota = `${ilan.nereden || ilan.cikisIl || "?"} → ${ilan.nereye || ilan.varisIl || "?"}`;
+  const rota = `${ilan.nereden || ilan.cikisIl || "?"} → ${
+    ilan.nereye || ilan.varisIl || "varış belirtilmemiş"
+  }`;
   const createdAt =
     typeof ilan.createdAt === "string"
       ? new Date(ilan.createdAt)
@@ -236,6 +238,9 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         ilan.durum === "PAZARLIKTA" ||
         ilan.donusTalebiId ||
         ilan.koridorTipi === "VARIS" ||
+        ilan.koridorTipi === "CIKIS" ||
+        !ilan.varisIl ||
+        ilan.durum === "ELENDI" ||
         ilan.aracUzunluk != null ||
         aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod)) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -262,6 +267,16 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
           {(ilan.donusTalebiId || ilan.koridorTipi === "VARIS") && (
             <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
               Dönüş yükü
+            </span>
+          )}
+          {(ilan.koridorTipi === "CIKIS" || !ilan.varisIl) && ilan.cikisIl && (
+            <span className="rounded-md bg-amber/15 px-2 py-0.5 text-xs font-semibold text-amber">
+              Varış belirtilmemiş
+            </span>
+          )}
+          {ilan.durum === "ELENDI" && (
+            <span className="rounded-md bg-ember/15 px-2 py-0.5 text-xs font-semibold text-ember">
+              Elenmiş
             </span>
           )}
           {ilan.aracUzunluk != null && (

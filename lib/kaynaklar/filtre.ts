@@ -134,8 +134,19 @@ export function tercihKosulu(tercih: AiTercihleri) {
 
   const iller = koridorIlKumesi(tercih.koridorIller);
   if (iller.length > 0) {
-    kosullar.push({ cikisIl: { in: iller } });
-    kosullar.push({ varisIl: { in: iller } });
+    // TAM (iki uç) VEYA varışsız koridor yükleme (CIKIS)
+    kosullar.push({
+      OR: [
+        { AND: [{ cikisIl: { in: iller } }, { varisIl: { in: iller } }] },
+        {
+          AND: [
+            { cikisIl: { in: iller } },
+            { varisIl: null },
+            { koridorTipi: "CIKIS" },
+          ],
+        },
+      ],
+    });
   }
 
   return { AND: kosullar };
