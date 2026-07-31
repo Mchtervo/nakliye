@@ -12,7 +12,12 @@ import { TELEGRAM_UYE } from "@/lib/kaynaklar/telegramUye";
 import { telegramGonder, htmlKacis } from "@/lib/bildirim/telegram";
 import { bugunAnahtar } from "@/lib/kaynaklar/elemeSayac";
 import { grupSonMesajToplu } from "@/lib/kaynaklar/grupSonMesaj";
+import { grupOkumaToplu } from "@/lib/kaynaklar/grupOkumaSayac";
 import { ilanSinyaliVarMi } from "@/lib/kaynaklar/onFiltre";
+
+/** Bugün çekilen ≥100 ve SPAM+IL_YOK > %80 → 5g kuralını atla. */
+const COP_MIN_CEKILEN = 100;
+const COP_ORAN_ESIK = 0.8;
 
 export const GRUP_CIKIS_ONAY_ANAHTAR = "grup_cikis_onay";
 export const GRUP_CIKIS_KUYRUK_ANAHTAR = "grup_cikis_kuyruk";
@@ -149,7 +154,11 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
     },
   });
 
-  const sonMesajMap = await grupSonMesajToplu(gruplar.map((g) => g.id));
+  const grupIds = gruplar.map((g) => g.id);
+  const [sonMesajMap, okumaMap] = await Promise.all([
+    grupSonMesajToplu(grupIds),
+    grupOkumaToplu(grupIds),
+  ]);
   const adaylar: CikisAdayi[] = [];
 
   for (const g of gruplar) {
@@ -240,7 +249,28 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
       continue;
     }
 
+    // 2b) Çöp oran istisnası — SPAM+IL_YOK > %80 (çekilen ≥100) → 5g ATLA
+    const okuma = okumaMap.get(g.id);
+    if (okuma && okuma.cekilen >= COP_MIN_CEKILEN) {
+      const cop =
+        (okuma.elenen.SPAM ?? 0) + (okuma.elenen.IL_YOK ?? 0);
+      const oran = cop / okuma.cekilen;
+      if (oran > COP_ORAN_ESIK) {
+        adaylar.push({
+          ...base,
+          sebep:
+            `çöp %${Math.round(oran * 100)} ` +
+            `(SPAM+IL_YOK=${cop}/${okuma.cekilen}) — 5g atlandı`,
+          pencereGun: 0,
+          mesajSayisi: okuma.cekilen,
+          ilanSayisi: ilanSayactan,
+        });
+        continue;
+      }
+    }
+
     // Sayaç tabanlı kurallar: 5 gün veri birikmeden aday yok
+    // (çöp / isabet%0 istisnaları yukarıda ve aşağıda)
     if (!sayacHazir) continue;
 
     // 3) sifirIlanGun mesaj var, 0 ilan (sayaçtan beri)
@@ -268,8 +298,10 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
     }
   }
 
-  // 5) Düşük koridor isabet — sadece sayaç hazırsa
-  if (sayacHazir) {
+  // 5) Düşük koridor isabet
+  // - sayaç hazır: isabet <%20
+  // - sayaç değil: sadece isabet %0 + pencerede 0 ilan (5g atla)
+  {
     const isabetAday = await dusukIsabetCikisAdaylari(
       gruplar
         .filter((g) => (simdi - g.createdAt.getTime()) / GUN_MS >= korumaGun)
@@ -281,10 +313,20 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
         .map((g) => g.id),
       koridor,
       isabetSinir,
-      isabetGun
+      isabetGun,
+      { sadeceSifirIsabet: !sayacHazir }
     );
     for (const a of isabetAday) {
-      if (!adaylar.some((x) => x.id === a.id)) adaylar.push(a);
+      if (!adaylar.some((x) => x.id === a.id)) {
+        if (!sayacHazir) {
+          adaylar.push({
+            ...a,
+            sebep: `isabet %0 + ${isabetGun}g 0 ilan — 5g atlandı`,
+          });
+        } else {
+          adaylar.push(a);
+        }
+      }
     }
   }
 
@@ -296,12 +338,13 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
   });
 }
 
-/** İsabet <%20 + pencerede yeterli mesaj → çıkış adayı. */
+/** İsabet düşük + pencerede yeterli mesaj → çıkış adayı. */
 async function dusukIsabetCikisAdaylari(
   kaynakIds: number[],
   koridor: Set<string>,
   pencereBas: Date,
-  pencereGun: number
+  pencereGun: number,
+  secenek: { sadeceSifirIsabet?: boolean } = {}
 ): Promise<CikisAdayi[]> {
   if (kaynakIds.length === 0) return [];
 
@@ -322,7 +365,10 @@ async function dusukIsabetCikisAdaylari(
     }),
     prisma.yukIlani.groupBy({
       by: ["kaynakId"],
-      where: { kaynakId: { in: kaynakIds } },
+      where: {
+        kaynakId: { in: kaynakIds },
+        createdAt: { gte: pencereBas },
+      },
       _count: { _all: true },
     }),
   ]);
@@ -357,7 +403,13 @@ async function dusukIsabetCikisAdaylari(
   for (const [id, slot] of isabetMap) {
     if (slot.mesaj < 20 || slot.toplam < 5) continue;
     const yuzde = Math.round((100 * slot.hit) / slot.toplam);
-    if (yuzde >= 20) continue;
+    const ilanAdet = ilanMap.get(id) ?? 0;
+    if (secenek.sadeceSifirIsabet) {
+      // 5g atlama: yalnızca %0 isabet + pencerede 0 ilan
+      if (yuzde !== 0 || ilanAdet > 0) continue;
+    } else if (yuzde >= 20) {
+      continue;
+    }
     const g = grupMap.get(id);
     if (!g) continue;
     sonuc.push({
@@ -368,7 +420,7 @@ async function dusukIsabetCikisAdaylari(
       sebep: `isabet %${yuzde} (${pencereGun}g ${slot.mesaj} mesaj)`,
       pencereGun,
       mesajSayisi: slot.mesaj,
-      ilanSayisi: ilanMap.get(id) ?? 0,
+      ilanSayisi: ilanAdet,
       isabetYuzde: yuzde,
     });
   }

@@ -168,6 +168,7 @@ export default async function AyarlarSayfasi() {
           maliyet={tercih.maliyet}
           budama={tercih.budama}
           sayacBaslangic={tercihGuncel.sayacBaslangic}
+          kesifKoridorKelimeler={tercih.kesifKoridorKelimeler.join("\n")}
         />
 
         <TestBildirimButonu />

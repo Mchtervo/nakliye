@@ -33,6 +33,7 @@ export default function AiTercihForm({
   },
   budama = { sessizGun: 4, sifirIlanGun: 5, isabetGun: 7, korumaGun: 4 },
   sayacBaslangic = "",
+  kesifKoridorKelimeler = "",
 }: {
   sehir: string;
   rotalar: string;
@@ -78,6 +79,8 @@ export default function AiTercihForm({
   };
   /** YYYY-MM-DD — budama sayaç sıfırlama */
   sayacBaslangic?: string;
+  /** Keşif koridor kelimeleri (satır satır) — havuzun ~%70’i */
+  kesifKoridorKelimeler?: string;
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
     aiTercihKaydet,
@@ -545,8 +548,9 @@ export default function AiTercihForm({
         </div>
         <p className="text-xs text-fog">
           Onaysız çıkılmaz. Günde max 3 çıkış, 30 dk ara. Yeni gruba koruma
-          süresi tanınır. Sayaç başlangıcından 5 gün geçmeden 0-ilan / isabet
-          kuralları çalışmaz (boru hattı bozukken yanlış budama olmasın).
+          süresi tanınır. Sayaç +5 gün kuralı: 0-ilan / isabet&lt;%20. İstisna:
+          bugün ≥100 çekimde SPAM+IL_YOK &gt;%80 veya 7g isabet %0 + 0 ilan →
+          hemen aday (5g beklemez).
         </p>
         <div>
           <label htmlFor="sayacBaslangic" className="etiket">
@@ -614,6 +618,30 @@ export default function AiTercihForm({
               className="alan"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-amber/20 bg-amber/5 p-3">
+        <div className="text-xs font-bold uppercase tracking-wider text-amber">
+          Keşif kelime havuzu (koridor hattı)
+        </div>
+        <p className="text-xs text-fog">
+          Telegram aramasında bu kelimeler havuzun ~%70’i; kalan %30 genel
+          nakliye. Her satıra bir sorgu. Boş kaydedersen varsayılan
+          Ankara–İstanbul listesi kullanılır.
+        </p>
+        <div>
+          <label htmlFor="kesifKoridorKelimeler" className="etiket">
+            Koridor sorguları
+          </label>
+          <textarea
+            id="kesifKoridorKelimeler"
+            name="kesifKoridorKelimeler"
+            rows={8}
+            placeholder={"ankara istanbul yük\ngebze ankara nakliye\n…"}
+            defaultValue={kesifKoridorKelimeler}
+            className="alan font-mono text-xs"
+          />
         </div>
       </div>
 

@@ -106,15 +106,17 @@ async function adaySec(haric: Set<number>): Promise<{
       continue;
     }
     const koridor = koridorBaslikOnceligi(a.ad);
+    // Koridor ili başlıkta → güçlü öncelik; yoksa geride kalsın
     const skor =
       (a.oncelik ?? 0) +
-      koridor * 10 +
+      koridor * 50 +
+      (koridor > 0 ? 100 : 0) +
       Math.min(a.uyeSayisi ?? 0, 5000) / 5000;
-    if (koridor > 0 && (a.oncelik ?? 0) < 10 + koridor) {
+    if (koridor > 0 && (a.oncelik ?? 0) < 20 + koridor) {
       await prisma.ilanKaynagi
         .update({
           where: { id: a.id },
-          data: { oncelik: 10 + koridor },
+          data: { oncelik: 20 + koridor },
         })
         .catch(() => null);
     }

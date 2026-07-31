@@ -119,7 +119,11 @@ async function main() {
       if (aday?.baslik) adaylar.push(aday);
     }
 
-    const tum = aramaSorgulariUret(tercih.bolgeler, tercih.koridorIller);
+    const tum = aramaSorgulariUret(
+      tercih.bolgeler,
+      tercih.koridorIller,
+      tercih.kesifKoridorKelimeler
+    );
     const siraHam = Number(await ayarOku(AYAR_ANAHTARLARI.telegramSorguSira));
     const sira = Number.isFinite(siraHam) && siraHam >= 0 ? siraHam : 0;
     const dilim = kesifSorguDilimi(tum, sira);

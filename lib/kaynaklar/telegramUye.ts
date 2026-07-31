@@ -1580,7 +1580,8 @@ export async function kesifGoreviUret(): Promise<KesifGorevi> {
 
   const tumSorgular = aramaSorgulariUret(
     tercih.bolgeler,
-    tercih.koridorIller
+    tercih.koridorIller,
+    tercih.kesifKoridorKelimeler
   );
   const siraHam = Number(await ayarOku(AYAR_ANAHTARLARI.telegramSorguSira));
   const sira = Number.isFinite(siraHam) && siraHam >= 0 ? siraHam : 0;

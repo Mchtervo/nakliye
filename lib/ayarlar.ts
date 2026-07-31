@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { aracKodlariCozumle, type AracTipiKodu } from "@/lib/arac";
 import {
   bolgeCozumle,
+  kesifKelimeleriCozumle,
   VARSAYILAN_BOLGELER,
+  VARSAYILAN_KESIF_KORIDOR_KELIMELER,
   type BolgeKodu,
 } from "@/lib/bolgeler";
 import { ilBul } from "@/lib/iller";
@@ -110,6 +112,11 @@ export const AYAR_ANAHTARLARI = {
    * Boru hattı bozukken biriken 0-ilan verisi yok sayılsın.
    */
   sayacBaslangic: "sayac_baslangic",
+  /**
+   * Keşif koridor kelime havuzu (satır veya virgül).
+   * Boş = varsayılan Ankara–İstanbul hattı listesi. Havuzun ~%70’i.
+   */
+  kesifKoridorKelimeler: "kesif_koridor_kelimeler",
 } as const;
 
 export type AyarAnahtari =
@@ -209,6 +216,11 @@ export type AiTercihleri = {
    * Budama sayaç kuralları bu tarihten +5 gün sonra devreye girer.
    */
   sayacBaslangic: string;
+  /**
+   * Keşif koridor kelimeleri (Ayarlar). Boş ayar → varsayılan liste.
+   * Formda her zaman dolu gösterilir (varsayılanla).
+   */
+  kesifKoridorKelimeler: string[];
 };
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
@@ -247,6 +259,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.budamaIsabetGun,
     AYAR_ANAHTARLARI.budamaKorumaGun,
     AYAR_ANAHTARLARI.sayacBaslangic,
+    AYAR_ANAHTARLARI.kesifKoridorKelimeler,
   ]);
 
   const minHam = Number(a[AYAR_ANAHTARLARI.aiMinUcret]);
@@ -369,6 +382,14 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
       const ham = (a[AYAR_ANAHTARLARI.sayacBaslangic] || "").trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(ham)) return ham;
       return bugunAnahtar();
+    })(),
+    kesifKoridorKelimeler: (() => {
+      const ozel = kesifKelimeleriCozumle(
+        a[AYAR_ANAHTARLARI.kesifKoridorKelimeler]
+      );
+      return ozel.length > 0
+        ? ozel
+        : [...VARSAYILAN_KESIF_KORIDOR_KELIMELER];
     })(),
   };
 }

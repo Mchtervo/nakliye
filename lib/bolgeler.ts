@@ -276,6 +276,15 @@ const KORIDOR_BASLIK_KELIMELER = [
   "dilovasi", "cayirova", "ikitelli", "adapazari",
 ];
 
+/**
+ * Başlıkta geçince KATILMA — koridor dışı il (Elazığ/Konya/…).
+ * Koridor ili ile birlikte geçse bile RED (yanlış hatta düşmesin).
+ */
+const KATILIM_DISI_IL_KELIMELER = [
+  "elazig", "konya", "bursa", "adana", "kayseri", "eskisehir",
+  "izmir", "antalya",
+];
+
 const YUK_SADE = YUK_TERIMLERI.map((t) => sadelestir(t));
 
 /** Kiril harfi var mı? */
@@ -312,6 +321,10 @@ export function katilimRedSebebi(baslik: string): string | null {
     if (k && sade.includes(k)) return t;
   }
 
+  for (const il of KATILIM_DISI_IL_KELIMELER) {
+    if (sade.includes(il)) return `koridor dışı il: ${il}`;
+  }
+
   return null;
 }
 
@@ -340,123 +353,146 @@ export function yukBasligiMi(baslik: string): boolean {
 }
 
 /**
- * Telegram global aramasında denenecek sorgular.
- * Koridor + yeni açılar (firma / cins / OSB / sıfat).
- * cron-kesif her turda listeden 20’lik dilim döndürür (sira ile).
+ * Ankara–İstanbul hattı keşif kelimeleri (varsayılan, Ayarlar’dan değiştirilir).
+ * Havuzun ~%70’i bu listeden gelir.
  */
-export function aramaSorgulariUret(
-  kodlar: BolgeKodu[],
-  koridorIller: string[] = []
+export const VARSAYILAN_KESIF_KORIDOR_KELIMELER = [
+  "ankara istanbul yük",
+  "gebze ankara nakliye",
+  "kocaeli ankara tır",
+  "bolu ankara yük",
+  "ankara çıkışlı yük",
+  "istanbul ankara tenteli",
+  "sakarya ankara yük",
+  "düzce ankara nakliye",
+  "ankara gebze yük",
+  "istanbul ankara komple",
+  "ankara tenteli yük",
+  "kırıkkale ankara",
+  "ankara istanbul nakliye",
+  "gebze yük",
+  "ostim nakliye",
+  "hadımköy yük",
+  "kocaeli ankara yük",
+  "bolu nakliye",
+  "sakarya nakliye",
+  "düzce yük",
+  "ankara yük",
+  "istanbul yük",
+  "kırıkkale yük",
+  "çankırı nakliye",
+];
+
+/** Yeni satır / virgül ayrılmış havuzu temizle. */
+export function kesifKelimeleriCozumle(
+  ham: string | null | undefined
 ): string[] {
-  const oncelikli: string[] = [];
-  const genel: string[] = ["yük ilanları", "nakliye yük", "tır yük grubu"];
-
-  const sabitKoridor = [
-    "ankara istanbul yük",
-    "ankara çıkışlı",
-    "istanbul çıkışlı",
-    "gebze yük",
-    "gebze ankara",
-    "bolu nakliye",
-    "düzce yük",
-    "sakarya nakliye",
-    "kocaeli tır",
-    "ostim nakliye",
-    "hadımköy yük",
-    "ambarlı yük",
-    "ikitelli nakliye",
-    "anadolu yakası yük",
-    "avrupa yakası yük",
-    "kırıkkale yük",
-    "ankara yük",
-    "istanbul yük",
-    "ankara istanbul nakliye",
-    "kocaeli yük",
-    "çankırı nakliye",
-  ];
-
-  const firmaAcilar = [
-    "lojistik grup",
-    "nakliyat grubu",
-    "tır sahipleri",
-    "araç sahipleri",
-    "şoförler grubu",
-    "nakliyeci grubu",
-    "tır şoförleri",
-    "kamyon sahipleri",
-  ];
-
-  const yukCinsi = [
-    "parsiyel yük",
-    "komple yük",
-    "palet yük",
-    "kimyasal yük",
-    "gıda yük",
-    "inşaat malzemesi",
-    "damper yük",
-    "tenteli yük",
-  ];
-
-  const ilceOsb = [
-    "ostim",
-    "ivedik",
-    "başkent osb",
-    "hadımköy",
-    "ikitelli",
-    "dilovası",
-    "çerkezköy",
-    "gebze osb",
-    "tosb",
-    "as osb ankara",
-  ];
-
-  const sifat = [
-    "acil yük",
-    "boş araç",
-    "yük paylaşım",
-    "günlük yük",
-    "sıcak yük",
-    "yük var",
-    "araç arıyorum",
-    "yük arıyorum",
-  ];
-
-  if (koridorIller.length > 0 || sabitKoridor.length > 0) {
-    oncelikli.push(
-      ...sabitKoridor,
-      ...firmaAcilar,
-      ...yukCinsi,
-      ...ilceOsb,
-      ...sifat
-    );
-    for (const il of koridorIller) {
-      oncelikli.push(`${il} yük`);
-      oncelikli.push(`${il} nakliye`);
-      oncelikli.push(`${il} çıkışlı`);
-      oncelikli.push(`${il} yük paylaşım`);
-    }
-  }
-
-  const secili = kodlar.length > 0 ? kodlar : VARSAYILAN_BOLGELER;
-  for (const kod of secili) {
-    const bolge = KOD_HARITASI.get(kod);
-    if (!bolge) continue;
-    genel.push(`${bolge.ad} yük`);
-    for (const merkez of bolge.merkezler) {
-      genel.push(`${merkez} yük`);
-      genel.push(`${merkez} nakliye`);
-    }
-  }
-
+  if (!ham || !ham.trim()) return [];
   const sonuc: string[] = [];
   const gorulen = new Set<string>();
-  for (const s of [...oncelikli, ...genel]) {
+  for (const p of ham.split(/[\n,;]+/)) {
+    const s = p.trim().replace(/\s+/g, " ");
+    if (s.length < 3) continue;
     const k = s.toLocaleLowerCase("tr-TR");
     if (gorulen.has(k)) continue;
     gorulen.add(k);
     sonuc.push(s);
   }
   return sonuc;
+}
+
+/**
+ * Koridor %70 + genel %30 karışık havuz.
+ * Dilimde de oran korunur (7+3 blokları).
+ */
+function havuzKaristir(
+  koridor: string[],
+  genel: string[],
+  koridorOran = 0.7
+): string[] {
+  const k = [...koridor];
+  const g = [...genel];
+  if (k.length === 0) return g;
+  if (g.length === 0) return k;
+
+  // Genel boyutu koridorun %30’una göre kıs
+  const hedefGenel = Math.max(
+    1,
+    Math.round((k.length * (1 - koridorOran)) / koridorOran)
+  );
+  const gTrim = g.slice(0, hedefGenel);
+
+  const sonuc: string[] = [];
+  let ki = 0;
+  let gi = 0;
+  while (ki < k.length || gi < gTrim.length) {
+    for (let i = 0; i < 7 && ki < k.length; i++) sonuc.push(k[ki++]);
+    for (let i = 0; i < 3 && gi < gTrim.length; i++) sonuc.push(gTrim[gi++]);
+  }
+  return sonuc;
+}
+
+/**
+ * Telegram global aramasında denenecek sorgular.
+ * Koridor hattı %70, genel nakliye %30.
+ * cron-kesif her turda listeden 20’lik dilim döndürür (sira ile).
+ *
+ * @param ozelKoridorKelimeler Ayarlar’dan; boşsa VARSAYILAN_KESIF_KORIDOR_KELIMELER
+ */
+export function aramaSorgulariUret(
+  kodlar: BolgeKodu[],
+  koridorIller: string[] = [],
+  ozelKoridorKelimeler?: string[] | null
+): string[] {
+  const koridorBaz =
+    ozelKoridorKelimeler && ozelKoridorKelimeler.length > 0
+      ? [...ozelKoridorKelimeler]
+      : [...VARSAYILAN_KESIF_KORIDOR_KELIMELER];
+
+  // Koridor illerinden ek sorgular (özel listeye ek)
+  for (const il of koridorIller) {
+    koridorBaz.push(`${il} yük`);
+    koridorBaz.push(`${il} nakliye`);
+    koridorBaz.push(`${il} çıkışlı`);
+  }
+
+  const genel: string[] = [
+    "yük ilanları",
+    "nakliye yük",
+    "tır yük grubu",
+    "lojistik grup",
+    "nakliyat grubu",
+    "tır sahipleri",
+    "nakliyeci grubu",
+    "parsiyel yük",
+    "komple yük",
+    "tenteli yük",
+    "acil yük",
+    "yük paylaşım",
+    "boş araç",
+  ];
+
+  const secili = kodlar.length > 0 ? kodlar : VARSAYILAN_BOLGELER;
+  for (const kod of secili) {
+    const bolge = KOD_HARITASI.get(kod);
+    if (!bolge) continue;
+    // Bölge merkezleri genel havuza — koridor dışı şehirleri şişirmesin
+    genel.push(`${bolge.ad} yük`);
+  }
+
+  const gorulen = new Set<string>();
+  const tekil = (liste: string[]) => {
+    const out: string[] = [];
+    for (const s of liste) {
+      const k = s.toLocaleLowerCase("tr-TR");
+      if (gorulen.has(k)) continue;
+      gorulen.add(k);
+      out.push(s);
+    }
+    return out;
+  };
+
+  return havuzKaristir(tekil(koridorBaz), tekil(genel), 0.7);
 }
 
 /** Her keşif turunda kaç sorgu (dönüşümlü dilim). */

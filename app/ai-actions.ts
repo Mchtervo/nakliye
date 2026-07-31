@@ -527,6 +527,12 @@ export async function aiTercihKaydet(
     sayacBaslangic = await sayacBaslangicGaranti();
   }
 
+  const { kesifKelimeleriCozumle } = await import("@/lib/bolgeler");
+  const kesifHam = metinOku(formData.get("kesifKoridorKelimeler"));
+  const kesifKelimeler = kesifKelimeleriCozumle(kesifHam);
+  // Boş bırakılırsa varsayılan listeye dön (DB’de boş = varsayılan)
+  const kesifKayit = kesifKelimeler.join("\n");
+
   // Max tonaj formu: boşsa istiap (maliyetTonaj) kullan
   const efektifMaxTonaj = maxTonaj || maliyetTonaj;
 
@@ -641,6 +647,10 @@ export async function aiTercihKaydet(
     {
       anahtar: AYAR_ANAHTARLARI.sayacBaslangic,
       deger: sayacBaslangic,
+    },
+    {
+      anahtar: AYAR_ANAHTARLARI.kesifKoridorKelimeler,
+      deger: kesifKayit,
     },
   ];
 
