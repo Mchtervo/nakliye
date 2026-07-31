@@ -40,6 +40,7 @@ import { grupOkumaArtir, grupOkumaToplu } from "@/lib/kaynaklar/grupOkumaSayac";
 import { grupIstatistikleri } from "@/lib/kaynaklar/grupTemizlik";
 import {
   elemeSebebi,
+  METIN_HASH_PENCERE_MS,
   metinHashUret,
   rotaHashleri,
   yeniSatirlariSec,
@@ -254,6 +255,33 @@ export async function mesajlariKuyrugaAl(
       }
     }
 
+    // 48s kova + DB: aynı metinHash → kuyruğa yazma (kalıcı hash tuzağı yok)
+    if (adaylar.length > 0) {
+      const hashSinir = new Date(Date.now() - METIN_HASH_PENCERE_MS);
+      const hashler = adaylar.map((a) => a.hash);
+      const dbHash = await prisma.hamMesaj.findMany({
+        where: {
+          metinHash: { in: hashler },
+          createdAt: { gte: hashSinir },
+        },
+        select: { metinHash: true },
+      });
+      const hashMevcut = new Set(
+        dbHash.map((h) => h.metinHash).filter((x): x is string => Boolean(x))
+      );
+      const temiz: typeof adaylar = [];
+      for (const a of adaylar) {
+        if (hashMevcut.has(a.hash)) {
+          eleGrup("HASH_TEKRAR", a.metin);
+          continue;
+        }
+        hashMevcut.add(a.hash);
+        temiz.push(a);
+      }
+      adaylar.length = 0;
+      adaylar.push(...temiz);
+    }
+
     let kuyrukEklenen = 0;
     if (adaylar.length > 0) {
       const sonuc = await prisma.hamMesaj.createMany({
@@ -268,6 +296,15 @@ export async function mesajlariKuyrugaAl(
       });
       kuyrukEklenen = sonuc.count;
       rapor.kuyruga += sonuc.count;
+
+      // unique(kaynakId, mesajId) — aynı TG mesajı yeniden gelince atlanır
+      const mesajTekrar = adaylar.length - sonuc.count;
+      if (mesajTekrar > 0) {
+        ele("MESAJ_TEKRAR", mesajTekrar);
+        console.log(
+          `[kuyruk] MESAJ_TEKRAR kaynak=#${kaynak.id} atlanan=${mesajTekrar}`
+        );
+      }
 
       // skipDuplicates eski satırı atlar — userId sonradan geldiyse doldur
       for (const a of adaylar) {
@@ -349,6 +386,8 @@ export type KayitFunnel = {
   satirEle: number;
   aracRed: number;
   tonajRed: number;
+  /** AI öncesi: tüm rotalar 48s kayıtlı → AI yok. */
+  rotaDedup: number;
   dedupAtlanan: number;
   bolgeElenen: number;
   kayitHatasi: number;
@@ -732,11 +771,15 @@ export async function kuyrugunuCoz(
         where: { id: m.id },
         data: {
           islendi: true,
-          hata: null,
+          hata: `ROTA_DEDUP: ${on.rotaSayisi} rota 48s içinde kayıtlı — AI atlandı`,
           denemeSayisi: { decrement: 1 }, // AI denemedi — sayacı geri al
         },
       });
       onDedupAtlanan += 1;
+      console.log(
+        `[kuyruk] rotaDedup ham=#${m.id} rota=${on.rotaSayisi} ` +
+          JSON.stringify(m.metin.slice(0, 80).replace(/\s+/g, " "))
+      );
       continue;
     }
     aiParti.push({
@@ -922,6 +965,7 @@ export async function kuyrugunuCoz(
     satirEle: cozum.ele.satirEle,
     aracRed: aracElenen,
     tonajRed: tonajElenen,
+    rotaDedup: onDedupAtlanan,
     dedupAtlanan: rapor.dedupAtlanan,
     bolgeElenen: cozum.bolgeElenen + uzakElenen,
     kayitHatasi,

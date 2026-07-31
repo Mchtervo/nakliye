@@ -52,6 +52,7 @@ async function main() {
         satirEle: 0,
         aracRed: 0,
         tonajRed: 0,
+        rotaDedup: 0,
         dedupAtlanan: rapor.dedupAtlanan ?? 0,
         bolgeElenen: rapor.bolgeElenen ?? 0,
         kayitHatasi: 0,

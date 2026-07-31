@@ -44,9 +44,20 @@ export type ElemeSebebi =
   | "TEKRAR"
   | null;
 
-/** Metnin birebir tekrarını yakalamak için kullanılan anahtar. */
-export function metinHashUret(metin: string): string {
-  return createHash("sha1").update(sadelestir(metin)).digest("hex").slice(0, 32);
+/** metinHash tekrar penceresi — dedupHash 48s kova ile aynı mantık. */
+export const METIN_HASH_PENCERE_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * Metnin birebir tekrar anahtarı.
+ * 48s kova: süre dolunca aynı metin yeniden kuyruğa girebilir
+ * (firma her gün aynı ilanı atar).
+ */
+export function metinHashUret(metin: string, zaman = new Date()): string {
+  const kova = Math.floor(zaman.getTime() / METIN_HASH_PENCERE_MS);
+  return createHash("sha1")
+    .update(`b${kova}|${sadelestir(metin)}`)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 /** Tek satırın tekrarını yakalamak için. */
