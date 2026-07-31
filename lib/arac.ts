@@ -64,6 +64,27 @@ function tipKelimeSkoru(sade: string, kod: AracTipiKodu): number {
   return skor;
 }
 
+/**
+ * "13.60 tır", "13,60 TIR", "1360 dorse" → metre (standart tenteli).
+ * Navlun / fiyat DEĞİL — araç özelliği.
+ */
+export function tirUzunlukMetre(metin: string | null | undefined): number | null {
+  if (!metin) return null;
+  const ham = metin.replace(/\s+/g, " ");
+  const kalip =
+    /(?<!\d)(1[34][.,]60|1[34][.,]6|13\.?60|1360|14\.?60|1460)(?!\d)\s*(?:m|mt|metre)?\s*(?:tir|tır|dorse|tente|tenteli|treyler|trailer|mega|jumbo)/i;
+  const ters =
+    /(?:tir|tır|dorse|tente|tenteli|treyler|trailer|mega|jumbo)\s*(?:boyu|uzunluk|:)?\s*(?<!\d)(1[34][.,]60|1[34][.,]6|13\.?60|1360|14\.?60|1460)(?!\d)/i;
+  const m = ham.match(kalip) || ham.match(ters);
+  if (!m) return null;
+  const hamSayi = m[1].replace(",", ".");
+  if (hamSayi === "1360" || hamSayi === "13.60" || hamSayi === "13.6") return 13.6;
+  if (hamSayi === "1460" || hamSayi === "14.60" || hamSayi === "14.6") return 14.6;
+  const n = Number.parseFloat(hamSayi);
+  if (!Number.isFinite(n) || n < 10 || n > 20) return null;
+  return Math.round(n * 100) / 100;
+}
+
 /** Serbest metinden araç tipi kodunu çıkarır; anlaşılmazsa null. */
 export function aracKoduBul(metin: string | null | undefined): AracTipiKodu | null {
   if (!metin) return null;

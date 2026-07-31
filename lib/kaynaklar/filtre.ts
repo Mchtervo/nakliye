@@ -52,12 +52,15 @@ export function araciUyuyorMu(
 }
 
 /**
- * Kullanıcıyı gerçekten ilgilendiren ilanları seçer.
- * Dönüş yükü eşleşmesi her zaman ilgilidir.
- * Koridor: HEM çıkış HEM varış listede.
+ * Kullanıcıyı gerçekten ilgilendiren ilanları seçer (bildirim).
+ * DonusTalebi eşleşmesi her zaman ilgili.
+ * VARIS (koridorTipi) bildirim GELMEZ — sadece Dönüş sekmesinde.
+ * Koridor TAM: HEM çıkış HEM varış listede.
  */
 export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
   if (ilan.donusTalebiId) return true;
+  // Dönüş koridor (sadece varış) — panelde var, push yok
+  if (ilan.koridorTipi === "VARIS") return false;
   if (ilan.guvenSkoru < SUPHE_SINIRI) return false;
   if (!araciUyuyorMu(ilan, tercih)) return false;
 

@@ -29,6 +29,8 @@ export type IlanKartVeri = {
   tonaj: number | null;
   aracTipi: string | null;
   aracTipiKod: string | null;
+  aracUzunluk?: number | null;
+  koridorTipi?: string | null;
   ucret: number | null;
   fiyatTon: number | null;
   fiyatBelirsiz: boolean;
@@ -233,6 +235,8 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         ilan.durum === "ILGILENIYOR" ||
         ilan.durum === "PAZARLIKTA" ||
         ilan.donusTalebiId ||
+        ilan.koridorTipi === "VARIS" ||
+        ilan.aracUzunluk != null ||
         aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod)) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {ilan.durum === "ALINDI" && (
@@ -255,9 +259,18 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
               Pazarlık
             </span>
           )}
-          {ilan.donusTalebiId && (
+          {(ilan.donusTalebiId || ilan.koridorTipi === "VARIS") && (
             <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
               Dönüş yükü
+            </span>
+          )}
+          {ilan.aracUzunluk != null && (
+            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-fog">
+              {ilan.aracUzunluk.toLocaleString("tr-TR", {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              })}{" "}
+              m
             </span>
           )}
           {aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod) && (

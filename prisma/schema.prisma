@@ -181,7 +181,14 @@ model YukIlani {
   tonaj         Int? // ton
   aracTipi      String? // ilanda yazdığı gibi
   aracTipiKod   String? // TENTELI | FRIGO | DAMPER | KAPALI_KASA | LOWBED | SAL_DORSE | KAMYON | DIGER
+  /** Standart tenteli dorse uzunluğu (metre) — örn. 13.60; fiyat DEĞİL. */
+  aracUzunluk   Float?
   yukTipi       String?
+  /**
+   * TAM = iki uç koridor | VARIS = sadece varış (dönüş) |
+   * CIKIS = sadece çıkış (sayılır, kayıt yok) | DISI = kayıtsız
+   */
+  koridorTipi   String? // TAM | VARIS | CIKIS | DISI
   guvenSkoru    Int          @default(0) // 0-100
   durum         String       @default("YENI") // YENI | ILGILENIYOR | ILETISIME_GECILDI | PAZARLIKTA | CEVAP_YOK | ELENDI | YUKE_DONDU | ALINDI | ARSIV
   dedupHash     String       @unique
@@ -205,6 +212,7 @@ model YukIlani {
 
   @@index([durum, createdAt])
   @@index([cikisIl, varisIl])
+  @@index([koridorTipi, sonGorulme])
   @@index([telefon, cikisIl, varisIl, sonGorulme])
   @@index([gonderenUserId])
   @@index([hamMesajId])

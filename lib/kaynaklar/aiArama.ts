@@ -68,6 +68,8 @@ export const aiAramaAdaptoru: KaynakAdaptoru = {
                 : null,
             aracTipi: i.aracTipi?.trim() || null,
             aracTipiKod: aracKoduBul(i.aracTipi),
+            aracUzunluk: null,
+            koridorTipi: null,
             yukTipi: i.yukTipi?.trim() || null,
             guvenSkoru: Math.max(
               0,

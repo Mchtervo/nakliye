@@ -47,21 +47,52 @@ export function koridorIlKumesi(
 }
 
 /**
- * HEM çıkış HEM varış koridorda mı?
- * "Bir uç yeter" YOK — Ankara→Antalya elenir.
+ * Koridor sınıflandırması:
+ * - TAM   = çıkış VE varış koridorda → bildirim + Yeni sekmesi
+ * - VARIS = sadece varış koridorda (Elazığ→Ankara) → Dönüş sekmesi, bildirim yok
+ * - CIKIS = sadece çıkış koridorda → kaydetme, sadece say
+ * - DISI  = ikisi de dışarıda → kaydetme
  */
+export type KoridorTipi = "TAM" | "VARIS" | "CIKIS" | "DISI";
+
+export function koridorTipiBelirle(
+  koridorIller: string[] | Set<string> | null | undefined,
+  cikisIl: string | null | undefined,
+  varisIl: string | null | undefined
+): KoridorTipi {
+  const kapsam =
+    koridorIller instanceof Set
+      ? koridorIller
+      : new Set(koridorIlKumesi(koridorIller));
+  if (kapsam.size === 0) return "TAM"; // filtre kapalı
+  const cikis = ilBul(cikisIl);
+  const varis = ilBul(varisIl);
+  if (!cikis || !varis) return "DISI";
+  const cOk = kapsam.has(cikis);
+  const vOk = kapsam.has(varis);
+  if (cOk && vOk) return "TAM";
+  if (vOk) return "VARIS";
+  if (cOk) return "CIKIS";
+  return "DISI";
+}
+
+/** HEM çıkış HEM varış koridorda mı? (bildirim / Yeni sekmesi) */
 export function koridoraUyuyorMu(
   koridorIller: string[],
   cikisIl: string | null | undefined,
   varisIl: string | null | undefined
 ): boolean {
-  const kapsam = new Set(koridorIlKumesi(koridorIller));
-  // Boş koridor = filtre kapalı (Türkiye)
-  if (kapsam.size === 0) return true;
-  const cikis = ilBul(cikisIl);
-  const varis = ilBul(varisIl);
-  if (!cikis || !varis) return false;
-  return kapsam.has(cikis) && kapsam.has(varis);
+  return koridorTipiBelirle(koridorIller, cikisIl, varisIl) === "TAM";
+}
+
+/** Kayda alınır mı? TAM + VARIS (dönüş). CIKIS/DISI hayır. */
+export function koridorKaydaAlinirMi(
+  koridorIller: string[] | Set<string> | null | undefined,
+  cikisIl: string | null | undefined,
+  varisIl: string | null | undefined
+): boolean {
+  const tip = koridorTipiBelirle(koridorIller, cikisIl, varisIl);
+  return tip === "TAM" || tip === "VARIS";
 }
 
 /** Panel placeholder / doğrulama için. */

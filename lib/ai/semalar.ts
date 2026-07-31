@@ -41,13 +41,16 @@ const ILAN_ALANLARI: Record<string, unknown> = {
   },
   ucretTl: {
     ...sayiVeyaBos,
-    description: "Fiyat, TL cinsinden sade sayı; belirtilmemişse null",
+    description:
+      "Navlun/fiyat TL. Sadece metinde TL/₺/bin/navlun/USD/KDV varsa yaz. " +
+      "'13.60 tır/dorse' UZUNLUKTUR (metre) — fiyat yazma, null bırak.",
   },
   ucretTuru: {
     type: "string",
     enum: ["TON_BASI", "KOMPLE", "BELIRSIZ"],
     description:
-      "ucretTl ton başı mı komple navlun mu. Anlaşılmıyorsa BELIRSIZ.",
+      "ucretTl ton başı mı komple navlun mu. Anlaşılmıyorsa BELIRSIZ. " +
+      "Para işareti yoksa BELIRSIZ + ucretTl null.",
   },
   tonaj: {
     ...sayiVeyaBos,
@@ -57,7 +60,8 @@ const ILAN_ALANLARI: Record<string, unknown> = {
   aracTipi: {
     ...metinVeyaBos,
     description:
-      "tenteli, damper, frigo, kırkayak, lowbed, kısadorse vb. — yer adı değil",
+      "tenteli, damper, frigo, kırkayak, lowbed, kısadorse vb. — yer adı değil. " +
+      "'13.60 tır' → tenteli (uzunluk metre, fiyat değil).",
   },
   yukTipi: { ...metinVeyaBos, description: "Taşınacak malın cinsi" },
   guvenSkoru: {

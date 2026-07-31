@@ -21,6 +21,8 @@ export type KaydedilenIlan = {
   tonaj: number | null;
   aracTipi: string | null;
   aracTipiKod: string | null;
+  aracUzunluk?: number | null;
+  koridorTipi?: string | null;
   guvenSkoru: number;
   hamMetin: string;
   donusTalebiId: number | null;
@@ -146,6 +148,8 @@ async function rotayiYenile(
       tonaj: n.tonaj ?? undefined,
       aracTipi: n.aracTipi ?? undefined,
       aracTipiKod: n.aracTipiKod ?? undefined,
+      aracUzunluk: n.aracUzunluk ?? undefined,
+      koridorTipi: n.koridorTipi ?? undefined,
       yukTipi: n.yukTipi ?? undefined,
       guvenSkoru: n.guvenSkoru,
       yuklemeTarihi: n.yuklemeTarihi,
@@ -211,6 +215,8 @@ async function yenileVeBelkiBildir(
     tonaj: kayit.tonaj,
     aracTipi: kayit.aracTipi,
     aracTipiKod: kayit.aracTipiKod,
+    aracUzunluk: kayit.aracUzunluk,
+    koridorTipi: kayit.koridorTipi,
     guvenSkoru: kayit.guvenSkoru,
     hamMetin: kayit.hamMetin,
     donusTalebiId: kayit.donusTalebiId,
@@ -389,6 +395,8 @@ export async function ilanlariKaydet(
           tonaj: ilan.tonaj,
           aracTipi: ilan.aracTipi,
           aracTipiKod: ilan.aracTipiKod,
+          aracUzunluk: ilan.aracUzunluk,
+          koridorTipi: ilan.koridorTipi,
           yukTipi: ilan.yukTipi,
           guvenSkoru: ilan.guvenSkoru,
           durum: hedefDurum,
@@ -432,6 +440,8 @@ export async function ilanlariKaydet(
         tonaj: kayit.tonaj,
         aracTipi: kayit.aracTipi,
         aracTipiKod: kayit.aracTipiKod,
+        aracUzunluk: kayit.aracUzunluk,
+        koridorTipi: kayit.koridorTipi,
         guvenSkoru: kayit.guvenSkoru,
         hamMetin: kayit.hamMetin,
         donusTalebiId: kayit.donusTalebiId,

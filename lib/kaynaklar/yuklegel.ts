@@ -247,6 +247,8 @@ function karttanIlan(k: YuklegelHamKart): CozulmusIlan | null {
     tonaj: null,
     aracTipi: null,
     aracTipiKod: null,
+    aracUzunluk: null,
+    koridorTipi: null,
     yukTipi: null,
     guvenSkoru: YUKLEGEL_SECICILER.guvenSkoru,
   };

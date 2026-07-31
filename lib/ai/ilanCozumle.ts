@@ -7,9 +7,15 @@ import {
   type IlanCikti,
   type MesajIlanCikti,
 } from "@/lib/ai/semalar";
-import { aracKoduBul, aracYerAdiMi, type AracTipiKodu } from "@/lib/arac";
+import {
+  aracKoduBul,
+  aracYerAdiMi,
+  tirUzunlukMetre,
+  type AracTipiKodu,
+} from "@/lib/arac";
 import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul, illeriBul, sadelestir } from "@/lib/iller";
+import { koridorTipiBelirle, type KoridorTipi } from "@/lib/koridor";
 import {
   AI_MAX_ROTA_PARCA,
   mesajiAiParcalarinaBol,
@@ -40,9 +46,8 @@ Kurallar:
   çıkış ve varış demektir.
 - SATIR KURALI (SERT): Bir rotanın çıkışı ve varışı AYNI satırda olmalı.
   Farklı satırlardan yer birleştirme YASAK. Örnek YANLIŞ: satır1
-  "KÜTAHYA - KIRIKKALE", satır2 "TEKİRDAĞ - BOLU 1360" iken
-  "Kırıkkale→Bolu" veya fiyatı diğer satırdan alma. Her ilanın fiyatı da
-  KENDİ satırından gelir.
+  "KÜTAHYA - KIRIKKALE", satır2 "TEKİRDAĞ - BOLU" iken
+  "Kırıkkale→Bolu" birleştirme. Her ilanın fiyatı da KENDİ satırından gelir.
 - ÇOK GÜZERGAHLI MESAJ: Bir mesajda birden çok güzergah listelenmiş olabilir
   ("ÇAN'DAN: VAN 2400+, KONYA 850+, MERSİN 1100+"). Her satırı AYRI ilan yap.
   Ortak çıkış yerini (başlık satırı) hepsine uygula ama bir satırın varışını
@@ -54,14 +59,17 @@ Kurallar:
   Ltd, A.Ş). Kişi adı (Ulviye, Mehmet, Ali Usta) firmaAdi'ye yazma —
   ilgiliKisi alanına yaz. İkisi de varsa ikisini de doldur.
 - FİYAT TÜRÜ: ton mu komple mi ayırt et. "ton", "/ton", "TL/ton" veya
-  X+KDV liste formatı ("VAN 2400+", "900+KDV") → TON_BASI. "komple",
-  "navlun", "toplam", "araç" ile verilen tek büyük tutar → KOMPLE.
+  X+KDV liste formatı ("VAN 2400+KDV", "900+KDV") → TON_BASI. "komple",
+  "navlun", "toplam" ile verilen tek büyük tutar → KOMPLE.
   Anlaşılmıyorsa ucretTl null ve ucretTuru BELIRSIZ.
-- Ücret "8500", "8.500 TL", "8500tl" gibi yazılabilir; sadece sayıyı ver
-  (Türkçe binlik: 13.600 = on üç bin altı yüz → 13600). "13.60" gibi
-  iki ondalık genelde 13600 komple navlundur, 13.6 TL/ton DEĞİL.
-  Ton başı genelde 200–5000 TL; komple navlun genelde 2000–150000 TL.
-  Ücret yazmıyorsa null bırak.
+- FİYAT ZORUNLU İŞARET: Metinde TL, ₺, bin, navlun, USD, EUR, KDV yoksa
+  fiyat YOKTUR — ucretTl=null, ucretTuru=BELIRSIZ. Sadece çıplak sayı
+  fiyat sayılmaz.
+- "13.60 tır", "13,60 TIR", "1360 dorse" = 13,60 METRE standart tenteli
+  dorse. ARAÇ özelliği — ASLA ucretTl'ye yazma. aracTipi=tenteli.
+- Ücret "8500 TL", "8.500 TL", "8500tl", "900+KDV" gibi; sadece sayıyı ver
+  (Türkçe binlik: 13.600 TL = 13600). Ton başı genelde 200–5000 TL;
+  komple navlun genelde 2000–150000 TL. Ücret yoksa null bırak.
 - tonaj: yükün ton cinsinden ağırlığı ("24 ton" -> 24). "3 TİR", "10 araç"
   gibi ifadeler ARAÇ ADEDİDİR, tonaj değildir; onları tonaja yazma.
 - aracTipi: metinde geçen araç türünü yaz (damper, tenteli, frigo…).
@@ -88,9 +96,21 @@ export type CozulmusIlan = {
   tonaj: number | null;
   aracTipi: string | null;
   aracTipiKod: AracTipiKodu | null;
+  /** Tenteli dorse uzunluğu (metre), örn. 13.6 — fiyat değil. */
+  aracUzunluk: number | null;
+  /** TAM | VARIS | CIKIS | DISI — kayıt katmanında set edilir. */
+  koridorTipi: KoridorTipi | null;
   yukTipi: string | null;
   guvenSkoru: number;
 };
+
+/** Fiyat kabulü için para işareti (yoksa fiyat belirsiz). */
+const PARA_ISARETI =
+  /(?:\bTL\b|₺|\bTRY\b|\bUSD\b|\$|\bEUR\b|€|\bbin\b|\bnavlun\b|\bKDV\b)/i;
+
+export function fiyatParaIsaretiVarMi(metin: string | null | undefined): boolean {
+  return Boolean(metin && PARA_ISARETI.test(metin));
+}
 
 /** Kayda alma alt sınırı — panel SUPHE_SINIRI (50) ile karıştırma. */
 export const GUVEN_MIN_KAYIT = 15;
@@ -102,6 +122,8 @@ export type CozumEleSayac = {
   guvenDusuk: number;
   satirEle: number;
   bolgeElenen: number;
+  /** Sadece çıkış koridorda — kaydedilmedi, sayıldı. */
+  cikisSay: number;
   modelCikti: number;
 };
 
@@ -112,6 +134,7 @@ export function bosCozumEle(): CozumEleSayac {
     guvenDusuk: 0,
     satirEle: 0,
     bolgeElenen: 0,
+    cikisSay: 0,
     modelCikti: 0,
   };
 }
@@ -126,6 +149,7 @@ export function cozumEleTopla(
     guvenDusuk: a.guvenDusuk + b.guvenDusuk,
     satirEle: a.satirEle + b.satirEle,
     bolgeElenen: a.bolgeElenen + b.bolgeElenen,
+    cikisSay: a.cikisSay + b.cikisSay,
     modelCikti: a.modelCikti + b.modelCikti,
   };
 }
@@ -284,7 +308,31 @@ function ilaniNormalize(
     skor = Math.min(skor, 35);
   }
 
-  const fiyatHam = ucretKurusaCevir(i.ucretTl);
+  const uzunluk =
+    tirUzunlukMetre(baglam.ham) ||
+    tirUzunlukMetre(`${i.aracTipi || ""} ${i.yukTipi || ""}`);
+
+  let fiyatHam = ucretKurusaCevir(i.ucretTl);
+  // Model 13.60 / 1360'ı fiyat sandıysa — tır uzunluğudur
+  if (
+    fiyatHam != null &&
+    (fiyatHam === 1360 ||
+      fiyatHam === 1460 ||
+      Math.abs(fiyatHam / 100 - 13.6) < 0.001 ||
+      Math.abs(fiyatHam / 100 - 14.6) < 0.001)
+  ) {
+    console.log(
+      `[ilanCozumle] fiyat→uzunluk reddi ${i.ucretTl} (tır metre, navlun değil)`
+    );
+    fiyatHam = null;
+  }
+  // Para işareti yoksa fiyat yok
+  if (fiyatHam != null && !fiyatParaIsaretiVarMi(baglam.ham)) {
+    console.log(
+      `[ilanCozumle] para işareti yok → fiyatBelirsiz (ucretTl=${i.ucretTl})`
+    );
+    fiyatHam = null;
+  }
   const turHam = fiyatHam === null ? null : i.ucretTuru;
 
   let firmaAdi = i.firmaAdi?.trim() || null;
@@ -307,6 +355,10 @@ function ilaniNormalize(
       aracTipiKod = aracKoduBul(baglam.sade);
     }
   }
+  // 13.60 tır → TENTELI
+  if (uzunluk != null && !aracTipiKod) {
+    aracTipiKod = "TENTELI";
+  }
 
   // Ana üsse uzak varış → düşük skor (Şüpheli); kayıt katmanı da eleyebilir.
   if (anaUs && varisIl) {
@@ -320,7 +372,7 @@ function ilaniNormalize(
   const irtibat = irtibatTelefonuBul(baglam.ham);
   const telefon = irtibat || telefonTemizle(i.telefon);
 
-  // Fiyat akıl kontrolü: 13,60 TL/ton veya 50 TL komple → belirsiz
+  // Fiyat akıl kontrolü
   let ucret: number | null = turHam === "KOMPLE" ? fiyatHam : null;
   let fiyatTon: number | null = turHam === "TON_BASI" ? fiyatHam : null;
   let fiyatBelirsiz = turHam === "BELIRSIZ" || turHam === null;
@@ -358,8 +410,13 @@ function ilaniNormalize(
     fiyatTon,
     fiyatBelirsiz,
     tonaj: tonajTemizle(i.tonaj),
-    aracTipi: aracTipi || (aracTipiKod ? aracTipiKod : null),
+    aracTipi:
+      aracTipi ||
+      (uzunluk != null ? `tenteli ${uzunluk}m` : null) ||
+      (aracTipiKod ? aracTipiKod : null),
     aracTipiKod,
+    aracUzunluk: uzunluk,
+    koridorTipi: null,
     yukTipi: i.yukTipi?.trim() || null,
     guvenSkoru: skor,
   };
@@ -459,16 +516,27 @@ async function tekParcaCozumle(
       );
       continue;
     }
-    if (kapsamDisiMi(ilan, filtreSet)) {
+    const { ele: kapsamEle, tip } = kapsamEleVeTip(ilan, filtreSet);
+    ele.modelCikti += 1;
+    if (kapsamEle === "DISI") {
       ele.bolgeElenen += 1;
-      ele.modelCikti += 1;
       console.log(
-        `[ilanCozumle] BÖLGE_ELE ${ilan.cikisIl}→${ilan.varisIl}` +
+        `[ilanCozumle] BÖLGE_ELE DISI ${ilan.cikisIl}→${ilan.varisIl}` +
           ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
       );
       continue;
     }
-    ele.modelCikti += 1;
+    if (kapsamEle === "CIKIS") {
+      ele.cikisSay += 1;
+      console.log(
+        `[ilanCozumle] CIKIS_SAY ${ilan.cikisIl}→${ilan.varisIl}` +
+          ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
+      );
+      continue;
+    }
+    console.log(
+      `[ilanCozumle] koridor=${tip} ${ilan.cikisIl}→${ilan.varisIl}`
+    );
     sonuc.push(ilan);
   }
   return { ilanlar: rotaNormDedup(sonuc), ele };
@@ -565,27 +633,36 @@ export type MesajCozumRaporu = {
 
 /**
  * Çözümleme kapsamı — prompt ve sunucu AYNI liste.
- * HEM çıkış HEM varış listede olmalı; diğer rotalar hiç yazılmasın.
+ * VARIŞ koridorda ise yaz (dönüş yükü); sadece çıkış koridordaysa yazma.
  */
 function kapsamTalimati(iller: string[]): string {
   if (iller.length === 0 || iller.length >= 70) return "";
   return `
 
-KAPSAM (ZORUNLU — KORİDOR): Sadece ÇIKIŞI VE VARIŞI şu illerden
-olan güzergahları çıkar. İki uç da listede olmalı.
-Tek uç listede olup diğeri dışarıdaysa (ör. Ankara→Antalya,
-İstanbul→İzmir) HİÇ yazma, listeye ekleme.
+KAPSAM (KORİDOR):
+- VARIŞ şu illerden biriyse ilanı YAZ (çıkış dışarıda olsa da —
+  ör. Elazığ→Ankara, Van→İstanbul = dönüş yükü, değerlidir).
+- Sadece ÇIKIŞ listede olup VARIŞ dışarıdaysa (Ankara→İzmir,
+  İstanbul→Antalya) HİÇ yazma.
+- İki uç da dışarıdaysa yazma.
 İller: ${iller.join(", ")}
-İlçe/semt adı yazılmışsa bağlı olduğu ile göre değerlendir
-(ör. Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul, Yahşihan→Kırıkkale).`;
+İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul,
+Yahşihan→Kırıkkale, Gölbaşı→Ankara, Cerrahpaşa→İstanbul).`;
 }
 
 /**
- * İlan kapsam dışı mı? HEM çıkış HEM varış listede olmalı.
- * "Bir uç yeter" kaldırıldı — Ankara→Antalya elenir.
+ * Kayda alınmayacak koridor tipi mi? DISI + CIKIS elenir;
+ * TAM + VARIS geçer (koridorTipi set edilir).
  */
-function kapsamDisiMi(ilan: CozulmusIlan, iller: Set<string>): boolean {
-  return bolgeEleTuru(ilan.cikisIl, ilan.varisIl, iller) !== null;
+function kapsamEleVeTip(
+  ilan: CozulmusIlan,
+  iller: Set<string>
+): { ele: "DISI" | "CIKIS" | null; tip: KoridorTipi } {
+  const tip = koridorTipiBelirle(iller, ilan.cikisIl, ilan.varisIl);
+  ilan.koridorTipi = tip;
+  if (tip === "DISI") return { ele: "DISI", tip };
+  if (tip === "CIKIS") return { ele: "CIKIS", tip };
+  return { ele: null, tip };
 }
 
 /**
@@ -690,17 +767,33 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     }
     modelCikti += 1;
     ele.modelCikti += 1;
-    const eleTur = bolgeEleTuru(ilan.cikisIl, ilan.varisIl, filtreSet);
-    if (eleTur) {
+    const { ele: kapsamEle, tip } = kapsamEleVeTip(ilan, filtreSet);
+    if (kapsamEle === "DISI") {
       bolgeElenen += 1;
       ele.bolgeElenen += 1;
-      bolgeKirilim[eleTur] += 1;
+      bolgeKirilim.ikisiDisi += 1;
       console.log(
-        `[ilanCozumle] BÖLGE_ELE ${eleTur} ${ilan.cikisIl}→${ilan.varisIl}` +
+        `[ilanCozumle] BÖLGE_ELE DISI ${ilan.cikisIl}→${ilan.varisIl}` +
           ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
       );
       continue;
     }
+    if (kapsamEle === "CIKIS") {
+      ele.cikisSay += 1;
+      bolgeKirilim.varisDisi += 1; // çıkış OK, varış dışı
+      console.log(
+        `[ilanCozumle] CIKIS_SAY ${ilan.cikisIl}→${ilan.varisIl}` +
+          ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
+      );
+      continue;
+    }
+    if (tip === "VARIS") {
+      bolgeKirilim.cikisDisi += 1; // bilgi: dönüş adayı (kayda alındı)
+    }
+    console.log(
+      `[ilanCozumle] koridor=${tip} ham=#${kaynakMesaj.anahtar} ` +
+        `${ilan.cikisIl}→${ilan.varisIl}`
+    );
     ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
   }
 

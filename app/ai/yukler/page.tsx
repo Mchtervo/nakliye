@@ -165,7 +165,13 @@ export default async function AiYuklerSayfasi({
             durum: { notIn: ["ARSIV", "ELENDI"] },
           }
         : sekme === "DONUS"
-          ? { donusTalebiId: { not: null }, guvenSkoru: { gte: SUPHE_SINIRI } }
+          ? {
+              guvenSkoru: { gte: SUPHE_SINIRI },
+              OR: [
+                { koridorTipi: "VARIS" },
+                { donusTalebiId: { not: null } },
+              ],
+            }
           : sekme === "YENI"
             ? { durum: "YENI", ...tercihKosulu(tercih) }
             : sekme === "ILGILENIYOR"
@@ -272,7 +278,16 @@ export default async function AiYuklerSayfasi({
       }),
       prisma.yukIlani.count({
         where: {
-          AND: [{ donusTalebiId: { not: null } }, sayacTazelik, webKaynakHaricKosulu()],
+          AND: [
+            {
+              OR: [
+                { koridorTipi: "VARIS" },
+                { donusTalebiId: { not: null } },
+              ],
+            },
+            sayacTazelik,
+            webKaynakHaricKosulu(),
+          ],
         },
       }),
       prisma.yukIlani.count({
@@ -558,6 +573,8 @@ export default async function AiYuklerSayfasi({
                   tonaj: ilan.tonaj,
                   aracTipi: ilan.aracTipi,
                   aracTipiKod: ilan.aracTipiKod,
+                  aracUzunluk: ilan.aracUzunluk,
+                  koridorTipi: ilan.koridorTipi,
                   ucret: ilan.ucret,
                   fiyatTon: ilan.fiyatTon,
                   fiyatBelirsiz: ilan.fiyatBelirsiz,

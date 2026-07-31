@@ -30,7 +30,11 @@ import {
   yukBasligiMi,
   type BolgeKodu,
 } from "@/lib/bolgeler";
-import { koridorIlKumesi } from "@/lib/koridor";
+import {
+  koridorIlKumesi,
+  koridorKaydaAlinirMi,
+  koridorTipiBelirle,
+} from "@/lib/koridor";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul } from "@/lib/iller";
@@ -378,7 +382,7 @@ export async function mesajlariKuyrugaAl(
 
 // --- Kuyruk çözümleme ---------------------------------------------------
 
-/** AI→kayıt funnel — cron JSON'da görünür. */
+/** AI→kayıt funnel — mesaj bazlı; toplam ≈ islenen. */
 export type KayitFunnel = {
   aiCevapBos: number;
   rotaYok: number;
@@ -388,12 +392,46 @@ export type KayitFunnel = {
   tonajRed: number;
   /** AI öncesi: tüm rotalar 48s kayıtlı → AI yok. */
   rotaDedup: number;
+  /** İngest (bu turda 0; eleme sayacından taşınabilir). */
+  hashTekrar: number;
+  mesajTekrar: number;
+  maxDeneme: number;
+  /** AI çağrısı başarısız (retry / tükenme). */
+  aiHata: number;
   dedupAtlanan: number;
   bolgeElenen: number;
+  /** Sadece çıkış koridor — kaydedilmedi. */
+  cikisSay: number;
   kayitHatasi: number;
+  /** En az 1 yeni ilan üreten mesaj sayısı. */
   yeniIlan: number;
+  sayilmayan: number;
+  sayilmayanIdler: number[];
   guvenMinKayit: number;
 };
+
+/** Funnel mesaj toplamı (guvenMinKayit hariç). */
+export function kayitFunnelToplam(f: KayitFunnel): number {
+  return (
+    f.aiCevapBos +
+    f.rotaYok +
+    f.guvenDusuk +
+    f.satirEle +
+    f.aracRed +
+    f.tonajRed +
+    f.rotaDedup +
+    f.hashTekrar +
+    f.mesajTekrar +
+    f.maxDeneme +
+    f.aiHata +
+    f.dedupAtlanan +
+    f.bolgeElenen +
+    f.cikisSay +
+    f.kayitHatasi +
+    f.yeniIlan +
+    f.sayilmayan
+  );
+}
 
 export type KuyrukRaporu = {
   islenen: number;
@@ -416,8 +454,9 @@ export type KuyrukRaporu = {
 type PartiMesaj = { id: number; metin: string };
 
 /**
- * Kayıt öncesi: araç tipi + koridor (iki uç).
+ * Kayıt öncesi: araç tipi + koridor (TAM veya VARIS/dönüş).
  * Araç belirsiz (kod/metin yok) → geçir; sadece açık uyumsuz elenir.
+ * CIKIS/DISI burada false — üst katmanda sayılır.
  */
 function ilanKaydaUygunMu(
   ilan: CozulmusIlan,
@@ -429,8 +468,11 @@ function ilanKaydaUygunMu(
   if (!araciUyuyorMu(ilan, tercih, hamMetin)) return false;
   if (!ilan.cikisIl || !ilan.varisIl) return false;
 
-  // HEM çıkış HEM varış koridorda.
-  if (!koridorSet.has(ilan.cikisIl) || !koridorSet.has(ilan.varisIl)) {
+  const tip =
+    ilan.koridorTipi ||
+    koridorTipiBelirle(koridorSet, ilan.cikisIl, ilan.varisIl);
+  ilan.koridorTipi = tip;
+  if (!koridorKaydaAlinirMi(koridorSet, ilan.cikisIl, ilan.varisIl)) {
     return false;
   }
 
@@ -729,6 +771,7 @@ export async function kuyrugunuCoz(
 
   // Her denemede artır; 2'yi geçince kalıcı HATA, AI'ya gönderme.
   const parti: typeof secilen = [];
+  const maxDenemeIdler: number[] = [];
   for (const m of secilen) {
     const guncel = await prisma.hamMesaj.update({
       where: { id: m.id },
@@ -743,11 +786,36 @@ export async function kuyrugunuCoz(
           hata: `Max deneme (${AI_MAX_DENEME}) aşıldı — kalıcı HATA.`,
         },
       });
+      maxDenemeIdler.push(m.id);
       continue;
     }
     parti.push(m);
   }
+  if (maxDenemeIdler.length > 0) {
+    rapor.islenen += maxDenemeIdler.length;
+  }
   if (parti.length === 0) {
+    rapor.funnel = {
+      aiCevapBos: 0,
+      rotaYok: 0,
+      guvenDusuk: 0,
+      satirEle: 0,
+      aracRed: 0,
+      tonajRed: 0,
+      rotaDedup: 0,
+      hashTekrar: 0,
+      mesajTekrar: 0,
+      maxDeneme: maxDenemeIdler.length,
+      aiHata: 0,
+      dedupAtlanan: 0,
+      bolgeElenen: 0,
+      cikisSay: 0,
+      kayitHatasi: 0,
+      yeniIlan: 0,
+      sayilmayan: 0,
+      sayilmayanIdler: [],
+      guvenMinKayit: GUVEN_MIN_KAYIT,
+    };
     rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
     return rapor;
   }
@@ -796,6 +864,28 @@ export async function kuyrugunuCoz(
     rapor.islenen += onDedupAtlanan;
   }
   if (aiParti.length === 0) {
+    rapor.funnel = {
+      aiCevapBos: 0,
+      rotaYok: 0,
+      guvenDusuk: 0,
+      satirEle: 0,
+      aracRed: 0,
+      tonajRed: 0,
+      rotaDedup: onDedupAtlanan,
+      hashTekrar: 0,
+      mesajTekrar: 0,
+      maxDeneme: maxDenemeIdler.length,
+      aiHata: 0,
+      dedupAtlanan: 0,
+      bolgeElenen: 0,
+      cikisSay: 0,
+      kayitHatasi: 0,
+      yeniIlan: 0,
+      sayilmayan: 0,
+      sayilmayanIdler: [],
+      guvenMinKayit: GUVEN_MIN_KAYIT,
+    };
+    console.log(`[kuyruk] funnel ${JSON.stringify(rapor.funnel)}`);
     rapor.kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
     return rapor;
   }
@@ -842,6 +932,9 @@ export async function kuyrugunuCoz(
   if (cozum.ele.satirEle > 0) {
     await elemeArtir({ AI_SATIR_ELE: cozum.ele.satirEle });
   }
+  if (cozum.ele.cikisSay > 0) {
+    await elemeArtir({ KORIDOR_CIKIS_SAY: cozum.ele.cikisSay });
+  }
 
   const metinler = new Map(aiParti.map((m) => [m.id, m.metin]));
   const kaynaklar = new Map(aiParti.map((m) => [m.id, m.kaynakId]));
@@ -872,6 +965,7 @@ export async function kuyrugunuCoz(
   const tonajMesaj = new Set<number>();
   const aracMesaj = new Set<number>();
   const bolgeMesaj = new Set<number>();
+  const cikisMesaj = new Set<number>();
   const istiap = tercih.maliyet.tonaj;
   for (const { anahtar, ilan } of cozulenler) {
     const hamMetin = hamTam.get(anahtar) ?? metinler.get(anahtar) ?? "";
@@ -909,12 +1003,25 @@ export async function kuyrugunuCoz(
             `${ilan.cikisIl}→${ilan.varisIl} tip=${ilan.aracTipiKod || ilan.aracTipi || "?"}`
         );
       } else {
-        uzakElenen += 1;
-        bolgeMesaj.add(anahtar);
-        console.log(
-          `[kuyruk] bolgeRed ham=#${anahtar} g=${ilan.guvenSkoru} ` +
-            `${ilan.cikisIl}→${ilan.varisIl}`
+        const tip = koridorTipiBelirle(
+          koridorSet,
+          ilan.cikisIl,
+          ilan.varisIl
         );
+        if (tip === "CIKIS") {
+          cikisMesaj.add(anahtar);
+          console.log(
+            `[kuyruk] cikisSay ham=#${anahtar} g=${ilan.guvenSkoru} ` +
+              `${ilan.cikisIl}→${ilan.varisIl}`
+          );
+        } else {
+          uzakElenen += 1;
+          bolgeMesaj.add(anahtar);
+          console.log(
+            `[kuyruk] bolgeRed ham=#${anahtar} g=${ilan.guvenSkoru} ` +
+              `${ilan.cikisIl}→${ilan.varisIl} tip=${tip}`
+          );
+        }
       }
       continue;
     }
@@ -958,45 +1065,91 @@ export async function kuyrugunuCoz(
     }
   }
 
-  const funnel: KayitFunnel = {
-    aiCevapBos: cozum.ele.aiCevapBos,
-    rotaYok: cozum.ele.rotaYok + kayitRotaYok,
-    guvenDusuk: cozum.ele.guvenDusuk,
-    satirEle: cozum.ele.satirEle,
-    aracRed: aracElenen,
-    tonajRed: tonajElenen,
-    rotaDedup: onDedupAtlanan,
-    dedupAtlanan: rapor.dedupAtlanan,
-    bolgeElenen: cozum.bolgeElenen + uzakElenen,
-    kayitHatasi,
-    yeniIlan: yeniler.length,
-    guvenMinKayit: GUVEN_MIN_KAYIT,
-  };
-  rapor.funnel = funnel;
-  console.log(`[kuyruk] funnel ${JSON.stringify(funnel)}`);
-
   // Başarılı AI çağrısı — iz: yeni ilan yoksa hata alanına sebep yaz.
   const yeniMesaj = new Set(
     yeniler.map((y) => y.hamMesajId).filter((x): x is number => x != null)
   );
+  // Mesaj bazlı funnel ataması (her id tam 1 kova)
+  const kova = {
+    aiCevapBos: 0,
+    rotaYok: 0,
+    guvenDusuk: 0,
+    satirEle: 0,
+    aracRed: 0,
+    tonajRed: 0,
+    dedupAtlanan: 0,
+    bolgeElenen: 0,
+    cikisSay: 0,
+    kayitHatasi: 0,
+    yeniIlan: 0,
+    aiHata: 0,
+    sayilmayan: 0,
+  };
+  const sayilmayanIdler: number[] = [];
+  const atanmis = new Set<number>();
+
+  const ata = (id: number, tur: keyof typeof kova) => {
+    if (atanmis.has(id)) return;
+    atanmis.add(id);
+    kova[tur] += 1;
+  };
+
+  for (const id of maxDenemeIdler) atanmis.add(id);
+
+  // rotaDedup: aiParti dışında kalan parti üyeleri
+  const aiIdSet = new Set(aiParti.map((m) => m.id));
+  for (const m of parti) {
+    if (!aiIdSet.has(m.id)) atanmis.add(m.id);
+  }
+
+  for (const id of cozum.basarisiz) {
+    ata(id, "aiHata");
+  }
+
   for (const id of cozum.basarili) {
     let hata: string | null = null;
     if (yeniMesaj.has(id)) {
       hata = null;
+      ata(id, "yeniIlan");
     } else if (kaydaAdayMesaj.has(id)) {
       hata = "Kayıt adayıydı — dedup/yenileme (yeni satır yok)";
+      ata(id, "dedupAtlanan");
     } else if (tonajMesaj.has(id)) {
       hata = "Tonaj aşımı → ELENDI kaydı";
+      ata(id, "tonajRed");
     } else if (aracMesaj.has(id)) {
       hata = "Araç tipi reddi";
+      ata(id, "aracRed");
+    } else if (cikisMesaj.has(id)) {
+      hata = "Koridor CIKIS — sadece sayıldı, kaydedilmedi";
+      ata(id, "cikisSay");
     } else if (bolgeMesaj.has(id)) {
       hata = "Koridor/uzak varış reddi";
+      ata(id, "bolgeElenen");
     } else if (cozulenler.some((c) => c.anahtar === id)) {
       hata = "İlan üretildi ama kayıt öncesi elendi";
-    } else if (cozum.ele.aiCevapBos > 0) {
+      ata(id, "bolgeElenen");
+    } else if (cozum.ele.aiCevapBos > 0 && kova.aiCevapBos < cozum.ele.aiCevapBos) {
       hata = "AI boş ilan listesi (koridor dışı / ilan değil)";
+      ata(id, "aiCevapBos");
+    } else if (cozum.ele.guvenDusuk > 0 && kova.guvenDusuk < cozum.ele.guvenDusuk) {
+      hata = `AI güven < ${GUVEN_MIN_KAYIT}`;
+      ata(id, "guvenDusuk");
+    } else if (cozum.ele.satirEle > 0 && kova.satirEle < cozum.ele.satirEle) {
+      hata = "AI satır elemesi";
+      ata(id, "satirEle");
+    } else if (cozum.ele.cikisSay > 0 && kova.cikisSay < cozum.ele.cikisSay) {
+      hata = "Koridor CIKIS — sadece sayıldı";
+      ata(id, "cikisSay");
+    } else if (
+      cozum.ele.rotaYok + kayitRotaYok > 0 ||
+      cozum.ele.bolgeElenen > 0
+    ) {
+      hata = "AI rota yok / bölge elemesi";
+      ata(id, "rotaYok");
     } else {
       hata = `AI ilan yok (rota/güven<${GUVEN_MIN_KAYIT}/satır elemesi)`;
+      ata(id, "rotaYok");
     }
     const metin = (hamTam.get(id) ?? metinler.get(id) ?? "").slice(0, 80);
     if (hata) {
@@ -1029,6 +1182,71 @@ export async function kuyrugunuCoz(
       });
     }
   }
+
+  // islenen kapsayan tüm id'ler — atanmayanlar sayilmayan
+  const islenenIdler = [
+    ...maxDenemeIdler,
+    ...parti.filter((m) => !aiIdSet.has(m.id)).map((m) => m.id),
+    ...cozum.basarili,
+    ...cozum.basarisiz,
+  ];
+  for (const id of islenenIdler) {
+    if (!atanmis.has(id)) {
+      kova.sayilmayan += 1;
+      sayilmayanIdler.push(id);
+      atanmis.add(id);
+    }
+  }
+
+  const funnel: KayitFunnel = {
+    aiCevapBos: kova.aiCevapBos,
+    rotaYok: kova.rotaYok,
+    guvenDusuk: kova.guvenDusuk,
+    satirEle: kova.satirEle,
+    aracRed: kova.aracRed,
+    tonajRed: kova.tonajRed,
+    rotaDedup: onDedupAtlanan,
+    hashTekrar: 0,
+    mesajTekrar: 0,
+    maxDeneme: maxDenemeIdler.length,
+    aiHata: kova.aiHata,
+    dedupAtlanan: kova.dedupAtlanan,
+    bolgeElenen: kova.bolgeElenen,
+    cikisSay: kova.cikisSay,
+    kayitHatasi: kova.kayitHatasi,
+    yeniIlan: kova.yeniIlan,
+    sayilmayan: kova.sayilmayan,
+    sayilmayanIdler,
+    guvenMinKayit: GUVEN_MIN_KAYIT,
+  };
+
+  let toplam = kayitFunnelToplam(funnel);
+  if (toplam !== rapor.islenen) {
+    const fark = rapor.islenen - toplam;
+    if (fark > 0) {
+      funnel.sayilmayan += fark;
+      console.warn(
+        `[kuyruk] FUNNEL_DENGE islenen=${rapor.islenen} toplam=${toplam} ` +
+          `sayilmayan+=${fark} idler=${JSON.stringify(sayilmayanIdler)} ` +
+          `mesajIdler=${JSON.stringify(rapor.mesajIdler)}`
+      );
+    } else {
+      console.warn(
+        `[kuyruk] FUNNEL_DENGE fazla islenen=${rapor.islenen} toplam=${toplam} ` +
+          `funnel=${JSON.stringify(funnel)}`
+      );
+    }
+    toplam = kayitFunnelToplam(funnel);
+  }
+  if (sayilmayanIdler.length > 0) {
+    console.warn(
+      `[kuyruk] sayilmayan idler=${JSON.stringify(sayilmayanIdler)}`
+    );
+  }
+  rapor.funnel = funnel;
+  console.log(
+    `[kuyruk] funnel islenen=${rapor.islenen} toplam=${toplam} ${JSON.stringify(funnel)}`
+  );
 
   rapor.yeniIlan = yeniler.length;
 
