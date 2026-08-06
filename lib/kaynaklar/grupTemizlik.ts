@@ -26,7 +26,8 @@ export const GRUP_CIKIS_SON_ANAHTAR = "grup_cikis_son";
 /** id → ISO bitiş: "3 gün daha bekle" */
 export const GRUP_CIKIS_ERTELEME_ANAHTAR = "grup_cikis_erteleme";
 
-export const CIKIS_GUNLUK_LIMIT = 3;
+/** Günde max çıkış — boş havuzu hızlı temizle (FloodWait’e dikkat). */
+export const CIKIS_GUNLUK_LIMIT = 8;
 export const CIKIS_ARA_MS = 30 * 60 * 1000;
 const ERTELEME_GUN = 3;
 
@@ -331,11 +332,75 @@ export async function cikisAdaylariniBul(): Promise<CikisAdayi[]> {
   }
 
   const gorulen = new Set<number>();
-  return adaylar.filter((a) => {
+  const tekil = adaylar.filter((a) => {
     if (gorulen.has(a.id)) return false;
     gorulen.add(a.id);
     return true;
   });
+
+  // En kötü önce: konu dışı / 0 ilan / düşük isabet → önce çık
+  tekil.sort((a, b) => cikisBudamaSkoru(b) - cikisBudamaSkoru(a));
+  return tekil;
+}
+
+/** Yüksek skor = önce çıkılacak. */
+function cikisBudamaSkoru(a: CikisAdayi): number {
+  let s = 0;
+  const sebep = a.sebep.toLocaleLowerCase("tr-TR");
+  if (/konu d[ıi][sş][ıi]|nakliye de[gğ]il|avrupa|k[oö]pr[uü]/i.test(sebep)) {
+    s += 1000;
+  }
+  if (/[cç][oö]p\s*%/.test(sebep)) s += 800;
+  if (/0 mesaj/.test(sebep)) s += 600;
+  if (/0 ilan/.test(sebep)) s += 500;
+  if (a.ilanSayisi === 0) s += 200;
+  if (a.isabetYuzde !== null) s += Math.max(0, 50 - a.isabetYuzde) * 4;
+  s -= Math.min(a.ilanSayisi, 40) * 15;
+  return s;
+}
+
+/**
+ * AKTİF grup oncelik = son 7g koridor ilan (TAM/CIKIS/VARIS).
+ * Yüksek skorlu gruplar panel + koruma; 0 ilanlılar budamada öne çıkar.
+ */
+export async function aktifGrupOncelikGuncelle(): Promise<{
+  guncellenen: number;
+}> {
+  const hafta = new Date(Date.now() - 7 * GUN_MS);
+  const aktifler = await prisma.ilanKaynagi.findMany({
+    where: { tur: TELEGRAM_UYE, durum: "AKTIF", aktif: true },
+    select: { id: true, oncelik: true },
+  });
+  if (aktifler.length === 0) return { guncellenen: 0 };
+
+  const sayilar = await prisma.yukIlani.groupBy({
+    by: ["kaynakId"],
+    where: {
+      kaynakId: { in: aktifler.map((g) => g.id) },
+      createdAt: { gte: hafta },
+      koridorTipi: { in: ["TAM", "CIKIS", "VARIS"] },
+    },
+    _count: { _all: true },
+  });
+  const map = new Map(
+    sayilar
+      .filter((s) => s.kaynakId != null)
+      .map((s) => [s.kaynakId!, s._count._all])
+  );
+
+  let guncellenen = 0;
+  for (const g of aktifler) {
+    const n = map.get(g.id) ?? 0;
+    // 0 → 0; 1–2 → 10+; bol ilan → max 80 (ADAY hasat 10–30 ile çakışmasın)
+    const hedef = n === 0 ? 0 : Math.min(80, 10 + n * 5);
+    if ((g.oncelik ?? 0) === hedef) continue;
+    await prisma.ilanKaynagi.update({
+      where: { id: g.id },
+      data: { oncelik: hedef },
+    });
+    guncellenen += 1;
+  }
+  return { guncellenen };
 }
 
 /** İsabet düşük + pencerede yeterli mesaj → çıkış adayı. */
@@ -593,6 +658,7 @@ export async function cikisOnayiniIsle(
     mesaj: `${mevcut.adaylar.length} grup çıkış kuyruğuna alındı (günde max ${CIKIS_GUNLUK_LIMIT}, 30 dk ara).`,
   };
 }
+
 
 export function cikisGunlukOku(ham: string | null): {
   gun: string;

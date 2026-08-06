@@ -273,6 +273,24 @@ fi
 
 script_izinleri
 
+# Keşif/çıkış saatleri dosyadan gelsin (crontab.yukavci)
+if [ -f "$REPO/deploy/crontab.yukavci" ]; then
+  crontab "$REPO/deploy/crontab.yukavci" >>"$LOG" 2>&1 || log "crontab güncellenemedi"
+fi
+
+# Daemon: katil / linkHasat / grupTemizlik değişince de restart
+if git diff --name-only "$OLD_SHA" "HEAD" | grep -E \
+  '^(scripts/cron-katil\.ts|scripts/cron-grup-temizlik\.ts|lib/kaynaklar/(linkHasat|grupTemizlik)\.ts)' \
+  >/dev/null; then
+  if [ "$DAEMON_RESTART" -eq 0 ]; then
+    DAEMON_RESTART=1
+    log "hasat/katil değişti → daemon restart"
+    set +e
+    sudo /bin/systemctl restart yukavci-telegram >>"$LOG" 2>&1
+    set -e
+  fi
+fi
+
 if [ "$DAEMON_RESTART" -eq 1 ]; then
   log "DEPLOY OK $SHORT (daemon restart)"
   bildir "✅ Deploy: $SHORT — $MSG"

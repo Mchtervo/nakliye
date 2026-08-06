@@ -548,7 +548,7 @@ export default function AiTercihForm({
           Grup budama (çıkış adayı)
         </div>
         <p className="text-xs text-fog">
-          Onaysız çıkılmaz. Günde max 3 çıkış, 30 dk ara. Yeni gruba koruma
+          Onaysız çıkılmaz. Günde max 8 çıkış, 30 dk ara. Yeni gruba koruma
           süresi tanınır. Sayaç +5 gün kuralı: 0-ilan / isabet&lt;%20. İstisna:
           bugün ≥100 çekimde SPAM+IL_YOK &gt;%80 veya 7g isabet %0 + 0 ilan →
           hemen aday (5g beklemez).

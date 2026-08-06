@@ -1,5 +1,5 @@
 /**
- * Onaylanmış gruplardan çık — günde max 3, arası ≥30 dk.
+ * Onaylanmış gruplardan çık — günde max 8, arası ≥30 dk.
  * LeaveChannel + PASIF.
  */
 import { Api, TelegramClient, errors } from "telegram";

@@ -9,6 +9,7 @@ import {
   sayacBaslangicGaranti,
 } from "@/lib/ayarlar";
 import {
+  aktifGrupOncelikGuncelle,
   cikisAdaylariniBul,
   cikisOnayiIste,
 } from "@/lib/kaynaklar/grupTemizlik";
@@ -20,6 +21,9 @@ async function main() {
     console.log("[grup-temizlik] üye tarama kapalı — atlandı.");
     return;
   }
+
+  const skor = await aktifGrupOncelikGuncelle();
+  console.log(`[grup-temizlik] oncelik guncelle: ${skor.guncellenen} grup`);
 
   const sayacGun = await sayacBaslangicGaranti();
   const bugun = bugunAnahtar();

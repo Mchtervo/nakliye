@@ -23,13 +23,13 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 # 48s+ ilanları ARSIV (silme yok) — 06:00
 0 6 * * * /bin/bash $GUVENLI arsiv.sh
 
-# Grup keşfi — günde 3: 08:00, 14:00, 20:00
-0 8,14,20 * * * /bin/bash $GUVENLI grup-kesif.sh
+# Grup keşfi — günde 5: 06, 10, 14, 18, 22
+0 6,10,14,18,22 * * * /bin/bash $GUVENLI grup-kesif.sh
 
 # Grup temizlik onayı — her keşiften 15 dk sonra
-15 8,14,20 * * * /bin/bash $GUVENLI grup-temizlik.sh
+15 6,10,14,18,22 * * * /bin/bash $GUVENLI grup-temizlik.sh
 
-# Onaylı grup çıkışı — 30 dk; script günde max 3 + 30 dk ara
+# Onaylı grup çıkışı — 30 dk; script günde max 8 + 30 dk ara
 */30 * * * * /bin/bash $GUVENLI grup-cik.sh
 
 # Grup katılımı — 30 dk arayla; script günde max 8 + 30 dk ara

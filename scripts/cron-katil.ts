@@ -41,25 +41,34 @@ function gunlukOku(ham: string | null): { gun: string; adet: number } {
   return { gun: bugun, adet: Number.isFinite(adet) ? adet : 0 };
 }
 
-/** Çöp ADAY'ları PASİF yap; koridor başlıklıları öne al. */
-async function adaySec(haric: Set<number>): Promise<{
+type KatilimAday = {
   id: number;
   ad: string;
   kullaniciAdi: string | null;
   hedef: string;
-} | null> {
+  /** inv:hash → ImportChatInvite */
+  davetHash: string | null;
+};
+
+/** Çöp ADAY'ları PASİF yap; koridor başlıklıları + hasat/davet öne al. */
+async function adaySec(haric: Set<number>): Promise<KatilimAday | null> {
   const minUye = await katilimMinUyeOku();
   const adaylar = await prisma.ilanKaynagi.findMany({
     where: {
       tur: TELEGRAM_UYE,
       durum: "ADAY",
       aktif: true,
-      kullaniciAdi: { not: null },
       id: haric.size > 0 ? { notIn: [...haric] } : undefined,
-      OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: minUye } }],
+      OR: [
+        {
+          kullaniciAdi: { not: null },
+          OR: [{ uyeSayisi: null }, { uyeSayisi: { gte: minUye } }],
+        },
+        { hedef: { startsWith: "inv:" } },
+      ],
     },
     orderBy: [{ oncelik: "desc" }, { uyeSayisi: "desc" }, { id: "asc" }],
-    take: 40,
+    take: 50,
     select: {
       id: true,
       ad: true,
@@ -71,48 +80,54 @@ async function adaySec(haric: Set<number>): Promise<{
     },
   });
 
-  const uygun: {
-    id: number;
-    ad: string;
-    kullaniciAdi: string | null;
-    hedef: string;
-    skor: number;
-  }[] = [];
+  const uygun: (KatilimAday & { skor: number })[] = [];
 
   for (const a of adaylar) {
-    const red = katilimRedSebebi(a.ad);
-    if (red) {
-      await prisma.ilanKaynagi.update({
-        where: { id: a.id },
-        data: {
-          aktif: false,
-          durum: "PASIF",
-          sonHata: `Katılım RED: ${red}`.slice(0, 300),
-        },
-      });
-      console.log(`[cron-katil] RED → PASIF #${a.id} (${red}): ${a.ad}`);
-      continue;
+    const davet =
+      a.hedef.startsWith("inv:") && a.hedef.length > 4
+        ? a.hedef.slice(4)
+        : null;
+
+    // Davet: başlık henüz yok — katılınca kontrol
+    if (!davet) {
+      const red = katilimRedSebebi(a.ad);
+      if (red) {
+        await prisma.ilanKaynagi.update({
+          where: { id: a.id },
+          data: {
+            aktif: false,
+            durum: "PASIF",
+            sonHata: `Katılım RED: ${red}`.slice(0, 300),
+          },
+        });
+        console.log(`[cron-katil] RED → PASIF #${a.id} (${red}): ${a.ad}`);
+        continue;
+      }
+      if (!yukBasligiMi(a.ad)) {
+        await prisma.ilanKaynagi.update({
+          where: { id: a.id },
+          data: {
+            aktif: false,
+            durum: "PASIF",
+            sonHata: "Otomatik katılım: başlık yük grubu değil → PASIF",
+          },
+        });
+        console.log(`[cron-katil] başlık elendi → PASIF #${a.id}: ${a.ad}`);
+        continue;
+      }
     }
-    if (!yukBasligiMi(a.ad)) {
-      await prisma.ilanKaynagi.update({
-        where: { id: a.id },
-        data: {
-          aktif: false,
-          durum: "PASIF",
-          sonHata: "Otomatik katılım: başlık yük grubu değil → PASIF",
-        },
-      });
-      console.log(`[cron-katil] başlık elendi → PASIF #${a.id}: ${a.ad}`);
-      continue;
-    }
+
     const koridor = koridorBaslikOnceligi(a.ad);
-    // Koridor ili başlıkta → güçlü öncelik; yoksa geride kalsın
+    const hasatBonus = a.hasatKaynak ? 25 : 0;
+    const davetBonus = davet ? 20 : 0;
     const skor =
       (a.oncelik ?? 0) +
       koridor * 50 +
       (koridor > 0 ? 100 : 0) +
+      hasatBonus +
+      davetBonus +
       Math.min(a.uyeSayisi ?? 0, 5000) / 5000;
-    if (koridor > 0 && (a.oncelik ?? 0) < 20 + koridor) {
+    if (!davet && koridor > 0 && (a.oncelik ?? 0) < 20 + koridor) {
       await prisma.ilanKaynagi
         .update({
           where: { id: a.id },
@@ -125,12 +140,54 @@ async function adaySec(haric: Set<number>): Promise<{
       ad: a.ad,
       kullaniciAdi: a.kullaniciAdi,
       hedef: a.hedef,
+      davetHash: davet,
       skor,
     });
   }
 
   uygun.sort((x, y) => y.skor - x.skor);
   return uygun[0] ?? null;
+}
+
+async function aktifYap(
+  adayId: number,
+  chatId: string,
+  baslik: string
+): Promise<void> {
+  const cakisan = await prisma.ilanKaynagi.findFirst({
+    where: {
+      tur: TELEGRAM_UYE,
+      hedef: chatId,
+      id: { not: adayId },
+    },
+    select: { id: true },
+  });
+  if (cakisan) {
+    await prisma.ilanKaynagi.update({
+      where: { id: adayId },
+      data: {
+        aktif: false,
+        durum: "PASIF",
+        sonHata: `Katıldı ama chatId #${cakisan.id} ile çakıştı`,
+      },
+    });
+    await prisma.ilanKaynagi.update({
+      where: { id: cakisan.id },
+      data: { durum: "AKTIF", aktif: true, sonHata: null },
+    });
+    return;
+  }
+  await prisma.ilanKaynagi.update({
+    where: { id: adayId },
+    data: {
+      hedef: chatId,
+      ad: baslik.slice(0, 120),
+      durum: "AKTIF",
+      aktif: true,
+      sonHata: null,
+      sonTarama: new Date(),
+    },
+  });
 }
 
 /** Son 20 mesajda ilan sinyali oranı. Düşükse PASIF + false. */
@@ -231,6 +288,17 @@ async function main() {
     throw new Error("TELEGRAM_API_ID/HASH/SESSION eksik");
   }
 
+  // Eski hasat davetleri pasif kaydedilmişti → katılım kuyruğuna al
+  await prisma.ilanKaynagi.updateMany({
+    where: {
+      tur: TELEGRAM_UYE,
+      durum: "ADAY",
+      hedef: { startsWith: "inv:" },
+      aktif: false,
+    },
+    data: { aktif: true, oncelik: 16 },
+  });
+
   const client = new TelegramClient(new StringSession(oturum), apiId, apiHash, {
     connectionRetries: 3,
     autoReconnect: false,
@@ -238,15 +306,21 @@ async function main() {
   await client.connect();
 
   const haric = new Set<number>();
-  let aday: Awaited<ReturnType<typeof adaySec>> = null;
+  let aday: KatilimAday | null = null;
   try {
     for (let i = 0; i < 8; i++) {
       aday = await adaySec(haric);
-      if (!aday?.kullaniciAdi) {
+      if (!aday) {
         console.log("[cron-katil] uygun ADAY yok");
         return;
       }
       haric.add(aday.id);
+      // Davet: içerik kontrolü katılım sonrası; username: önce sinyal
+      if (aday.davetHash) break;
+      if (!aday.kullaniciAdi) {
+        aday = null;
+        continue;
+      }
       const ok = await icerikUygunMu(client, {
         id: aday.id,
         ad: aday.ad,
@@ -255,59 +329,84 @@ async function main() {
       if (ok) break;
       aday = null;
     }
-    if (!aday?.kullaniciAdi) {
+    if (!aday || (!aday.kullaniciAdi && !aday.davetHash)) {
       console.log("[cron-katil] içerik uygun ADAY kalmadı");
       return;
     }
 
-    const kullanici = aday.kullaniciAdi.replace(/^@/, "");
-    console.log(`[cron-katil] deneme @${kullanici} (${aday.ad})`);
-
     try {
-      const entity = await client.getEntity(kullanici);
-      const channel = await client.getInputEntity(entity);
-      await client.invoke(new Api.channels.JoinChannel({ channel }));
+      let chatId = "";
+      let baslik = aday.ad;
 
-      const chatId = String(utils.getPeerId(entity));
-      const baslik =
-        entity instanceof Api.Channel && entity.title
-          ? entity.title
-          : aday.ad;
-
-      const cakisan = await prisma.ilanKaynagi.findFirst({
-        where: {
-          tur: TELEGRAM_UYE,
-          hedef: chatId,
-          id: { not: aday.id },
-        },
-        select: { id: true },
-      });
-      if (cakisan) {
-        await prisma.ilanKaynagi.update({
-          where: { id: aday.id },
-          data: {
-            aktif: false,
-            durum: "PASIF",
-            sonHata: `Katıldı ama chatId #${cakisan.id} ile çakıştı`,
-          },
-        });
-        await prisma.ilanKaynagi.update({
-          where: { id: cakisan.id },
-          data: { durum: "AKTIF", aktif: true, sonHata: null },
-        });
+      if (aday.davetHash) {
+        console.log(`[cron-katil] davet deneme inv:${aday.davetHash.slice(0, 8)}…`);
+        const updates = await client.invoke(
+          new Api.messages.ImportChatInvite({ hash: aday.davetHash })
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chats = (updates as any)?.chats as Api.TypeChat[] | undefined;
+        const ch = chats?.find(
+          (c) => c instanceof Api.Channel || c instanceof Api.Chat
+        );
+        if (!ch) {
+          await prisma.ilanKaynagi.update({
+            where: { id: aday.id },
+            data: {
+              sonHata: "Davet OK ama chat çözülemedi",
+              aktif: false,
+              durum: "PASIF",
+            },
+          });
+          return;
+        }
+        chatId = String(utils.getPeerId(ch));
+        baslik =
+          ch instanceof Api.Channel || ch instanceof Api.Chat
+            ? (ch.title || aday.ad).slice(0, 120)
+            : aday.ad;
+        const red = katilimRedSebebi(baslik);
+        if (red || !yukBasligiMi(baslik)) {
+          try {
+            if (ch instanceof Api.Channel) {
+              await client.invoke(
+                new Api.channels.LeaveChannel({
+                  channel: await client.getInputEntity(ch),
+                })
+              );
+            }
+          } catch {
+            /* leave best-effort */
+          }
+          await prisma.ilanKaynagi.update({
+            where: { id: aday.id },
+            data: {
+              aktif: false,
+              durum: "PASIF",
+              ad: baslik,
+              hedef: chatId,
+              sonHata: `Davet sonrası RED: ${red || "yük başlığı değil"}`.slice(
+                0,
+                300
+              ),
+            },
+          });
+          console.log(`[cron-katil] davet RED → çıkıldı: ${baslik}`);
+          return;
+        }
       } else {
-        await prisma.ilanKaynagi.update({
-          where: { id: aday.id },
-          data: {
-            hedef: chatId,
-            ad: baslik.slice(0, 120),
-            durum: "AKTIF",
-            aktif: true,
-            sonHata: null,
-            sonTarama: new Date(),
-          },
-        });
+        const kullanici = aday.kullaniciAdi!.replace(/^@/, "");
+        console.log(`[cron-katil] deneme @${kullanici} (${aday.ad})`);
+        const entity = await client.getEntity(kullanici);
+        const channel = await client.getInputEntity(entity);
+        await client.invoke(new Api.channels.JoinChannel({ channel }));
+        chatId = String(utils.getPeerId(entity));
+        baslik =
+          entity instanceof Api.Channel && entity.title
+            ? entity.title
+            : aday.ad;
       }
+
+      await aktifYap(aday.id, chatId, baslik);
       await ayarYaz(
         AYAR_ANAHTARLARI.telegramSonKatilim,
         new Date().toISOString()
@@ -320,6 +419,7 @@ async function main() {
         JSON.stringify({
           ok: true,
           grup: baslik,
+          davet: Boolean(aday.davetHash),
           bugun: `${sayac.adet + 1}/${GUNLUK_LIMIT}`,
         })
       );
@@ -363,49 +463,38 @@ async function main() {
       }
 
       if (/USER_ALREADY_PARTICIPANT|already a participant/i.test(mesaj)) {
-        try {
-          const entity = await client.getEntity(kullanici);
-          const chatId = String(utils.getPeerId(entity));
-          const baslik =
-            entity instanceof Api.Channel && entity.title
-              ? entity.title
-              : aday.ad;
-          const cakisan = await prisma.ilanKaynagi.findFirst({
-            where: {
-              tur: TELEGRAM_UYE,
-              hedef: chatId,
-              id: { not: aday.id },
-            },
-            select: { id: true },
-          });
-          if (!cakisan) {
+        if (aday.kullaniciAdi) {
+          try {
+            const entity = await client.getEntity(
+              aday.kullaniciAdi.replace(/^@/, "")
+            );
+            const chatId = String(utils.getPeerId(entity));
+            const baslik =
+              entity instanceof Api.Channel && entity.title
+                ? entity.title
+                : aday.ad;
+            await aktifYap(aday.id, chatId, baslik);
+          } catch {
             await prisma.ilanKaynagi.update({
               where: { id: aday.id },
-              data: {
-                hedef: chatId,
-                ad: baslik.slice(0, 120),
-                durum: "AKTIF",
-                aktif: true,
-                sonHata: null,
-              },
-            });
-          } else {
-            await prisma.ilanKaynagi.update({
-              where: { id: aday.id },
-              data: {
-                aktif: false,
-                durum: "PASIF",
-                sonHata: `Zaten üye; kayıt #${cakisan.id}`,
-              },
+              data: { durum: "AKTIF", aktif: true, sonHata: null },
             });
           }
-        } catch {
-          await prisma.ilanKaynagi.update({
-            where: { id: aday.id },
-            data: { durum: "AKTIF", aktif: true, sonHata: null },
-          });
         }
         console.log("[cron-katil] zaten üye → AKTİF", aday.ad);
+        return;
+      }
+
+      if (/INVITE_HASH_EXPIRED|INVITE_HASH_INVALID/i.test(mesaj)) {
+        await prisma.ilanKaynagi.update({
+          where: { id: aday.id },
+          data: {
+            aktif: false,
+            durum: "PASIF",
+            sonHata: mesaj.slice(0, 300),
+          },
+        });
+        console.log("[cron-katil] davet geçersiz → PASIF", aday.id);
         return;
       }
 
