@@ -1,6 +1,7 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
 import { aracKoduBul, aracMetniUyuyorMu } from "@/lib/arac";
 import { koridorIlKumesi, koridoraUyuyorMu } from "@/lib/koridor";
+import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 import { rotaSatiriniBul } from "@/lib/kaynaklar/rotaDogrula";
@@ -71,6 +72,17 @@ export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
 
   if (
     !koridoraUyuyorMu(tercih.koridorIller, ilan.cikisIl, ilan.varisIl)
+  ) {
+    return false;
+  }
+
+  if (
+    !yakaKaydaUygunMu({
+      cikisIl: ilan.cikisIl,
+      varisIl: ilan.varisIl,
+      nereden: ilan.nereden,
+      nereye: ilan.nereye,
+    })
   ) {
     return false;
   }

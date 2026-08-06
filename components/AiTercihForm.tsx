@@ -79,7 +79,7 @@ export default function AiTercihForm({
   };
   /** YYYY-MM-DD — budama sayaç sıfırlama */
   sayacBaslangic?: string;
-  /** Keşif koridor kelimeleri (satır satır) — havuzun ~%70’i */
+  /** Keşif koridor kelimeleri (satır satır) — havuzun ~%85’i */
   kesifKoridorKelimeler?: string;
 }) {
   const [durum, aksiyon, bekliyor] = useActionState<AiSonuc, FormData>(
@@ -627,9 +627,9 @@ export default function AiTercihForm({
           Keşif kelime havuzu (koridor hattı)
         </div>
         <p className="text-xs text-fog">
-          Telegram aramasında bu kelimeler havuzun ~%70’i; kalan %30 genel
-          nakliye. Her satıra bir sorgu. Boş kaydedersen varsayılan
-          Ankara–İstanbul listesi kullanılır.
+          Telegram aramasında bu kelimeler havuzun ~%85’i. Boş kaydedersen
+          varsayılan Ankara–Gebze–Anadolu yakası listesi kullanılır
+          (Hadımköy/Avrupa yok — köprü geçilmez).
         </p>
         <div>
           <label htmlFor="kesifKoridorKelimeler" className="etiket">
@@ -639,7 +639,7 @@ export default function AiTercihForm({
             id="kesifKoridorKelimeler"
             name="kesifKoridorKelimeler"
             rows={8}
-            placeholder={"ankara istanbul yük\ngebze ankara nakliye\n…"}
+            placeholder={"ankara gebze yük\ngebze nakliye\ntuzla ankara nakliye\n…"}
             defaultValue={kesifKoridorKelimeler}
             className="alan font-mono text-xs"
           />

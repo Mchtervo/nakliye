@@ -35,6 +35,7 @@ import {
   koridorKaydaAlinirMi,
   koridorTipiBelirle,
 } from "@/lib/koridor";
+import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul } from "@/lib/iller";
@@ -473,6 +474,18 @@ function ilanKaydaUygunMu(
     koridorTipiBelirle(koridorSet, ilan.cikisIl, ilan.varisIl);
   ilan.koridorTipi = tip;
   if (!koridorKaydaAlinirMi(koridorSet, ilan.cikisIl, ilan.varisIl)) {
+    return false;
+  }
+
+  // Avrupa yakası (Hadımköy/İkitelli…) = köprü → kaydetme
+  if (
+    !yakaKaydaUygunMu({
+      cikisIl: ilan.cikisIl,
+      varisIl: ilan.varisIl,
+      nereden: ilan.nereden,
+      nereye: ilan.nereye,
+    })
+  ) {
     return false;
   }
 

@@ -269,11 +269,12 @@ const KATILIM_RED_TERIMLER = [
   "rusya", "russia", "avrupa", "almanya", "germany",
 ];
 
-/** Başlıkta geçince öncelik puanı (katılım sırası). */
+/** Başlıkta geçince öncelik puanı (katılım sırası). Avrupa semt yok. */
 const KORIDOR_BASLIK_KELIMELER = [
   "ankara", "istanbul", "gebze", "kocaeli", "bolu", "duzce",
-  "sakarya", "kirikkale", "cankiri", "ostim", "hadimkoy",
-  "dilovasi", "cayirova", "ikitelli", "adapazari",
+  "sakarya", "kirikkale", "cankiri", "ostim", "tuzla", "pendik",
+  "dilovasi", "cayirova", "adapazari", "anadolu", "kartal",
+  "maltepe", "umraniye", "dudullu",
 ];
 
 /**
@@ -325,6 +326,19 @@ export function katilimRedSebebi(baslik: string): string | null {
     if (sade.includes(il)) return `koridor dışı il: ${il}`;
   }
 
+  // Avrupa yakası / Hadımköy grubu — koridor Anadolu+Gebze hattı değilse RED
+  const avrupaIm = [
+    "avrupa yakasi", "avrupa yakası", "hadimkoy", "hadımkoy",
+    "ikitelli", "esenyurt", "ambarli", "beylikduzu", "silivri",
+  ].some((k) => sade.includes(sadelestir(k)));
+  if (avrupaIm) {
+    const hatIm = [
+      "anadolu", "gebze", "kocaeli", "ankara", "bolu", "tuzla",
+      "pendik", "dilovasi", "cayirova", "sakarya", "duzce",
+    ].some((k) => sade.includes(sadelestir(k)));
+    if (!hatIm) return "avrupa yakası / köprü hattı";
+  }
+
   return null;
 }
 
@@ -357,30 +371,45 @@ export function yukBasligiMi(baslik: string): boolean {
  * Havuzun ~%70’i bu listeden gelir.
  */
 export const VARSAYILAN_KESIF_KORIDOR_KELIMELER = [
-  "ankara istanbul yük",
-  "gebze ankara nakliye",
-  "kocaeli ankara tır",
-  "bolu ankara yük",
-  "ankara çıkışlı yük",
-  "istanbul ankara tenteli",
-  "sakarya ankara yük",
-  "düzce ankara nakliye",
+  // Ana hat Ankara ↔ Gebze / Anadolu İstanbul
   "ankara gebze yük",
-  "istanbul ankara komple",
+  "gebze ankara nakliye",
+  "ankara kocaeli yük",
+  "kocaeli ankara tır",
+  "ankara bolu yük",
+  "bolu ankara nakliye",
+  "ankara çıkışlı yük",
   "ankara tenteli yük",
-  "kırıkkale ankara",
   "ankara istanbul nakliye",
+  "istanbul ankara tenteli",
+  "ankara tuzla yük",
+  "tuzla ankara nakliye",
+  "pendik ankara yük",
+  "ankara pendik nakliye",
+  // Yerel hat grupları
   "gebze yük",
-  "ostim nakliye",
-  "hadımköy yük",
-  "kocaeli ankara yük",
+  "gebze nakliye",
+  "dilovası yük",
+  "çayırova nakliye",
+  "kocaeli yük",
+  "izmit nakliye",
+  "bolu yük",
   "bolu nakliye",
-  "sakarya nakliye",
   "düzce yük",
+  "sakarya nakliye",
+  "adapazarı yük",
+  "ostim nakliye",
+  "ostim yük",
   "ankara yük",
-  "istanbul yük",
   "kırıkkale yük",
   "çankırı nakliye",
+  // Anadolu yakası (Avrupa/Hadımköy yok — köprü geçilmez)
+  "tuzla yük",
+  "pendik nakliye",
+  "anadolu yakası nakliye",
+  "istanbul anadolu yük",
+  "kartal nakliye",
+  "dudullu yük",
 ];
 
 /** Yeni satır / virgül ayrılmış havuzu temizle. */
@@ -408,7 +437,7 @@ export function kesifKelimeleriCozumle(
 function havuzKaristir(
   koridor: string[],
   genel: string[],
-  koridorOran = 0.7
+  koridorOran = 0.85
 ): string[] {
   const k = [...koridor];
   const g = [...genel];
@@ -422,25 +451,26 @@ function havuzKaristir(
   );
   const gTrim = g.slice(0, hedefGenel);
 
+  // ~%85 koridor: 8+2 blokları
   const sonuc: string[] = [];
   let ki = 0;
   let gi = 0;
   while (ki < k.length || gi < gTrim.length) {
-    for (let i = 0; i < 7 && ki < k.length; i++) sonuc.push(k[ki++]);
-    for (let i = 0; i < 3 && gi < gTrim.length; i++) sonuc.push(gTrim[gi++]);
+    for (let i = 0; i < 8 && ki < k.length; i++) sonuc.push(k[ki++]);
+    for (let i = 0; i < 2 && gi < gTrim.length; i++) sonuc.push(gTrim[gi++]);
   }
   return sonuc;
 }
 
 /**
  * Telegram global aramasında denenecek sorgular.
- * Koridor hattı %70, genel nakliye %30.
+ * Koridor hattı %85, genel nakliye %15.
  * cron-kesif her turda listeden 20’lik dilim döndürür (sira ile).
  *
  * @param ozelKoridorKelimeler Ayarlar’dan; boşsa VARSAYILAN_KESIF_KORIDOR_KELIMELER
  */
 export function aramaSorgulariUret(
-  kodlar: BolgeKodu[],
+  _bolgeKodlari: BolgeKodu[],
   koridorIller: string[] = [],
   ozelKoridorKelimeler?: string[] | null
 ): string[] {
@@ -456,29 +486,17 @@ export function aramaSorgulariUret(
     koridorBaz.push(`${il} çıkışlı`);
   }
 
+  // Genel havuz küçük tutulur — "Marmara yük" gibi bölge sorguları
+  // koridor dışı grup şişiriyordu.
   const genel: string[] = [
     "yük ilanları",
     "nakliye yük",
     "tır yük grubu",
-    "lojistik grup",
-    "nakliyat grubu",
-    "tır sahipleri",
-    "nakliyeci grubu",
-    "parsiyel yük",
-    "komple yük",
     "tenteli yük",
+    "komple yük",
     "acil yük",
     "yük paylaşım",
-    "boş araç",
   ];
-
-  const secili = kodlar.length > 0 ? kodlar : VARSAYILAN_BOLGELER;
-  for (const kod of secili) {
-    const bolge = KOD_HARITASI.get(kod);
-    if (!bolge) continue;
-    // Bölge merkezleri genel havuza — koridor dışı şehirleri şişirmesin
-    genel.push(`${bolge.ad} yük`);
-  }
 
   const gorulen = new Set<string>();
   const tekil = (liste: string[]) => {
@@ -492,7 +510,7 @@ export function aramaSorgulariUret(
     return out;
   };
 
-  return havuzKaristir(tekil(koridorBaz), tekil(genel), 0.7);
+  return havuzKaristir(tekil(koridorBaz), tekil(genel), 0.85);
 }
 
 /** Her keşif turunda kaç sorgu (dönüşümlü dilim). */

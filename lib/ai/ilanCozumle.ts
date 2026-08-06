@@ -16,6 +16,7 @@ import {
 import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul, illeriBul, sadelestir } from "@/lib/iller";
 import { koridorTipiBelirle, type KoridorTipi } from "@/lib/koridor";
+import { kopruGecisliMi } from "@/lib/istanbulYaka";
 import {
   AI_MAX_ROTA_PARCA,
   mesajiAiParcalarinaBol,
@@ -741,9 +742,12 @@ KAPSAM (KORİDOR):
 - Sadece ÇIKIŞ listede + VARIŞ bilinen dışarıdaysa (Ankara→İzmir)
   HİÇ yazma.
 - İki uç da dışarıdaysa yazma.
+- İstanbul: ANADOLU yakası + Gebze hattı (Tuzla, Pendik, Kartal…).
+  Avrupa yakası (Hadımköy, İkitelli, Esenyurt, Ambarlı, Silivri…)
+  köprü/tünel ister → YAZMA.
 İller: ${iller.join(", ")}
-İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Hadımköy→İstanbul,
-Yahşihan→Kırıkkale, Gölbaşı→Ankara, Cerrahpaşa→İstanbul).`;
+İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Tuzla→İstanbul,
+Yahşihan→Kırıkkale, Gölbaşı→Ankara).`;
 }
 
 /**
@@ -760,6 +764,17 @@ function kapsamEleVeTip(
   if (tip === "DISI") return { ele: "DISI", tip };
   // CIKIS + bilinen dış varış → say, kaydetme; varışsız → kaydet
   if (tip === "CIKIS" && ilan.varisIl) return { ele: "CIKIS", tip };
+  // Avrupa yakası (Hadımköy…) = köprü geçiş → kaydetme
+  if (
+    kopruGecisliMi({
+      cikisIl: ilan.cikisIl,
+      varisIl: ilan.varisIl,
+      nereden: ilan.nereden,
+      nereye: ilan.nereye,
+    })
+  ) {
+    return { ele: "DISI", tip };
+  }
   return { ele: null, tip };
 }
 

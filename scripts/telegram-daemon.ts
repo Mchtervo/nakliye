@@ -298,6 +298,16 @@ async function kacanlariYakala(client: TelegramClient) {
           }
           if (mesajlar.length < SAYFA) break;
         }
+        // Sessiz grup: yeni mesaj yoksa bile sonTarama tazele (budama/teşhis)
+        if (toplamMesaj === 0) {
+          await mesajlariKuyrugaAl([
+            {
+              id: k.id,
+              sonMesajId: k.sonMesajId,
+              mesajlar: [],
+            },
+          ]);
+        }
       }
 
       if (toplamMesaj > 0) {
