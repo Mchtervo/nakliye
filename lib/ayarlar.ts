@@ -336,7 +336,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     })(),
     katilimMinUye: (() => {
       const n = Number(a[AYAR_ANAHTARLARI.telegramKatilimMinUye]);
-      if (!Number.isFinite(n) || n < 1) return 15;
+      if (!Number.isFinite(n) || n < 1) return 5;
       return Math.min(5000, Math.round(n));
     })(),
     autoDeploy:

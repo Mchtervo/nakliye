@@ -483,13 +483,24 @@ async function kuyrukYaz(d: CikisKuyrukKayit): Promise<void> {
  * Tek grup için Telegram onay iste (rakamlı + 3 buton).
  * Zaten bekleyen onay varsa tekrar gönderme.
  */
+/** Cevapsız kalan onay — bu süre sonra otomatik «Evet» (çıkış kuyruğu). */
+const ONAY_ZAMAN_ASIMI_MS = 36 * 60 * 60 * 1000;
+
 export async function cikisOnayiIste(): Promise<{
   aday: number;
   gonderildi: boolean;
 }> {
   const mevcut = await cikisOnayOku();
   if (mevcut.tur === "bekliyor" && mevcut.adaylar.length > 0) {
-    return { aday: mevcut.adaylar.length, gonderildi: false };
+    const yas = Date.now() - Date.parse(mevcut.zaman);
+    if (Number.isFinite(yas) && yas >= ONAY_ZAMAN_ASIMI_MS) {
+      console.warn(
+        `[grup-temizlik] çıkış onayı ${Math.round(yas / 3600e3)}s cevapsız → otomatik evet (${mevcut.adaylar.length} grup)`
+      );
+      await cikisOnayiniIsle("evet");
+    } else {
+      return { aday: mevcut.adaylar.length, gonderildi: false };
+    }
   }
 
   const kuyruk = await cikisKuyrukOku();

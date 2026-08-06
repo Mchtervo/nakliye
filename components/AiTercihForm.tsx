@@ -21,7 +21,7 @@ export default function AiTercihForm({
   waSablon,
   tdmKaraListe,
   tdmGunlukLimit,
-  katilimMinUye = "15",
+  katilimMinUye = "5",
   autoDeploy,
   autoDeployEnv = false,
   maliyet = {
@@ -59,7 +59,7 @@ export default function AiTercihForm({
   };
   tdmKaraListe: string;
   tdmGunlukLimit: string;
-  /** Otomatik katılım min üye (varsayılan 15) */
+  /** Otomatik katılım min üye (varsayılan 5) */
   katilimMinUye?: string;
   autoDeploy: boolean;
   /** VPS AUTO_DEPLOY=1 — panel kapatsa bile açık */
@@ -369,12 +369,13 @@ export default function AiTercihForm({
             name="katilimMinUye"
             type="text"
             inputMode="numeric"
-            placeholder="15"
+            placeholder="5"
             defaultValue={katilimMinUye}
             className="alan"
           />
           <p className="mt-1 text-xs text-fog">
-            ADAY grup bu üyeden azsa katılma. Varsayılan 15 (eskiden 50).
+            ADAY grup bu üyeden azsa katılma. Varsayılan 5 (Telegram arama üye
+            sayısını eksik verebiliyor).
           </p>
         </div>
         <label className="flex cursor-pointer items-center gap-3">
