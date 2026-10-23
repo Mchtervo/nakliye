@@ -36,6 +36,8 @@ export type IlanKartVeri = {
   fiyatBelirsiz: boolean;
   firmaAdi: string | null;
   telefon: string | null;
+  /** Asistanın WhatsApp sorusu: sırada, yazıldı, cevap yok veya konuşma özeti. */
+  waNot?: string | null;
   gonderenUserId: string | null;
   guvenSkoru: number;
   hamMetin: string;
@@ -353,6 +355,9 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
           </a>
         ) : (
           <p className="mt-0.5 text-sm text-fog">Telefon yok</p>
+        )}
+        {ilan.waNot && (
+          <p className="mt-1 text-sm font-medium text-paper/80">{ilan.waNot}</p>
         )}
       </div>
 

@@ -78,6 +78,7 @@ export async function kaynaklariTara(limit = 2): Promise<TaramaRaporu> {
           dedupAtlanan: 0,
           rotaYok: 0,
           kayitHatasi: 0,
+          telefonYok: 0,
         }
       : await ilanlariKaydet(kaynak.id, sonuc.bulunanlar);
     yeniler.push(...kaydedilen.yeniler);

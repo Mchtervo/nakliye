@@ -70,7 +70,13 @@ export async function eskiIlanlariArsivle(): Promise<number> {
       sonGorulme: { lt: sinir },
     },
   });
-  return r.count;
+  const telsiz = await prisma.yukIlani.deleteMany({
+    where: {
+      durum: { notIn: ["YUKE_DONDU", "ALINDI"] },
+      OR: [{ telefon: null }, { telefon: "" }],
+    },
+  });
+  return r.count + telsiz.count;
 }
 
 /** 6 saat kuralında eski ilan geri getirilmez. */

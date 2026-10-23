@@ -21,6 +21,7 @@ import {
   karOzetYazi,
 } from "@/lib/karHesap";
 import { panelTazeSinir, solukMu } from "@/lib/ilanTazelik";
+import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -260,8 +261,17 @@ export default async function AiYuklerSayfasi({
           durum: { notIn: ["ARSIV", "ELENDI"] },
         };
 
+  const numaraKosul: Prisma.YukIlaniWhereInput = {
+    AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
+  };
   const filtre: Prisma.YukIlaniWhereInput = {
-    AND: [tabanFiltre, rotaKosul, tazelikKosul, ...(rotaFiltresiVar ? [] : [webKaynakHaricKosulu()])],
+    AND: [
+      tabanFiltre,
+      rotaKosul,
+      tazelikKosul,
+      numaraKosul,
+      ...(rotaFiltresiVar ? [] : [webKaynakHaricKosulu()]),
+    ],
   };
   const tekSehirArama = Boolean(
     (cikisIl && !nereyeHam && !neredenHata) ||
@@ -272,6 +282,7 @@ export default async function AiYuklerSayfasi({
   const sayacTazelik: Prisma.YukIlaniWhereInput = {
     OR: [{ createdAt: { gte: tazeSinir } }, { sonGorulme: { gte: tazeSinir } }],
     durum: { notIn: ["ARSIV", "ELENDI"] },
+    AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
   };
 
   const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
@@ -328,6 +339,24 @@ export default async function AiYuklerSayfasi({
       }),
       hatOrtalamalariYukle(),
     ]);
+
+  const gorusmeMap = new Map<number, string>();
+  if (ilanlar.length > 0) {
+    const gorusmeler = await prisma.whatsAppGorusme.findMany({
+      where: { ilanId: { in: ilanlar.map((i) => i.id) } },
+      orderBy: { id: "desc" },
+      select: {
+        ilanId: true,
+        durum: true,
+        ozet: true,
+        cevapMetin: true,
+        hata: true,
+      },
+    });
+    for (const g of gorusmeler) {
+      if (!gorusmeMap.has(g.ilanId)) gorusmeMap.set(g.ilanId, gorusmeSatiri(g));
+    }
+  }
 
   const aiAcik = aiKullanilabilir();
   const killSwitch = aiKapaliMi();
@@ -607,6 +636,7 @@ export default async function AiYuklerSayfasi({
                   fiyatBelirsiz: ilan.fiyatBelirsiz,
                   firmaAdi: ilan.firmaAdi,
                   telefon: ilan.telefon,
+                  waNot: gorusmeMap.get(ilan.id) ?? null,
                   gonderenUserId: ilan.gonderenUserId,
                   guvenSkoru: ilan.guvenSkoru,
                   hamMetin: ilan.hamMetin,
@@ -632,9 +662,9 @@ export default async function AiYuklerSayfasi({
         <div className="flex justify-center pb-4">
           <AksiyonButonu
             calistir={eskiIlanlariTemizle}
-            etiket="14 günden eskileri temizle"
+            etiket="6 saati geçenleri sil"
             bekleyenEtiket="..."
-            onay="14 günden eski, işlem yapılmamış ilanlar silinsin mi?"
+            onay="6 saattir yenilenmeyen ilanlar silinsin mi?"
             sinif="text-xs font-semibold text-fog hover:text-amber"
           />
         </div>

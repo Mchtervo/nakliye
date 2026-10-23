@@ -209,6 +209,7 @@ model YukIlani {
   /** Aynı rota tekrar görünce güncellenir. Dedup: 48s kova hash + sonGorulme penceresi. */
   sonGorulme    DateTime     @default(now())
   telegramDmler TelegramDm[]
+  waGorusmeler  WhatsAppGorusme[]
 
   @@index([durum, createdAt])
   @@index([cikisIl, varisIl])
@@ -237,6 +238,28 @@ model TelegramDm {
 
   @@index([durum, createdAt])
   @@index([hedefUserId, durum])
+  @@index([ilanId])
+}
+
+/// Sanal numaradan otomatik soru. Günde az, aynı numaraya 24 saatte bir.
+model WhatsAppGorusme {
+  id           Int       @id @default(autoincrement())
+  ilanId       Int
+  ilan         YukIlani  @relation(fields: [ilanId], references: [id], onDelete: Cascade)
+  /** 05xxxxxxxxx */
+  telefon      String
+  gidenMetin   String
+  /** BEKLIYOR | GONDERILDI | CEVAP_YOK | KONUSULDU | HATA */
+  durum        String    @default("BEKLIYOR")
+  cevapMetin   String?
+  ozet         String?
+  gonderildiAt DateTime?
+  cevapAt      DateTime?
+  hata         String?
+  createdAt    DateTime  @default(now())
+
+  @@index([durum, createdAt])
+  @@index([telefon, createdAt])
   @@index([ilanId])
 }
 

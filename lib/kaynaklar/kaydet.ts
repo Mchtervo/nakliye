@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 import { ilBul, sadelestir } from "@/lib/iller";
 import { guvenliKirp } from "@/lib/metin";
+import { gorusmeKuyrugaAl } from "@/lib/kaynaklar/waGorusme";
 
 /** Aynı rota tekrarında yeni kayıt açmama / hash kova penceresi. */
 export const DEDUP_PENCERE_MS = 48 * 60 * 60 * 1000;
@@ -41,6 +42,8 @@ export type KaydetRaporu = {
   rotaYok: number;
   /** create catch / unique race dışı hata. */
   kayitHatasi: number;
+  /** Numara yok — listeye alınmaz. */
+  telefonYok: number;
 };
 
 /** İlçe→il sonrası normalize (Temelli→Ankara, Gebze→Kocaeli). */
@@ -197,6 +200,9 @@ async function yenileVeBelkiBildir(
     select: { bildirildi: true, durum: true },
   });
   const { revived } = await rotayiYenile(id, ilan, hamMetin, kaynakId, kimlik);
+  if (ilan.telefon) {
+    await gorusmeKuyrugaAl(id).catch(() => null);
+  }
   // ARSIV canlanması VEYA daha önce bildirim tamamlanmamış (TG fail + push OK) → tekrar dene
   if (!revived && onceki?.bildirildi !== false) return;
   const kayit = await prisma.yukIlani.findUnique({ where: { id } });
@@ -271,6 +277,7 @@ export async function ilanlariKaydet(
   let dedupAtlanan = 0;
   let rotaYok = 0;
   let kayitHatasi = 0;
+  let telefonYok = 0;
   const batchRota = new Set<string>();
   const hedefDurum = opts?.durum || "YENI";
   const elendiMi = hedefDurum === "ELENDI";
@@ -283,6 +290,10 @@ export async function ilanlariKaydet(
     hamMesajId,
   } of bulunanlar) {
     const ilan = ilaniRotaNormalize(hamIlan);
+    if (!ilan.telefon?.trim()) {
+      telefonYok += 1;
+      continue;
+    }
     // Varışsız yükleme (CIKIS) serbest; tamamen rotasız değil
     if (!ilan.cikisIl && !ilan.varisIl) {
       rotaYok += 1;
@@ -452,6 +463,15 @@ export async function ilanlariKaydet(
         });
       }
 
+      if (!elendiMi) {
+        await gorusmeKuyrugaAl(kayit.id).catch((e) => {
+          console.error(
+            `[kaydet] wa kuyruk #${kayit.id}:`,
+            e instanceof Error ? e.message : e
+          );
+        });
+      }
+
       if (elendiMi) continue;
 
       yeniler.push({
@@ -515,6 +535,6 @@ export async function ilanlariKaydet(
     }
   }
 
-  return { yeniler, dedupAtlanan, rotaYok, kayitHatasi };
+  return { yeniler, dedupAtlanan, rotaYok, kayitHatasi, telefonYok };
 }
 

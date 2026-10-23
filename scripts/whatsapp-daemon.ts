@@ -35,6 +35,12 @@ import {
   whatsappMetni,
   yukGrubuAdiMi,
 } from "@/lib/kaynaklar/whatsapp";
+import {
+  gelenOzelMesajiIsle,
+  gorusmeGonderildi,
+  gorusmeHata,
+  siradakiGorusme,
+} from "@/lib/kaynaklar/waGorusme";
 
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || ".wa-oturum";
 const TELEFON = (process.env.WHATSAPP_TELEFON || "").replace(/\D/g, "");
@@ -144,6 +150,17 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     const jid = m.key.remoteJid;
     const grupMu = Boolean(jid?.endsWith("@g.us"));
     const kanalMu = Boolean(jid?.endsWith("@newsletter"));
+    if (!grupMu && !kanalMu && !m.key.fromMe) {
+      const ozel =
+        [m.key.remoteJid, m.key.remoteJidAlt].find((j) => j?.endsWith("@s.whatsapp.net")) ||
+        null;
+      const yazi = whatsappMetni(m.message);
+      if (ozel && yazi) {
+        await gelenOzelMesajiIsle(ozel, yazi).catch((e) => {
+          uyari("Özel cevap işlenemedi:", e instanceof Error ? e.message : e);
+        });
+      }
+    }
     if ((!grupMu && !kanalMu) || m.key.fromMe || !jid) continue;
     const ham = whatsappMetni(m.message);
     if (ham) await whatsappDavetleriniHasatEt(ham, "WA mesaj").catch(() => null);
@@ -171,6 +188,31 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     if (rapor.kuyruga > 0) log(`Kuyruğa: ${rapor.kuyruga}/${rapor.alinan} (grup=${rapor.grup})`);
   } catch (e) {
     uyari("Kuyruğa yazma hatası:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Kuyruktaki bir soruyu gönderir. Kota ve ara lib tarafında. */
+async function gorusmeleriYurut(sock: WASocket) {
+  const sira = await siradakiGorusme().catch((e) => {
+    uyari("Soru kuyruğu okunamadı:", e instanceof Error ? e.message : e);
+    return null;
+  });
+  if (!sira) return;
+  try {
+    const kontrol = await sock.onWhatsApp(sira.e164);
+    const hedef = kontrol?.find((k) => k.exists);
+    if (!hedef) {
+      await gorusmeHata(sira.id, "Bu numarada WhatsApp yok");
+      log(`Yazılmadı #${sira.id}: WhatsApp yok`);
+      return;
+    }
+    await sock.sendMessage(hedef.jid, { text: sira.metin });
+    await gorusmeGonderildi(sira.id);
+    log(`Yazıldı #${sira.id}`);
+  } catch (e) {
+    const mesaj = e instanceof Error ? e.message : String(e);
+    await gorusmeHata(sira.id, mesaj).catch(() => null);
+    uyari("Soru gönderilemedi:", mesaj.slice(0, 160));
   }
 }
 
@@ -203,6 +245,7 @@ async function baglan(): Promise<void> {
 
   let kodIstendi = false;
   let esitlemeZamanlayici: ReturnType<typeof setInterval> | null = null;
+  let gorusmeZamanlayici: ReturnType<typeof setInterval> | null = null;
 
   sock.ev.on("connection.update", async (u) => {
     if (u.qr && !kodIstendi && !state.creds.registered) {
@@ -225,14 +268,19 @@ async function baglan(): Promise<void> {
       log("Bağlandı.");
       await gruplariEsitle(sock);
       await davetlereGir(sock);
+      void gorusmeleriYurut(sock);
+      if (esitlemeZamanlayici) clearInterval(esitlemeZamanlayici);
+      if (gorusmeZamanlayici) clearInterval(gorusmeZamanlayici);
       esitlemeZamanlayici = setInterval(() => {
         void gruplariEsitle(sock);
         void davetlereGir(sock);
       }, GRUP_ESITLEME_MS);
+      gorusmeZamanlayici = setInterval(() => void gorusmeleriYurut(sock), 60 * 1000);
     }
 
     if (u.connection === "close") {
       if (esitlemeZamanlayici) clearInterval(esitlemeZamanlayici);
+      if (gorusmeZamanlayici) clearInterval(gorusmeZamanlayici);
       const kod = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
         ?.output?.statusCode;
       if (kod === DisconnectReason.loggedOut) {
