@@ -131,6 +131,8 @@ export type CozumEleSayac = {
   bolgeElenen: number;
   /** Sadece çıkış koridorda — kaydedilmedi, sayıldı. */
   cikisSay: number;
+  /** Numara yok — listeye alınmaz. */
+  telefonYok: number;
   modelCikti: number;
 };
 
@@ -142,6 +144,7 @@ export function bosCozumEle(): CozumEleSayac {
     satirEle: 0,
     bolgeElenen: 0,
     cikisSay: 0,
+    telefonYok: 0,
     modelCikti: 0,
   };
 }
@@ -157,6 +160,7 @@ export function cozumEleTopla(
     satirEle: a.satirEle + b.satirEle,
     bolgeElenen: a.bolgeElenen + b.bolgeElenen,
     cikisSay: a.cikisSay + b.cikisSay,
+    telefonYok: a.telefonYok + b.telefonYok,
     modelCikti: a.modelCikti + b.modelCikti,
   };
 }
@@ -434,20 +438,25 @@ function ilaniNormalize(
  * İki uç VEYA (çıkış + telefon — varışsız yükleme).
  * Eşik: GUVEN_MIN_KAYIT (15). Panel bildirim/liste: SUPHE_SINIRI (50).
  */
+function telefonuVar(telefon: string | null): boolean {
+  return (telefon || "").replace(/\D/g, "").length >= 10;
+}
+
 function kullanilabilirMi(i: CozulmusIlan): boolean {
   if (i.guvenSkoru < GUVEN_MIN_KAYIT) return false;
+  if (!telefonuVar(i.telefon)) return false;
   if (i.cikisIl && i.varisIl) return true;
-  // Varışsız yükleme — telefon varsa kaydet (kullanıcı arar)
-  if (i.cikisIl && i.telefon) return true;
+  if (i.cikisIl) return true;
   return false;
 }
 
 function kullanilamazSebebi(
   i: CozulmusIlan
-): "rotaYok" | "guvenDusuk" | null {
+): "rotaYok" | "guvenDusuk" | "telefonYok" | null {
   if (i.guvenSkoru < GUVEN_MIN_KAYIT) return "guvenDusuk";
+  if (!telefonuVar(i.telefon)) return "telefonYok";
   if (i.cikisIl && i.varisIl) return null;
-  if (i.cikisIl && i.telefon) return null;
+  if (i.cikisIl) return null;
   return "rotaYok";
 }
 

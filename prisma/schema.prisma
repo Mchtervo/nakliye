@@ -256,6 +256,8 @@ model WhatsAppGorusme {
   gonderildiAt DateTime?
   cevapAt      DateTime?
   hata         String?
+  /** Cevap gelmezse bir kez daha yazıldı mı. */
+  hatirlatma   Int       @default(0)
   createdAt    DateTime  @default(now())
 
   @@index([durum, createdAt])

@@ -27,6 +27,7 @@ export type IlanKartVeri = {
   cikisIl: string | null;
   varisIl: string | null;
   tonaj: number | null;
+  yukTipi?: string | null;
   aracTipi: string | null;
   aracTipiKod: string | null;
   aracUzunluk?: number | null;
@@ -83,6 +84,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
   const karVar = Boolean(ilan.kar && (ilan.kar.mesafe || ilan.kar.net));
 
   const metaParcalar = [
+    ilan.yukTipi || null,
     ilan.tonaj ? `${ilan.tonaj} ton` : null,
     ilan.aracTipi || null,
   ].filter(Boolean);

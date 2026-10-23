@@ -19,7 +19,11 @@ export default async function AiMerkeziSayfasi() {
     ]);
 
   const enIyiIlan = await prisma.yukIlani.findFirst({
-    where: { durum: "YENI", ucret: { not: null } },
+    where: {
+      durum: "YENI",
+      ucret: { not: null },
+      AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
+    },
     orderBy: [{ ucret: "desc" }],
   });
 

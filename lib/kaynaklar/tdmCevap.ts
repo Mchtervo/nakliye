@@ -15,6 +15,8 @@ const CEVAP_SEMASI: Record<string, unknown> = {
     "yuklemeTarihi",
     "yuklemeSaati",
     "adres",
+    "yuklemeYeri",
+    "bosaltmaYeri",
     "ozet",
   ],
   properties: {
@@ -42,6 +44,14 @@ const CEVAP_SEMASI: Record<string, unknown> = {
       type: ["string", "null"],
       description: "Yükleme/boşaltma adresi kısa. Yoksa null.",
     },
+    yuklemeYeri: {
+      type: ["string", "null"],
+      description: "Yükleme semti veya adresi. Sadece il adıysa null.",
+    },
+    bosaltmaYeri: {
+      type: ["string", "null"],
+      description: "Boşaltma semti veya adresi. Sadece il adıysa null.",
+    },
     ozet: {
       type: "string",
       description: "Tek satır özet: ton · fiyat · zaman",
@@ -56,8 +66,33 @@ export type CevapCozum = {
   yuklemeTarihi: Date | null;
   yuklemeSaati: string | null;
   adres: string | null;
+  yuklemeYeri: string | null;
+  bosaltmaYeri: string | null;
   ozet: string;
 };
+
+function yerTemizle(ham: string | undefined): string | null {
+  if (!ham) return null;
+  const t = ham.replace(/\s+/g, " ").trim();
+  if (t.length < 3 || /^\d+$/.test(t)) return null;
+  return t.slice(0, 80);
+}
+
+function yerleriAyikla(metin: string): {
+  yuklemeYeri: string | null;
+  bosaltmaYeri: string | null;
+} {
+  const yuk = metin.match(
+    /(?:yüklenecek|yüklencek|yükleme|nereden)\s*[:\-]?\s*([^,.\n]{3,48})/i
+  );
+  const bos = metin.match(
+    /(?:boşalacak|boşaltma|inilecek|inecek|nereye)\s*[:\-]?\s*([^,.\n]{3,48})/i
+  );
+  return {
+    yuklemeYeri: yerTemizle(yuk?.[1]),
+    bosaltmaYeri: yerTemizle(bos?.[1]),
+  };
+}
 
 function tarihCevir(ham: string | null): Date | null {
   if (!ham || !/^\d{4}-\d{2}-\d{2}$/.test(ham)) return null;
@@ -116,6 +151,7 @@ export function cevapParseRegex(metin: string): CevapCozum {
       ? "sabah"
       : null;
 
+  const yer = yerleriAyikla(metin);
   const parcalar = [
     tonaj ? `${tonaj} ton` : null,
     ucretKurush
@@ -135,7 +171,9 @@ export function cevapParseRegex(metin: string): CevapCozum {
     fiyatTonKurush,
     yuklemeTarihi,
     yuklemeSaati,
-    adres: null,
+    adres: yer.yuklemeYeri || yer.bosaltmaYeri,
+    yuklemeYeri: yer.yuklemeYeri,
+    bosaltmaYeri: yer.bosaltmaYeri,
     ozet: parcalar.length > 0 ? parcalar.join(" · ") : metin.slice(0, 80),
   };
 }
@@ -152,17 +190,19 @@ export async function cevapAiCozumle(
       yuklemeTarihi: string | null;
       yuklemeSaati: string | null;
       adres: string | null;
+      yuklemeYeri: string | null;
+      bosaltmaYeri: string | null;
       ozet: string;
     }>({
       model: MODEL_HIZLI,
-      sistem: `Nakliyeci cevabından tonaj, navlun, yükleme tarihi/saati ve adres çıkar.
-Uydurma. Yoksa null. Bugün: ${baglam.bugun}. Rota: ${baglam.rota}.
+      sistem: `Nakliyeci cevabından tonaj, navlun, yükleme tarihi/saati, yükleme yeri ve boşaltma yeri çıkar.
+Uydurma. Yoksa null. Sadece il adı yer sayılmaz. Bugün: ${baglam.bugun}. Rota: ${baglam.rota}.
 "yarın" → yarının tarihi. Sadece JSON.`,
       metin: guvenliKirp(metin, 2000),
       semaAdi: "dm_cevap",
       sema: CEVAP_SEMASI,
       caba: "none",
-      maxCikti: 400,
+      maxCikti: 500,
       kaynak: "tdm.cevap",
     });
 
@@ -177,6 +217,7 @@ Uydurma. Yoksa null. Bugün: ${baglam.bugun}. Rota: ${baglam.rota}.
       else ucretKurush = kurus;
     }
 
+    const yer = yerleriAyikla(metin);
     const tonaj =
       cikti.tonaj !== null &&
       Number.isFinite(cikti.tonaj) &&
@@ -191,7 +232,9 @@ Uydurma. Yoksa null. Bugün: ${baglam.bugun}. Rota: ${baglam.rota}.
       fiyatTonKurush,
       yuklemeTarihi: tarihCevir(cikti.yuklemeTarihi),
       yuklemeSaati: cikti.yuklemeSaati?.trim() || null,
-      adres: cikti.adres?.trim() || null,
+      adres: cikti.adres?.trim() || yer.yuklemeYeri || yer.bosaltmaYeri,
+      yuklemeYeri: cikti.yuklemeYeri?.trim() || yer.yuklemeYeri,
+      bosaltmaYeri: cikti.bosaltmaYeri?.trim() || yer.bosaltmaYeri,
       ozet: (cikti.ozet || "").trim() || cevapParseRegex(metin).ozet,
     };
   } catch {

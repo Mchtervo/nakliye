@@ -13,7 +13,9 @@ import { telefonWaMe } from "@/lib/whatsapp";
 const GUNLUK = 12;
 const ARA_MS = 8 * 60 * 1000;
 const KISI_MS = 24 * 60 * 60 * 1000;
-const CEVAP_MS = 3 * 60 * 60 * 1000;
+const HATIRLAT_MS = 60 * 60 * 1000;
+/** Hatırlatmadan sonra 1 saat daha sessizse cevap yok. */
+const CEVAP_MS = 60 * 60 * 1000;
 const AI_GUNLUK = 15;
 const SAYAC_ANAHTAR = "wa_gorusme_gunluk";
 const SON_ANAHTAR = "wa_gorusme_son";
@@ -32,7 +34,25 @@ const YUK_TIPLERI: [RegExp, string][] = [
   [/\bparsiyel\b/, "parsiyel"],
 ];
 
-export type Gonderilecek = { id: number; e164: string; metin: string };
+export type Gonderilecek = {
+  id: number;
+  e164: string;
+  metin: string;
+  hatirlatma: boolean;
+};
+
+type SoruIlan = {
+  nereden: string | null;
+  nereye: string | null;
+  cikisIl: string | null;
+  varisIl: string | null;
+  tonaj: number | null;
+  ucret: number | null;
+  fiyatTon: number | null;
+  yukTipi: string | null;
+  koridorTipi?: string | null;
+  createdAt?: Date;
+};
 
 type Cozum = CevapCozum & { yukTipi: string | null };
 
@@ -73,17 +93,63 @@ function yukTipiBul(metin: string): string | null {
   return null;
 }
 
-function soruMetni(ilan: {
-  nereden: string | null;
-  nereye: string | null;
-  cikisIl: string | null;
-  varisIl: string | null;
-}): string {
-  const rota = `${ilan.nereden || ilan.cikisIl || "?"} → ${ilan.nereye || ilan.varisIl || "?"}`;
-  return (
-    `Merhaba, ${rota} ilanınız için yazıyorum.\n` +
-    "Yük ne, kaç ton, navlun kaç TL, nereden yüklenecek, nereye inecek?"
-  );
+function ayniYer(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  return a.toLocaleLowerCase("tr-TR") === b.toLocaleLowerCase("tr-TR");
+}
+
+function eksikler(ilan: SoruIlan): string[] {
+  const soru: string[] = [];
+  if (!ilan.yukTipi) soru.push("yük ne");
+  if (!ilan.tonaj) soru.push("kaç ton");
+  if (ilan.ucret == null && ilan.fiyatTon == null) soru.push("navlun kaç TL");
+  if (!ilan.nereden || ayniYer(ilan.nereden, ilan.cikisIl)) soru.push("nereden yüklenecek");
+  if (!ilan.nereye || ayniYer(ilan.nereye, ilan.varisIl)) soru.push("nereye boşalacak");
+  return soru;
+}
+
+function rotaYazi(ilan: SoruIlan): string {
+  return `${ilan.nereden || ilan.cikisIl || "?"} → ${ilan.nereye || ilan.varisIl || "?"}`;
+}
+
+function soruMetni(ilanlar: SoruIlan[]): string {
+  const dolu = ilanlar.filter((i) => eksikler(i).length > 0).slice(0, 4);
+  if (dolu.length === 0) return "";
+  if (dolu.length === 1) {
+    return `Merhaba, ${rotaYazi(dolu[0])} ilanınız için.\n${eksikler(dolu[0]).join(", ")}?`;
+  }
+  const satir = dolu.map((i) => `${rotaYazi(i)}: ${eksikler(i).join(", ")}`);
+  return `Merhaba, ilanlarınız için kısa bilgi alabilir miyim?\n${satir.join("\n")}`;
+}
+
+function hatirlatmaMetni(ilan: SoruIlan): string {
+  const eksik = eksikler(ilan);
+  const soru = eksik.length > 0 ? eksik.join(", ") : "hâlâ güncel mi";
+  return `Tekrar rahatsız etmeyeyim. ${rotaYazi(ilan)} için kısaca: ${soru}?`;
+}
+
+function oncelik(ilan: SoruIlan): number {
+  let p = 0;
+  if (ilan.ucret == null && ilan.fiyatTon == null) p += 50;
+  if (!ilan.tonaj) p += 20;
+  if (!ilan.yukTipi) p += 10;
+  if (ilan.koridorTipi === "TAM" || ilan.koridorTipi === "VARIS") p += 30;
+  if (ilan.createdAt) {
+    const saat = (Date.now() - ilan.createdAt.getTime()) / 3_600_000;
+    p += Math.max(0, 24 - saat);
+  }
+  return p;
+}
+
+function yeriYaz(mevcut: string | null, il: string | null, gelen: string | null): string | null {
+  if (!gelen) return null;
+  const temiz = gelen.trim();
+  if (temiz.length < 3) return null;
+  if (mevcut && !ayniYer(mevcut, il) && mevcut.length > (il || "").length + 2) return null;
+  if (il && !temiz.toLocaleLowerCase("tr-TR").includes(il.toLocaleLowerCase("tr-TR"))) {
+    return `${il} ${temiz}`.slice(0, 80);
+  }
+  return temiz.slice(0, 80);
 }
 
 /** Yeni veya yenilenen numaralı ilanı soru kuyruğuna alır. Aynı ilana / aynı güne ikinci yok. */
@@ -95,6 +161,7 @@ export async function gorusmeKuyrugaAl(ilanId: number): Promise<void> {
   }
   const tel = tel05(ilan.telefon);
   if (!tel) return;
+  if (eksikler(ilan).length === 0) return;
 
   const kendi = await prisma.whatsAppGorusme.findFirst({
     where: { ilanId },
@@ -103,21 +170,41 @@ export async function gorusmeKuyrugaAl(ilanId: number): Promise<void> {
   if (kendi) return;
 
   const sinir = new Date(Date.now() - KISI_MS);
-  const ayniNumara = await prisma.whatsAppGorusme.findFirst({
+  const acik = await prisma.whatsAppGorusme.findFirst({
     where: {
       telefon: tel,
       createdAt: { gte: sinir },
       durum: { not: "HATA" },
     },
-    select: { id: true },
+    orderBy: { id: "desc" },
   });
-  if (ayniNumara) return;
+  if (acik && acik.durum !== "BEKLIYOR") return;
+
+  const diger = await prisma.yukIlani.findMany({
+    where: {
+      telefon: tel,
+      sonGorulme: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+      durum: { notIn: ["ELENDI", "YUKE_DONDU", "ALINDI"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 4,
+  });
+  const metin = soruMetni(diger.length > 0 ? diger : [ilan]);
+  if (!metin) return;
+
+  if (acik?.durum === "BEKLIYOR") {
+    await prisma.whatsAppGorusme.update({
+      where: { id: acik.id },
+      data: { gidenMetin: metin },
+    });
+    return;
+  }
 
   await prisma.whatsAppGorusme.create({
     data: {
       ilanId,
       telefon: tel,
-      gidenMetin: soruMetni(ilan),
+      gidenMetin: metin,
       durum: "BEKLIYOR",
     },
   });
@@ -126,7 +213,7 @@ export async function gorusmeKuyrugaAl(ilanId: number): Promise<void> {
 async function beklemeyiKapat(): Promise<void> {
   const sinir = new Date(Date.now() - CEVAP_MS);
   const eskiler = await prisma.whatsAppGorusme.findMany({
-    where: { durum: "GONDERILDI", gonderildiAt: { lt: sinir } },
+    where: { durum: "GONDERILDI", hatirlatma: { gte: 1 }, gonderildiAt: { lt: sinir } },
     select: { id: true, ilanId: true },
     take: 30,
   });
@@ -152,27 +239,55 @@ export async function siradakiGorusme(): Promise<Gonderilecek | null> {
   const sonMs = Date.parse((await ayarOkuHam(SON_ANAHTAR)) || "");
   if (Number.isFinite(sonMs) && Date.now() - sonMs < ARA_MS) return null;
 
-  const kayit = await prisma.whatsAppGorusme.findFirst({
-    where: { durum: "BEKLIYOR" },
-    orderBy: { id: "asc" },
+  const hatirlat = await prisma.whatsAppGorusme.findFirst({
+    where: {
+      durum: "GONDERILDI",
+      hatirlatma: 0,
+      gonderildiAt: { lt: new Date(Date.now() - HATIRLAT_MS) },
+    },
+    orderBy: { gonderildiAt: "asc" },
+    include: { ilan: true },
   });
+  if (hatirlat) {
+    const e164 = telefonWaMe(hatirlat.telefon);
+    if (!e164) {
+      await gorusmeHata(hatirlat.id, "Numara geçersiz");
+    } else {
+      return {
+        id: hatirlat.id,
+        e164,
+        metin: hatirlatmaMetni(hatirlat.ilan),
+        hatirlatma: true,
+      };
+    }
+  }
+
+  const bekleyen = await prisma.whatsAppGorusme.findMany({
+    where: { durum: "BEKLIYOR" },
+    include: { ilan: true },
+    orderBy: { id: "desc" },
+    take: 40,
+  });
+  const kayit = bekleyen.sort((a, b) => oncelik(b.ilan) - oncelik(a.ilan))[0];
   if (!kayit) return null;
   const e164 = telefonWaMe(kayit.telefon);
   if (!e164) {
     await gorusmeHata(kayit.id, "Numara geçersiz");
     return null;
   }
-  return { id: kayit.id, e164, metin: kayit.gidenMetin };
+  return { id: kayit.id, e164, metin: kayit.gidenMetin, hatirlatma: false };
 }
 
 async function araBaslat(): Promise<void> {
   await ayarYaz(SON_ANAHTAR, new Date().toISOString());
 }
 
-export async function gorusmeGonderildi(id: number): Promise<void> {
+export async function gorusmeGonderildi(id: number, hatirlatma = false): Promise<void> {
   const kayit = await prisma.whatsAppGorusme.update({
     where: { id },
-    data: { durum: "GONDERILDI", gonderildiAt: new Date(), hata: null },
+    data: hatirlatma
+      ? { hatirlatma: 1, gonderildiAt: new Date(), hata: null }
+      : { durum: "GONDERILDI", gonderildiAt: new Date(), hatirlatma: 0, hata: null },
   });
   await prisma.yukIlani.updateMany({
     where: { id: kayit.ilanId, durum: "YENI" },
@@ -213,8 +328,12 @@ async function cevabiOku(
       bugun: bugunAnahtar(),
     });
   }
-  const ek = yukTipi ? `yük: ${yukTipi}` : null;
-  const ozet = [cozum.ozet, ek].filter(Boolean).join(" · ").slice(0, 240);
+  const ek = [
+    yukTipi ? `yük: ${yukTipi}` : null,
+    cozum.yuklemeYeri ? `yükleme: ${cozum.yuklemeYeri}` : null,
+    cozum.bosaltmaYeri ? `boşaltma: ${cozum.bosaltmaYeri}` : null,
+  ].filter(Boolean);
+  const ozet = [cozum.ozet, ...ek].filter(Boolean).join(" · ").slice(0, 240);
   return { ...cozum, yukTipi, ozet };
 }
 
@@ -227,6 +346,8 @@ async function ilanaYaz(ilanId: number, cozum: Cozum): Promise<void> {
     fiyatTon?: number;
     yuklemeTarihi?: Date;
     yukTipi?: string;
+    nereden?: string;
+    nereye?: string;
     durum?: string;
   } = {};
   if (ilan.tonaj == null && cozum.tonaj) data.tonaj = cozum.tonaj;
@@ -234,6 +355,10 @@ async function ilanaYaz(ilanId: number, cozum: Cozum): Promise<void> {
   if (ilan.fiyatTon == null && cozum.fiyatTonKurush) data.fiyatTon = cozum.fiyatTonKurush;
   if (!ilan.yuklemeTarihi && cozum.yuklemeTarihi) data.yuklemeTarihi = cozum.yuklemeTarihi;
   if (!ilan.yukTipi && cozum.yukTipi) data.yukTipi = cozum.yukTipi;
+  const yukleme = yeriYaz(ilan.nereden, ilan.cikisIl, cozum.yuklemeYeri);
+  const bosaltma = yeriYaz(ilan.nereye, ilan.varisIl, cozum.bosaltmaYeri);
+  if (yukleme) data.nereden = yukleme;
+  if (bosaltma) data.nereye = bosaltma;
   if (ilan.durum === "YENI" || ilan.durum === "CEVAP_YOK") data.durum = "ILETISIME_GECILDI";
   if (Object.keys(data).length === 0) return;
   await prisma.yukIlani.update({ where: { id: ilanId }, data });
@@ -294,8 +419,12 @@ export function gorusmeSatiri(g: {
   ozet: string | null;
   cevapMetin: string | null;
   hata: string | null;
+  hatirlatma?: number;
 }): string {
   if (g.durum === "BEKLIYOR") return "Sırada — WhatsApp'tan sorulacak";
+  if (g.durum === "GONDERILDI" && (g.hatirlatma ?? 0) > 0) {
+    return "Bir kez daha yazıldı, cevap bekleniyor";
+  }
   if (g.durum === "GONDERILDI") return "WhatsApp'tan yazıldı, cevap bekleniyor";
   if (g.durum === "CEVAP_YOK") return "WhatsApp'tan yazıldı, cevap vermedi";
   if (g.durum === "HATA") return `WhatsApp yazılamadı: ${g.hata || "hata"}`;

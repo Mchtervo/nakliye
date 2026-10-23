@@ -290,7 +290,7 @@ export async function ilanlariKaydet(
     hamMesajId,
   } of bulunanlar) {
     const ilan = ilaniRotaNormalize(hamIlan);
-    if (!ilan.telefon?.trim()) {
+    if ((ilan.telefon || "").replace(/\D/g, "").length < 10) {
       telefonYok += 1;
       continue;
     }

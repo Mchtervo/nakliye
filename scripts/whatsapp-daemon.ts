@@ -207,7 +207,7 @@ async function gorusmeleriYurut(sock: WASocket) {
       return;
     }
     await sock.sendMessage(hedef.jid, { text: sira.metin });
-    await gorusmeGonderildi(sira.id);
+    await gorusmeGonderildi(sira.id, sira.hatirlatma);
     log(`Yazıldı #${sira.id}`);
   } catch (e) {
     const mesaj = e instanceof Error ? e.message : String(e);

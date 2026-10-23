@@ -45,23 +45,6 @@ const VARSAYILAN_CIPLER: RotaCip[] = [
   { etiket: "Kocaeli→Ankara", nereden: "Kocaeli", nereye: "Ankara" },
 ];
 
-/** Taze + güven + fiyat belli → üstte. */
-function siralamaSkoru(ilan: {
-  sonGorulme: Date;
-  guvenSkoru: number;
-  ucret: number | null;
-  fiyatTon: number | null;
-}): number {
-  const saat = (Date.now() - ilan.sonGorulme.getTime()) / 3_600_000;
-  const taze = Math.max(0, 36 - saat);
-  const fiyat =
-    (ilan.ucret !== null && ilan.ucret > 0) ||
-    (ilan.fiyatTon !== null && ilan.fiyatTon > 0)
-      ? 28
-      : 0;
-  const guvenBonus = ilan.guvenSkoru >= 70 ? 18 : ilan.guvenSkoru >= 50 ? 8 : 0;
-  return ilan.guvenSkoru + taze + fiyat + guvenBonus;
-}
 
 function iyiIsMi(ilan: {
   sonGorulme: Date;
@@ -289,7 +272,7 @@ export default async function AiYuklerSayfasi({
     await Promise.all([
       prisma.yukIlani.findMany({
         where: filtre,
-        orderBy: [{ sonGorulme: "desc" }],
+        orderBy: [{ createdAt: "desc" }],
         take: 40,
         include: { kaynak: { select: { ad: true, tur: true } } },
       }),
@@ -351,6 +334,7 @@ export default async function AiYuklerSayfasi({
         ozet: true,
         cevapMetin: true,
         hata: true,
+        hatirlatma: true,
       },
     });
     for (const g of gorusmeler) {
@@ -363,7 +347,9 @@ export default async function AiYuklerSayfasi({
   const anahtarVar = Boolean(process.env.OPENAI_API_KEY);
   const cipler = rotaCipleri(tercih.rotalar);
 
-  let sirali = [...ilanlar].sort((a, b) => {
+  let sirali = ilanlar
+    .filter((i) => (i.telefon || "").replace(/\D/g, "").length >= 10)
+    .sort((a, b) => {
     // İki şehir: tam rota üstte, sonra aynı çıkış/varış, havza en sonda
     if (cikisIl && varisIl) {
       const puan = (i: (typeof ilanlar)[0]) => {
@@ -385,7 +371,7 @@ export default async function AiYuklerSayfasi({
       const bV = b.varisIl === varisIl ? 1 : 0;
       if (aV !== bV) return bV - aV;
     }
-    return siralamaSkoru(b) - siralamaSkoru(a);
+    return b.createdAt.getTime() - a.createdAt.getTime();
   });
   if (odak) {
     const idx = sirali.findIndex((i) => i.id === odak);
@@ -627,6 +613,7 @@ export default async function AiYuklerSayfasi({
                   cikisIl: ilan.cikisIl,
                   varisIl: ilan.varisIl,
                   tonaj: ilan.tonaj,
+                  yukTipi: ilan.yukTipi,
                   aracTipi: ilan.aracTipi,
                   aracTipiKod: ilan.aracTipiKod,
                   aracUzunluk: ilan.aracUzunluk,
