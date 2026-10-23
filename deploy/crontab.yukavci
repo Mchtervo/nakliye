@@ -49,6 +49,8 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 
 # Kayıtlı web siteleri (yuklegel…) — günde 3; Ayarlar Duraklat/Başlat
 0 8,14,20 * * * /bin/bash $GUVENLI yuklegel.sh
+# AI_ARAMA (Facebook grupları / Google) — 06-22 arası 2 saatte 1 x 2 kaynak = günde 18 arama
+20 6-22/2 * * * /bin/bash $GUVENLI ai-tarama.sh
 
 # Otomatik deploy — dakikada 1 (AUTO_DEPLOY=1 veya Ayarlar açık)
 * * * * * /bin/bash $GUVENLI auto-deploy.sh

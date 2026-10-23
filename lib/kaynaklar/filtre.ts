@@ -125,11 +125,12 @@ export function ilgilileriSuz(
  * Skor 40+ yeter (50 altı eskiden paneli boşaltıyordu; şüpheli sekmesi ayrı).
  * WEB kaynak (yuklegel vb.) sadece müşteri havuzunda — panelde yok.
  */
-export function tercihKosulu(tercih: AiTercihleri) {
-  const kosullar: Record<string, unknown>[] = [
-    { guvenSkoru: { gte: 40 } },
-    webKaynakHaricKosulu(),
-  ];
+export function tercihKosulu(
+  tercih: AiTercihleri,
+  secenek: { webDahil?: boolean } = {}
+) {
+  const kosullar: Record<string, unknown>[] = [{ guvenSkoru: { gte: 40 } }];
+  if (!secenek.webDahil) kosullar.push(webKaynakHaricKosulu());
 
   if (tercih.aracTipleri.length > 0) {
     // Belirsiz (null) geçsin — damper/frigo kodu olanlar zaten listede değil.

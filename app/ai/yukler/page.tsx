@@ -195,9 +195,10 @@ export default async function AiYuklerSayfasi({
               : { durum: sekme, guvenSkoru: { gte: SUPHE_SINIRI } };
 
   if (rotaFiltresiVar && (sekme === "YENI" || sekme === "ILGILENIYOR")) {
+    // Elle şehir/rota aranınca web sitesi (yuklegel) ilanları da sonuca girer
     tabanFiltre = {
       durum: { in: [...aktifDurumlar] },
-      ...tercihKosulu(tercih),
+      ...tercihKosulu(tercih, { webDahil: true }),
     };
   }
 
@@ -260,7 +261,7 @@ export default async function AiYuklerSayfasi({
         };
 
   const filtre: Prisma.YukIlaniWhereInput = {
-    AND: [tabanFiltre, rotaKosul, tazelikKosul, webKaynakHaricKosulu()],
+    AND: [tabanFiltre, rotaKosul, tazelikKosul, ...(rotaFiltresiVar ? [] : [webKaynakHaricKosulu()])],
   };
   const tekSehirArama = Boolean(
     (cikisIl && !nereyeHam && !neredenHata) ||
