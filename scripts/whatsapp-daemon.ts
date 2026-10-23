@@ -24,9 +24,16 @@ import { telefonlariCikar } from "@/lib/kaynaklar/onDedup";
 import { mesajlariKuyrugaAl, type GelenGrup } from "@/lib/kaynaklar/telegramUye";
 import {
   aktifWhatsappGruplari,
+  davetKapat,
   gonderenTelefonu,
+  katilimHakkiKullan,
+  katilimHakkiVarMi,
+  siradakiDavet,
+  whatsappDavetleriniHasatEt,
   whatsappGruplariniEsitle,
+  whatsappKanaliKaydet,
   whatsappMetni,
+  yukGrubuAdiMi,
 } from "@/lib/kaynaklar/whatsapp";
 
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || ".wa-oturum";
@@ -100,14 +107,51 @@ function mesajMetni(m: WAMessage): string | null {
   return tel ? `${metin}\nTel: ${tel}` : metin;
 }
 
+/** Günde bir grup. Adı yük/nakliye değilse girmez, sonrakine bakar. */
+async function davetlereGir(sock: WASocket) {
+  if (!(await katilimHakkiVarMi())) return;
+  for (let deneme = 0; deneme < 6; deneme += 1) {
+    const aday = await siradakiDavet();
+    if (!aday) return;
+    try {
+      const bilgi = await sock.groupGetInviteInfo(aday.kod);
+      const ad = (bilgi.subject || "").trim();
+      if (!yukGrubuAdiMi(ad)) {
+        await davetKapat(aday.id, ad || "adsız grup", "Yük grubu değil — girilmedi");
+        log(`Atlandı (yük grubu değil): ${ad || aday.kod}`);
+        continue;
+      }
+      await sock.groupAcceptInvite(aday.kod);
+      await katilimHakkiKullan();
+      await davetKapat(aday.id, ad, "Girildi");
+      log(`Gruba girildi: ${ad}`);
+      await gruplariEsitle(sock);
+      return;
+    } catch (e) {
+      const mesaj = e instanceof Error ? e.message : String(e);
+      await davetKapat(aday.id, "WA davet", `Girilemedi: ${mesaj}`);
+      uyari("Davet girilemedi:", mesaj.slice(0, 160));
+      return;
+    }
+  }
+}
+
 async function mesajlariIsle(mesajlar: WAMessage[]) {
   const simdiSn = Math.floor(Date.now() / 1000);
   const grupBazli = new Map<number, GelenGrup["mesajlar"]>();
 
   for (const m of mesajlar) {
     const jid = m.key.remoteJid;
-    if (!jid?.endsWith("@g.us") || m.key.fromMe) continue;
-    const kaynakId = gruplar.get(jid);
+    const grupMu = Boolean(jid?.endsWith("@g.us"));
+    const kanalMu = Boolean(jid?.endsWith("@newsletter"));
+    if ((!grupMu && !kanalMu) || m.key.fromMe || !jid) continue;
+    const ham = whatsappMetni(m.message);
+    if (ham) await whatsappDavetleriniHasatEt(ham, "WA mesaj").catch(() => null);
+    let kaynakId = gruplar.get(jid) ?? null;
+    if (!kaynakId && kanalMu) {
+      kaynakId = await whatsappKanaliKaydet(jid);
+      gruplar.set(jid, kaynakId);
+    }
     if (!kaynakId) continue;
     const zaman = Number(m.messageTimestamp ?? 0);
     if (zaman > 0 && simdiSn - zaman > MAX_MESAJ_YASI_SN) continue;
@@ -180,7 +224,11 @@ async function baglan(): Promise<void> {
       eslemeKoduSayisi = 0;
       log("Bağlandı.");
       await gruplariEsitle(sock);
-      esitlemeZamanlayici = setInterval(() => void gruplariEsitle(sock), GRUP_ESITLEME_MS);
+      await davetlereGir(sock);
+      esitlemeZamanlayici = setInterval(() => {
+        void gruplariEsitle(sock);
+        void davetlereGir(sock);
+      }, GRUP_ESITLEME_MS);
     }
 
     if (u.connection === "close") {

@@ -33,6 +33,12 @@ import {
   WEB_SITELER,
   siteKaynaginiGarantiEt,
 } from "@/lib/kaynaklar/siteler/kayit";
+import {
+  WHATSAPP_GRUP,
+  bilinenDavetleriYaz,
+  eskiWhatsappHasatiniTasi,
+  whatsappDavetAdaylari,
+} from "@/lib/kaynaklar/whatsapp";
 
 function bugunAy(): string {
   const d = new Date();
@@ -60,6 +66,8 @@ export default async function AyarlarSayfasi() {
 
   // Kayıtlı site tarayıcılarını IlanKaynagi'na senkronla (Ayarlar listesinde görünsün)
   await Promise.all(WEB_SITELER.map((s) => siteKaynaginiGarantiEt(s)));
+  await eskiWhatsappHasatiniTasi();
+  await bilinenDavetleriYaz();
 
   const [
     hizliAra,
@@ -71,6 +79,8 @@ export default async function AyarlarSayfasi() {
     eleme,
     pushAboneSayisi,
     sayacBaslangic,
+    waDavetler,
+    waTakip,
   ] = await Promise.all([
     prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
     aiTercihleriOku(),
@@ -81,11 +91,17 @@ export default async function AyarlarSayfasi() {
     elemeSayaclariOku(),
     prisma.pushAbone.count(),
     sayacBaslangicGaranti(),
+    whatsappDavetAdaylari(),
+    prisma.ilanKaynagi.count({
+      where: { tur: WHATSAPP_GRUP, aktif: true, durum: "AKTIF" },
+    }),
   ]);
 
   const tercihGuncel = { ...tercih, sayacBaslangic };
 
-  const kaynaklar = tumKaynaklar.filter((k) => k.tur !== TELEGRAM_UYE);
+  const kaynaklar = tumKaynaklar.filter(
+    (k) => k.tur !== TELEGRAM_UYE && k.tur !== WHATSAPP_GRUP
+  );
   const adaylar = gruplar
     .filter((g) => g.durum === "ADAY")
     .sort(
@@ -137,6 +153,7 @@ export default async function AyarlarSayfasi() {
             ad="Telegram bağlantısı"
           />
           <DurumRozeti tamam={Boolean(pushAcikAnahtar())} ad="Push" />
+          <DurumRozeti tamam={waTakip > 0} ad={`WhatsApp (${waTakip})`} />
         </div>
 
         {!tercih.telegramChatId && telegramKullanilabilir() && (
@@ -363,6 +380,60 @@ export default async function AyarlarSayfasi() {
               )}
             </div>
           )
+        )}
+      </section>
+
+      <section className="kart space-y-4 p-4 sm:p-5 reveal reveal-d3">
+        <div>
+          <h2 className="font-display text-lg font-bold text-paper">
+            WhatsApp grupları
+          </h2>
+          <p className="text-sm text-fog">
+            Onlar da böyle büyüyor: mesajdaki davet linkini topla, numarayla
+            gruba gir, okuyucu otomatik takibe alır. {waTakip} grup okunuyor.
+          </p>
+        </div>
+        {waDavetler.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-white/12 px-3 py-2.5 text-sm text-fog">
+            Henüz davet yok. Telegram / WhatsApp mesajında{" "}
+            <code className="text-paper/80">chat.whatsapp.com</code> düşünce
+            buraya düşer.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {waDavetler.map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="font-semibold text-paper">{d.ad}</div>
+                  {d.hasatKaynak && (
+                    <div className="truncate text-[11px] text-fog">
+                      {d.hasatKaynak}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={d.hedef}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-ok/30 px-2.5 py-1.5 text-xs font-semibold text-ok hover:bg-ok/10"
+                  >
+                    Gruba gir
+                  </a>
+                  <AksiyonButonu
+                    calistir={kaynakSil.bind(null, d.id)}
+                    etiket="Sil"
+                    bekleyenEtiket="..."
+                    onay="Bu davet silinsin mi?"
+                    sinif="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ember/90 hover:bg-ember/10"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 

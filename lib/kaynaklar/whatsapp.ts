@@ -46,6 +46,203 @@ export async function whatsappGruplariniEsitle(gruplar: WhatsappGrubu[]): Promis
   return adet;
 }
 
+const WA_DAVET_KALIP =
+  /(?:https?:\/\/)?(?:chat\.whatsapp\.com|whatsapp\.com\/channel)\/([A-Za-z0-9_\-]+)/gi;
+
+export function whatsappDavetKodlari(metin: string): string[] {
+  const kodlar: string[] = [];
+  const gorulen = new Set<string>();
+  let m: RegExpExecArray | null;
+  const re = new RegExp(WA_DAVET_KALIP.source, "gi");
+  while ((m = re.exec(metin)) !== null) {
+    const kod = m[1];
+    if (!kod || gorulen.has(kod)) continue;
+    gorulen.add(kod);
+    kodlar.push(kod);
+  }
+  return kodlar;
+}
+
+export function whatsappDavetUrl(kod: string): string {
+  return `https://chat.whatsapp.com/${kod}`;
+}
+
+/** Herkese açık, Ankara/koridor civarı davetler. Sanal numara günde birkaçına kendi girer. */
+const BILINEN_DAVETLER = [
+  "BW9NmtsjshxE0Cq5xTqZ7V",
+  "EWeW56jhh0IHvpADg8bMs8",
+  "CKAnkHWFL6rKOd99ZliDmt",
+  "lphp40x2a9jhyq8s0mrnfu",
+];
+
+export async function bilinenDavetleriYaz(): Promise<void> {
+  for (const kod of BILINEN_DAVETLER) {
+    await whatsappDavetiniKaydet(kod, "Açık davet").catch(() => null);
+  }
+}
+
+const KATILIM_ANAHTAR = "whatsapp_katilim_sayac";
+const KATILIM_GUNLUK = 4;
+
+function bugunTr(): string {
+  return new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** Sanal numara bir günde en fazla 4 gruba girer; fazlası yasak yer. */
+export async function katilimHakkiVarMi(): Promise<boolean> {
+  const kayit = await prisma.ayar.findUnique({ where: { anahtar: KATILIM_ANAHTAR } });
+  if (!kayit) return true;
+  try {
+    const j = JSON.parse(kayit.deger) as { gun?: string; adet?: number };
+    if (j.gun !== bugunTr()) return true;
+    return (j.adet ?? 0) < KATILIM_GUNLUK;
+  } catch {
+    return true;
+  }
+}
+
+export async function katilimHakkiKullan(): Promise<void> {
+  const gun = bugunTr();
+  const kayit = await prisma.ayar.findUnique({ where: { anahtar: KATILIM_ANAHTAR } });
+  let adet = 0;
+  if (kayit) {
+    try {
+      const j = JSON.parse(kayit.deger) as { gun?: string; adet?: number };
+      if (j.gun === gun) adet = j.adet ?? 0;
+    } catch {
+      adet = 0;
+    }
+  }
+  const deger = JSON.stringify({ gun, adet: adet + 1 });
+  await prisma.ayar.upsert({
+    where: { anahtar: KATILIM_ANAHTAR },
+    update: { deger },
+    create: { anahtar: KATILIM_ANAHTAR, deger },
+  });
+}
+
+export async function siradakiDavet(): Promise<{ id: number; kod: string } | null> {
+  const aday = await prisma.ilanKaynagi.findFirst({
+    where: {
+      tur: WHATSAPP_GRUP,
+      durum: "ADAY",
+      hedef: { startsWith: "https://chat.whatsapp.com/" },
+    },
+    orderBy: [{ oncelik: "desc" }, { id: "asc" }],
+    select: { id: true, hedef: true },
+  });
+  if (!aday) return null;
+  const kod = aday.hedef.split("/").pop()?.split("?")[0] || "";
+  if (!kod) return null;
+  return { id: aday.id, kod };
+}
+
+export async function davetKapat(id: number, ad: string, not: string): Promise<void> {
+  await prisma.ilanKaynagi.update({
+    where: { id },
+    data: {
+      durum: "PASIF",
+      aktif: false,
+      ad: (ad || "WA davet").slice(0, 120),
+      sonHata: not.slice(0, 300),
+    },
+  });
+}
+
+/** Takip edilen WhatsApp kanalı (ilan duyurusu). */
+export async function whatsappKanaliKaydet(jid: string): Promise<number> {
+  const satir = await prisma.ilanKaynagi.upsert({
+    where: { tur_hedef: { tur: WHATSAPP_GRUP, hedef: jid } },
+    update: {},
+    create: {
+      tur: WHATSAPP_GRUP,
+      hedef: jid,
+      ad: "WhatsApp kanalı",
+      aktif: true,
+      durum: "AKTIF",
+    },
+    select: { id: true },
+  });
+  return satir.id;
+}
+
+/** Davet linkini ADAY olarak yazar; sanal numara uygunsa kendisi girer. */
+export async function whatsappDavetiniKaydet(
+  kod: string,
+  hasatKaynak: string
+): Promise<"yeni" | "mevcut"> {
+  const hedef = whatsappDavetUrl(kod);
+  const varOlan = await prisma.ilanKaynagi.findUnique({
+    where: { tur_hedef: { tur: WHATSAPP_GRUP, hedef } },
+    select: { id: true },
+  });
+  if (varOlan) return "mevcut";
+  await prisma.ilanKaynagi.create({
+    data: {
+      tur: WHATSAPP_GRUP,
+      hedef,
+      ad: `WA davet ${kod.slice(0, 10)}`,
+      aktif: false,
+      durum: "ADAY",
+      oncelik: 12,
+      hasatKaynak: hasatKaynak.slice(0, 120),
+      sonHata: "Sırada — numara günde en fazla 4 gruba kendi girer",
+    },
+  });
+  return "yeni";
+}
+
+/** Mesajdaki chat.whatsapp.com linklerini ADAY havuzuna yazar (kartopu). */
+export async function whatsappDavetleriniHasatEt(
+  metin: string,
+  hasatKaynak: string
+): Promise<{ yeni: number; mevcut: number }> {
+  const rapor = { yeni: 0, mevcut: 0 };
+  for (const kod of whatsappDavetKodlari(metin)) {
+    try {
+      const s = await whatsappDavetiniKaydet(kod, hasatKaynak);
+      rapor[s] += 1;
+    } catch {
+      /* unique yarışı */
+    }
+  }
+  return rapor;
+}
+
+/** Eski Telegram hasadındaki wa: satırlarını WhatsApp ADAY'a taşır. */
+export async function eskiWhatsappHasatiniTasi(): Promise<number> {
+  const eski = await prisma.ilanKaynagi.findMany({
+    where: { tur: "TELEGRAM_UYE", hedef: { startsWith: "wa:" } },
+    select: { id: true, hedef: true, hasatKaynak: true },
+  });
+  let tasinan = 0;
+  for (const e of eski) {
+    const kod = e.hedef.slice(3);
+    if (kod) {
+      await whatsappDavetiniKaydet(kod, e.hasatKaynak || "eski Telegram hasadı");
+      tasinan += 1;
+    }
+    await prisma.ilanKaynagi.delete({ where: { id: e.id } }).catch(() => null);
+  }
+  return tasinan;
+}
+
+export type WhatsappDavetAdayi = {
+  id: number;
+  ad: string;
+  hedef: string;
+  hasatKaynak: string | null;
+};
+
+export async function whatsappDavetAdaylari(): Promise<WhatsappDavetAdayi[]> {
+  return prisma.ilanKaynagi.findMany({
+    where: { tur: WHATSAPP_GRUP, durum: "ADAY" },
+    orderBy: [{ oncelik: "desc" }, { id: "desc" }],
+    take: 40,
+    select: { id: true, ad: true, hedef: true, hasatKaynak: true },
+  });
+}
+
 /** Takipteki (aktif) WhatsApp grupları: jid → kaynak id. */
 export async function aktifWhatsappGruplari(): Promise<Map<string, number>> {
   const satirlar = await prisma.ilanKaynagi.findMany({
