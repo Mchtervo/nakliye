@@ -154,6 +154,7 @@ function yeriYaz(mevcut: string | null, il: string | null, gelen: string | null)
 
 /** Yeni veya yenilenen numaralı ilanı soru kuyruğuna alır. Aynı ilana / aynı güne ikinci yok. */
 export async function gorusmeKuyrugaAl(ilanId: number): Promise<void> {
+  if (process.env.WHATSAPP_YAZMA !== "1") return;
   const ilan = await prisma.yukIlani.findUnique({ where: { id: ilanId } });
   if (!ilan) return;
   if (ilan.durum === "ELENDI" || ilan.durum === "YUKE_DONDU" || ilan.durum === "ALINDI") {

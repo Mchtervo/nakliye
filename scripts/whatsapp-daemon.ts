@@ -193,6 +193,8 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
 
 /** Kuyruktaki bir soruyu gönderir. Kota ve ara lib tarafında. */
 async function gorusmeleriYurut(sock: WASocket) {
+  // WhatsApp bağlı cihazı otomatik yazıya kilitledi; yazma kapalı, okuma açık.
+  if (process.env.WHATSAPP_YAZMA !== "1") return;
   const sira = await siradakiGorusme().catch((e) => {
     uyari("Soru kuyruğu okunamadı:", e instanceof Error ? e.message : e);
     return null;
