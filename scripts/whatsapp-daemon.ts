@@ -12,7 +12,7 @@
 import makeWASocket, {
   Browsers,
   DisconnectReason,
-  fetchLatestBaileysVersion,
+  fetchLatestWaWebVersion,
   useMultiFileAuthState as dosyaOturumu,
   type SocketConfig,
   type WAMessage,
@@ -184,7 +184,7 @@ async function baglan(): Promise<void> {
 
   let version: [number, number, number] | undefined;
   try {
-    version = (await fetchLatestBaileysVersion()).version;
+    version = (await fetchLatestWaWebVersion()).version;
   } catch {
     version = undefined;
   }
@@ -244,7 +244,11 @@ async function baglan(): Promise<void> {
         return;
       }
       const bekle =
-        !state.creds.registered && eslemeKoduSayisi >= MAX_ESLEME_KODU ? ESLEME_BEKLEME_MS : 5000;
+        kod === DisconnectReason.restartRequired
+          ? 1000
+          : !state.creds.registered && eslemeKoduSayisi >= MAX_ESLEME_KODU
+            ? ESLEME_BEKLEME_MS
+            : 5000;
       if (bekle > 5000) {
         eslemeKoduSayisi = 0;
         uyari("Eşleme kodları kullanılmadı; 1 saat sonra tekrar denenecek.");
