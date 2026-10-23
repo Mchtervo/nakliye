@@ -1,10 +1,11 @@
 import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 
-export type KaynakTuru = "TELEGRAM" | "TELEGRAM_UYE" | "WEB" | "AI_ARAMA";
+export type KaynakTuru = "TELEGRAM" | "TELEGRAM_UYE" | "WHATSAPP_GRUP" | "WEB" | "AI_ARAMA";
 
 export const KAYNAK_TUR_ADLARI: Record<KaynakTuru, string> = {
   TELEGRAM: "Telegram grubu (bot)",
   TELEGRAM_UYE: "Telegram grubu (hesap)",
+  WHATSAPP_GRUP: "WhatsApp grubu",
   WEB: "Yük ilan sitesi",
   AI_ARAMA: "AI web araması",
 };

@@ -1,0 +1,23 @@
+[Unit]
+Description=Yuk Avcisi WhatsApp grup okuyucu (Baileys)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yukavci
+Group=yukavci
+WorkingDirectory=/home/yukavci/muhasebbe
+Environment=NODE_ENV=production
+# Oturum repo disinda; deploy (git) dokunmaz
+Environment=WHATSAPP_AUTH_DIR=/home/yukavci/.wa-oturum
+ExecStart=/usr/bin/npm run whatsapp:daemon
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/yukavci/logs/whatsapp-daemon.log
+StandardError=append:/home/yukavci/logs/whatsapp-daemon.log
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

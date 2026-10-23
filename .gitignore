@@ -53,3 +53,6 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# WhatsApp oturumu (gizli anahtarlar)
+.wa-oturum/

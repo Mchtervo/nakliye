@@ -56,6 +56,7 @@ import {
 } from "@/lib/kaynaklar/onDedup";
 import { guvenliKirp } from "@/lib/metin";
 import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
+import { WHATSAPP_GRUP } from "@/lib/kaynaklar/whatsapp";
 
 export const TELEGRAM_UYE = "TELEGRAM_UYE";
 
@@ -174,7 +175,7 @@ export async function mesajlariKuyrugaAl(
       where: { id: grup.id },
       select: { id: true, tur: true, sonMesajId: true },
     });
-    if (!kaynak || kaynak.tur !== TELEGRAM_UYE) continue;
+    if (!kaynak || (kaynak.tur !== TELEGRAM_UYE && kaynak.tur !== WHATSAPP_GRUP)) continue;
 
     rapor.grup += 1;
     rapor.alinan += grup.mesajlar.length;

@@ -8,3 +8,4 @@
 yukavci ALL=(root) NOPASSWD: /bin/systemctl restart yukavci-telegram
 yukavci ALL=(root) NOPASSWD: /bin/systemctl status yukavci-telegram
 yukavci ALL=(root) NOPASSWD: /bin/systemctl is-active yukavci-telegram
+yukavci ALL=(root) NOPASSWD: /bin/systemctl restart yukavci-whatsapp
