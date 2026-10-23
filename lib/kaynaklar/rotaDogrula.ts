@@ -3,7 +3,11 @@
  * Farklı satırlardan "Kırıkkale + Bolu" birleştirmeyi keser.
  */
 import { ilBul, illeriBul, sadelestir } from "@/lib/iller";
-import { rotaSatiriMi, satirlaraBol } from "@/lib/kaynaklar/onFiltre";
+import {
+  rotaSatiriMi,
+  satirlaraBol,
+  yuklemeIfadesiVarMi,
+} from "@/lib/kaynaklar/onFiltre";
 
 const KACIS = /[.*+?^${}()|[\]\\]/g;
 
@@ -47,6 +51,17 @@ export function rotaAyniSatirdaMi(
     const b = satirlar[i + 1];
     if (!/[→➡➜▶️►]\s*$/.test(a.trim())) continue;
     if (yerSatirda(nereden, a) && yerSatirda(nereye, b)) return true;
+  }
+
+  // "GEBZE YÜKLEMELİ" başlığı + alt satırda "Urfa+Antep TIR": varış satırı
+  // kendisinden önceki EN YAKIN yükleme başlığına aittir
+  for (let j = 1; j < satirlar.length; j++) {
+    if (!yerSatirda(nereye, satirlar[j])) continue;
+    for (let k = j - 1; k >= 0; k--) {
+      if (!yuklemeIfadesiVarMi(satirlar[k])) continue;
+      if (yerSatirda(nereden, satirlar[k])) return true;
+      break;
+    }
   }
 
   // Ortak çıkış: bağlamda çıkış, rota satırında yalnızca varış (başka çıkış ili yok)

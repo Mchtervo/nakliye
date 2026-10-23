@@ -50,8 +50,8 @@ export function koridorIlKumesi(
  * Koridor sınıflandırması:
  * - TAM   = çıkış VE varış koridorda → bildirim + Yeni sekmesi
  * - VARIS = sadece varış koridorda (Elazığ→Ankara) → Dönüş sekmesi, bildirim yok
- * - CIKIS = sadece çıkış / varış belirsiz yükleme → kaydet, "varış belirtilmemiş"
- *           (bilinen varış koridor dışıysa kaydetme — sadece say)
+ * - CIKIS = çıkış koridorda, varış dışarıda (Bolu→Samsun) veya belirsiz → kaydet;
+ *           panelde sadece varışı bilinenler listelenir
  * - DISI  = ikisi de dışarıda → kaydetme
  */
 export type KoridorTipi = "TAM" | "VARIS" | "CIKIS" | "DISI";
@@ -91,18 +91,14 @@ export function koridoraUyuyorMu(
 
 /**
  * Kayda alınır mı?
- * TAM + VARIS + CIKIS(varış null = yükleme).
- * CIKIS + bilinen dış varış (Ankara→İzmir) → hayır.
+ * TAM + VARIS + CIKIS (varış dışarıda veya belirsiz). Sadece DISI hayır.
  */
 export function koridorKaydaAlinirMi(
   koridorIller: string[] | Set<string> | null | undefined,
   cikisIl: string | null | undefined,
   varisIl: string | null | undefined
 ): boolean {
-  const tip = koridorTipiBelirle(koridorIller, cikisIl, varisIl);
-  if (tip === "TAM" || tip === "VARIS") return true;
-  if (tip === "CIKIS" && !ilBul(varisIl)) return true;
-  return false;
+  return koridorTipiBelirle(koridorIller, cikisIl, varisIl) !== "DISI";
 }
 
 /** Panel placeholder / doğrulama için. */

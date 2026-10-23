@@ -51,8 +51,10 @@ Kurallar:
 - SATIR KURALI: Bir rotanın çıkışı ve varışı AYNI satırda olmalı.
   Farklı satırlardan yer birleştirme YASAK.
 - YÜKLEME İLANI: "ANKARA YÜKLEME", "GEBZE YÜKLEMELİ", "çıkışlı" =
-  çıkış o il, varış BİLİNMİYOR → nereye=null, nereden=il.
-  Bunları atlama; telefon varsa özellikle yaz.
+  çıkış o il. Başlığın altında veya aynı satırda gidilecek yerler
+  (şehir, ilçe, semt) yazıyorsa her biri AYRI ilan ve nereye o yer.
+  Hiç varış yazmıyorsa nereye=null. Bunları atlama; telefon varsa
+  özellikle yaz.
 - ÇOK GÜZERGAHLI MESAJ: Bir mesajda birden çok güzergah listelenmiş olabilir
   ("ÇAN'DAN: VAN 2400+, KONYA 850+, MERSİN 1100+"). Her satırı AYRI ilan yap.
   Ortak çıkış yerini (başlık satırı) hepsine uygula ama bir satırın varışını
@@ -608,21 +610,6 @@ async function tekParcaCozumle(
       );
       continue;
     }
-    if (kapsamEle === "CIKIS") {
-      // Varış null → kaydet; varış dışarıda biliniyorsa sadece say
-      if (!ilan.varisIl) {
-        ilan.koridorTipi = "CIKIS";
-        console.log(`[ilanCozumle] koridor=CIKIS(yükleme) ${ilan.cikisIl}`);
-        sonuc.push(ilan);
-        continue;
-      }
-      ele.cikisSay += 1;
-      console.log(
-        `[ilanCozumle] CIKIS_SAY ${ilan.cikisIl}→${ilan.varisIl}` +
-          ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
-      );
-      continue;
-    }
     console.log(
       `[ilanCozumle] koridor=${tip} ${ilan.cikisIl}→${ilan.varisIl || "?"}`
     );
@@ -738,9 +725,12 @@ function kapsamTalimati(iller: string[]): string {
 KAPSAM (KORİDOR):
 - VARIŞ şu illerden biriyse ilanı YAZ (çıkış dışarıda olsa da —
   ör. Elazığ→Ankara = dönüş yükü).
-- "ANKARA YÜKLEME" / çıkışlı (varış yok) → YAZ, nereye=null.
-- Sadece ÇIKIŞ listede + VARIŞ bilinen dışarıdaysa (Ankara→İzmir)
-  HİÇ yazma.
+- ÇIKIŞ listede, VARIŞ dışarıda (Bolu→Samsun, Gebze→Urfa) → YAZ,
+  varışı da yaz.
+- "GEBZE YÜKLEMELİ Urfa+Antep TIR" = Gebze çıkışlı, varış Urfa ve Antep
+  (her varış ayrı ilan). Yükleme başlığının altındaki/yanındaki şehir,
+  ilçe veya semt adları VARIŞTIR.
+- "ANKARA YÜKLEME" ve hiçbir varış yazmıyorsa → YAZ, nereye=null.
 - İki uç da dışarıdaysa yazma.
 - İstanbul: ANADOLU yakası + Gebze hattı (Tuzla, Pendik, Kartal…).
   Avrupa yakası (Hadımköy, İkitelli, Esenyurt, Ambarlı, Silivri…)
@@ -752,18 +742,15 @@ Yahşihan→Kırıkkale, Gölbaşı→Ankara).`;
 
 /**
  * Kayda alınmayacak mı?
- * DISI elenir; CIKIS+varış bilinen dış elenir (sadece say);
- * CIKIS+varış null ve TAM/VARIS geçer.
+ * DISI elenir; TAM / VARIS / CIKIS (varış dışarıda veya belirsiz) geçer.
  */
 function kapsamEleVeTip(
   ilan: CozulmusIlan,
   iller: Set<string>
-): { ele: "DISI" | "CIKIS" | null; tip: KoridorTipi } {
+): { ele: "DISI" | null; tip: KoridorTipi } {
   const tip = koridorTipiBelirle(iller, ilan.cikisIl, ilan.varisIl);
   ilan.koridorTipi = tip;
   if (tip === "DISI") return { ele: "DISI", tip };
-  // CIKIS + bilinen dış varış → say, kaydetme; varışsız → kaydet
-  if (tip === "CIKIS" && ilan.varisIl) return { ele: "CIKIS", tip };
   // Avrupa yakası (Hadımköy…) = köprü geçiş → kaydetme
   if (
     kopruGecisliMi({
@@ -914,20 +901,6 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
       bolgeKirilim.ikisiDisi += 1;
       console.log(
         `[ilanCozumle] BÖLGE_ELE DISI ${ilan.cikisIl}→${ilan.varisIl}` +
-          ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
-      );
-      continue;
-    }
-    if (kapsamEle === "CIKIS") {
-      if (!ilan.varisIl) {
-        ilan.koridorTipi = "CIKIS";
-        ilanlar.push({ anahtar: kaynakMesaj.anahtar, ilan });
-        continue;
-      }
-      ele.cikisSay += 1;
-      bolgeKirilim.varisDisi += 1;
-      console.log(
-        `[ilanCozumle] CIKIS_SAY ${ilan.cikisIl}→${ilan.varisIl}` +
           ` (${ilan.nereden || "?"}→${ilan.nereye || "?"})`
       );
       continue;

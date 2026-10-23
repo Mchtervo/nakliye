@@ -144,11 +144,11 @@ export function satirlaraBol(metin: string): string[] {
 }
 
 /** "ANKARA YÜKLEME" / "çıkışlı" / "yüklemeli" — varışsız çıkış sinyali. */
-const YUKLEME_KALIP =
-  /\b(yukleme|yükleme|yuklemeli|yüklemeli|cikisli|çıkışlı|cikis\b|çıkış\b)\b/i;
+/** `sadelestir` çıktısında aranır: "YÜKLEMELİ" (İ) ve "çıkışlı" \b ile ham metinde eşleşmiyor. */
+const YUKLEME_KALIP = /\b(yukleme|yuklemeli|cikisli|cikis)\b/;
 
 export function yuklemeIfadesiVarMi(metin: string): boolean {
-  return YUKLEME_KALIP.test(metin);
+  return YUKLEME_KALIP.test(sadelestir(metin));
 }
 
 /** Telefon regex — kurtarma / kayıt felsefesi için. */

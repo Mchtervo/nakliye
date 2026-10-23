@@ -269,9 +269,14 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
               Dönüş yükü
             </span>
           )}
-          {(ilan.koridorTipi === "CIKIS" || !ilan.varisIl) && ilan.cikisIl && (
+          {!ilan.varisIl && ilan.cikisIl && (
             <span className="rounded-md bg-amber/15 px-2 py-0.5 text-xs font-semibold text-amber">
               Varış belirtilmemiş
+            </span>
+          )}
+          {ilan.koridorTipi === "CIKIS" && ilan.varisIl && (
+            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-fog">
+              Bölge dışı varış
             </span>
           )}
           {ilan.durum === "ELENDI" && (

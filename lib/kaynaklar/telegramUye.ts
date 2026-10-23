@@ -38,7 +38,6 @@ import {
 } from "@/lib/koridor";
 import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
-import { yaklasikKarayoluKm, VARIS_UZA_KM } from "@/lib/ilMesafe";
 import { ilBul } from "@/lib/iller";
 import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
 import { araciUyuyorMu, ilgilileriSuz } from "@/lib/kaynaklar/filtre";
@@ -456,14 +455,13 @@ export type KuyrukRaporu = {
 type PartiMesaj = { id: number; metin: string };
 
 /**
- * Kayıt öncesi: araç tipi + koridor (TAM veya VARIS/dönüş).
+ * Kayıt öncesi: araç tipi + koridor (TAM, VARIS/dönüş, CIKIS).
  * Araç belirsiz (kod/metin yok) → geçir; sadece açık uyumsuz elenir.
- * CIKIS/DISI burada false — üst katmanda sayılır.
+ * DISI burada false — üst katmanda sayılır.
  */
 function ilanKaydaUygunMu(
   ilan: CozulmusIlan,
   tercih: AiTercihleri,
-  anaUs: string | null,
   koridorSet: Set<string>,
   hamMetin?: string
 ): boolean {
@@ -488,12 +486,6 @@ function ilanKaydaUygunMu(
     })
   ) {
     return false;
-  }
-
-  // Varışsız yükleme — uzak kontrol yok
-  if (ilan.varisIl && anaUs) {
-    const km = yaklasikKarayoluKm(anaUs, ilan.varisIl);
-    if (km !== null && km > VARIS_UZA_KM) return false;
   }
   return true;
 }
@@ -1041,7 +1033,7 @@ export async function kuyrugunuCoz(
       tonajMesaj.add(anahtar);
       continue;
     }
-    if (!ilanKaydaUygunMu(ilan, tercih, anaUs, koridorSet, hamMetin)) {
+    if (!ilanKaydaUygunMu(ilan, tercih, koridorSet, hamMetin)) {
       if (!araciUyuyorMu(ilan, tercih, hamMetin)) {
         // Araç reddi → yine kaydet (ELENDI), Şüpheli'de görünsün
         const kaynakId = kaynaklar.get(anahtar) ?? null;

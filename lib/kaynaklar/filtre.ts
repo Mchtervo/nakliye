@@ -147,19 +147,8 @@ export function tercihKosulu(
 
   const iller = koridorIlKumesi(tercih.koridorIller);
   if (iller.length > 0) {
-    // TAM (iki uç) VEYA varışsız koridor yükleme (CIKIS)
-    kosullar.push({
-      OR: [
-        { AND: [{ cikisIl: { in: iller } }, { varisIl: { in: iller } }] },
-        {
-          AND: [
-            { cikisIl: { in: iller } },
-            { varisIl: null },
-            { koridorTipi: "CIKIS" },
-          ],
-        },
-      ],
-    });
+    // Koridor çıkışlı ve varışı belli (TAM + dışarı giden CIKIS); varışsızlar listelenmez
+    kosullar.push({ cikisIl: { in: iller } }, { varisIl: { not: null } });
   }
 
   return { AND: kosullar };
