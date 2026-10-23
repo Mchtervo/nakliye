@@ -84,6 +84,44 @@ export async function search1Ara(
   return (j.results ?? []).filter((r) => r.link && r.snippet);
 }
 
+const GORULEN_ANAHTAR = "search1_gorulen_linkler";
+const GORULEN_SURE_MS = 7 * 24 * 60 * 60 * 1000;
+const GORULEN_MAX = 1500;
+
+async function gorulenOku(): Promise<Record<string, number>> {
+  const k = await prisma.ayar.findUnique({ where: { anahtar: GORULEN_ANAHTAR } });
+  if (!k) return {};
+  try {
+    return JSON.parse(k.deger) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+/** Daha önce işlenmiş linkleri çıkarır (7 gün hafıza). */
+export async function yeniLinkleriSuz<T extends { link: string }>(sonuclar: T[]): Promise<T[]> {
+  const gorulen = await gorulenOku();
+  return sonuclar.filter((s) => !gorulen[s.link]);
+}
+
+/** İşlenen linkleri hafızaya yazar; eskileri ve fazlasını budar. */
+export async function linkleriGorulduYap(linkler: string[]): Promise<void> {
+  if (linkler.length === 0) return;
+  const simdi = Date.now();
+  const gorulen = await gorulenOku();
+  for (const l of linkler) gorulen[l] = simdi;
+  const kalan = Object.entries(gorulen)
+    .filter(([, t]) => simdi - t < GORULEN_SURE_MS)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, GORULEN_MAX);
+  const deger = JSON.stringify(Object.fromEntries(kalan));
+  await prisma.ayar.upsert({
+    where: { anahtar: GORULEN_ANAHTAR },
+    update: { deger },
+    create: { anahtar: GORULEN_ANAHTAR, deger },
+  });
+}
+
 /**
  * Sayfanın tam metni (1 kredi). Google özeti kesik olduğunda telefon için
  * kullanılır; limit dolduysa veya okuma başarısızsa null.

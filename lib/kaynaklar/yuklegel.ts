@@ -153,6 +153,9 @@ export function cssIleKartlariAyikla(
 
   for (const p of parcalar.length > 1 ? parcalar : [metin]) {
     if (paywallMu(p)) continue;
+    // Panel 48 saati gösterir; "2 gün önce" ve daha eskisi boşuna işlenmesin
+    const gun = p.match(/^(\d+)\s*gün\s*önce/i);
+    if (gun && Number(gun[1]) >= 2) continue;
     const telefon = telefonCikar(p);
     if (!telefon) continue;
     const norm = telefonNormalize(telefon);

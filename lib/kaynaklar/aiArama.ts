@@ -6,7 +6,13 @@ import { ILAN_LISTESI_SEMASI, type IlanCikti } from "@/lib/ai/semalar";
 import { aracKoduBul } from "@/lib/arac";
 import { ilBul } from "@/lib/iller";
 import { irtibatTelefonuBul, telefonlariCikar } from "@/lib/kaynaklar/onDedup";
-import { search1Ara, search1Kullanilabilir, search1Oku } from "@/lib/kaynaklar/search1";
+import {
+  linkleriGorulduYap,
+  search1Ara,
+  search1Kullanilabilir,
+  search1Oku,
+  yeniLinkleriSuz,
+} from "@/lib/kaynaklar/search1";
 import { htmlMetneCevir, ilanOzeti } from "@/lib/kaynaklar/web";
 import {
   bosSonuc,
@@ -23,7 +29,9 @@ const OKUMA_MAX = 3;
 
 async function search1IleTara(sorgu: string): Promise<TaramaSonucu> {
   const sonuclar = await search1Ara(sorgu, { maxSonuc: 10 });
-  const metinler = sonuclar.map((s) => ({
+  // Önceki taramalarda işlenen gönderiler tekrar AI'ya / okumaya gitmesin
+  const yeniler = await yeniLinkleriSuz(sonuclar);
+  const metinler = yeniler.map((s) => ({
     link: s.link,
     metin: htmlMetneCevir(`${s.title}\n${s.snippet}`),
   }));
@@ -45,6 +53,8 @@ async function search1IleTara(sorgu: string): Promise<TaramaSonucu> {
     if (tam) m.metin = htmlMetneCevir(`${m.metin}\n${tam}`);
   }
 
+  // AI hatası (bütçe vb.) olan linkler hafızaya yazılmaz; sonraki taramada denenir
+  const hatali = new Set<string>();
   const cozumler = await Promise.all(
     adaylar.map(async (m) => {
       try {
@@ -53,16 +63,19 @@ async function search1IleTara(sorgu: string): Promise<TaramaSonucu> {
           (ilan): BulunanIlan => ({ ilan, hamMetin: `${m.metin}\n${m.link}` })
         );
       } catch {
+        hatali.add(m.link);
         return [];
       }
     })
   );
+  await linkleriGorulduYap(yeniler.map((s) => s.link).filter((l) => !hatali.has(l)));
+
   // Aranamayan ilan işe yaramaz: numarasızları kaydetme
   const hepsi = cozumler.flat();
   const numarali = hepsi.filter((b) => b.ilan.telefon);
   console.log(
-    `[search1] sonuc=${sonuclar.length} aday=${adaylar.length} okunan=${okunan} ` +
-      `ilan=${hepsi.length} numarasizElenen=${hepsi.length - numarali.length}`
+    `[search1] sonuc=${sonuclar.length} yeni=${yeniler.length} aday=${adaylar.length} ` +
+      `okunan=${okunan} ilan=${hepsi.length} numarasizElenen=${hepsi.length - numarali.length}`
   );
   return { bulunanlar: numarali, hata: null };
 }
