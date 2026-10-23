@@ -1,13 +1,13 @@
 /**
- * İlan tazelik / arşiv kuralları.
- * 30 dk üstü → soluk; 48 saat üstü → ARSIV (silme yok).
+ * İlan tazelik.
+ * 30 dk üstü → soluk; 6 saat üstü → listeden silinir.
  */
 
 import { prisma } from "@/lib/prisma";
 
 export const SOLUK_DK = 30;
-/** Panel tazeliği + arşiv eşiği (48 saat). */
-export const ARSIV_DK = 48 * 60;
+/** Panelde kalma süresi. 6 saati geçen ilan silinir. */
+export const ARSIV_DK = 6 * 60;
 export const PANEL_TAZELIK_MS = ARSIV_DK * 60 * 1000;
 
 export function beklemeDakika(tarih: Date | string): number {
@@ -42,7 +42,7 @@ export function panelTazeSinir(tarih = new Date()): Date {
 }
 
 /**
- * Panel / plan varsayılan: son 48 saat + arşiv/elenmiş değil.
+ * Panel / plan varsayılan: son 6 saat + arşiv/elenmiş değil.
  * sonGorulme VEYA createdAt taze.
  */
 export function panelTazeKosulu() {
@@ -58,43 +58,22 @@ export function panelTazeKosulu() {
 }
 
 /**
- * 48 saatten eski ilanları ARSIV'e al — SİLME YOK.
- * Eşik: sonGorulme (createdAt değil) — taze tekrarlar arşive düşmez.
- * Müşteri havuzu frekansı için kayıtlar kalır.
+ * 6 saattir görülmeyen ilanları siler.
+ * Eşik sonGorulme: aynı yük tekrar düşerse süre yenilenir.
+ * Yüke dönmüş ve alınmış kayıtlar kalır.
  */
 export async function eskiIlanlariArsivle(): Promise<number> {
   const sinir = new Date(Date.now() - ARSIV_DK * 60 * 1000);
-  const r = await prisma.yukIlani.updateMany({
+  const r = await prisma.yukIlani.deleteMany({
     where: {
-      durum: {
-        in: [
-          "YENI",
-          "ILGILENIYOR",
-          "ILETISIME_GECILDI",
-          "PAZARLIKTA",
-          "CEVAP_YOK",
-        ],
-      },
+      durum: { notIn: ["YUKE_DONDU", "ALINDI"] },
       sonGorulme: { lt: sinir },
     },
-    data: { durum: "ARSIV" },
   });
   return r.count;
 }
 
-/**
- * Yanlışlıkla arşivlenen taze ilanları geri getir.
- * sonGorulme son 36 saat + skor ≥ 40.
- */
+/** 6 saat kuralında eski ilan geri getirilmez. */
 export async function arsivdenCanlandir(): Promise<number> {
-  const sinir = new Date(Date.now() - 36 * 60 * 60 * 1000);
-  const r = await prisma.yukIlani.updateMany({
-    where: {
-      durum: "ARSIV",
-      sonGorulme: { gte: sinir },
-      guvenSkoru: { gte: 40 },
-    },
-    data: { durum: "YENI", sonGorulme: new Date() },
-  });
-  return r.count;
+  return 0;
 }

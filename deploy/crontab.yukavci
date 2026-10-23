@@ -20,7 +20,7 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 # Sessiz saat birikimi — sabah 07:05 özet
 5 7 * * * /bin/bash $GUVENLI sabah-ozet.sh
 
-# 48s+ ilanları ARSIV (silme yok) — 06:00
+# 6 saati geçen ilanlar silinir — asıl temizlik AI kuyrukta 5 dk'da bir; bu yedek 06:00
 0 6 * * * /bin/bash $GUVENLI arsiv.sh
 
 # Grup keşfi — günde 5: 06, 10, 14, 18, 22

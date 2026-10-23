@@ -260,8 +260,15 @@ async function baglan(): Promise<void> {
   });
 
   sock.ev.on("messages.upsert", ({ messages, type }) => {
-    if (type !== "notify") return;
-    void mesajlariIsle(messages);
+    if (type === "notify") {
+      void mesajlariIsle(messages);
+      return;
+    }
+    // Kanallar çoğu zaman "append" gelir; grup geçmişi alınmaz
+    if (type === "append") {
+      const kanallar = messages.filter((m) => m.key.remoteJid?.endsWith("@newsletter"));
+      if (kanallar.length > 0) void mesajlariIsle(kanallar);
+    }
   });
 
   sock.ev.on("groups.upsert", () => void gruplariEsitle(sock));

@@ -272,7 +272,7 @@ export async function ilanSil(id: number): Promise<void> {
 }
 
 export async function eskiIlanlariTemizle(): Promise<void> {
-  // Silme yok — 48s arşiv cron'u (eskiIlanlariArsivle)
+  // 6 saati geçen ilanları siler
   const { eskiIlanlariArsivle } = await import("@/lib/ilanTazelik");
   await eskiIlanlariArsivle();
   revalidatePath("/ai/yukler");

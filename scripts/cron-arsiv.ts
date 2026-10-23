@@ -1,5 +1,5 @@
 /**
- * 48 saatten eski ilanları ARSIV'e alır (silmez).
+ * 6 saattir görülmeyen ilanları siler.
  * Cron: 06:00 Europe/Istanbul.
  */
 import { prisma } from "@/lib/prisma";
