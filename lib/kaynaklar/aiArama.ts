@@ -5,7 +5,8 @@ import { MODEL_ANALIZ } from "@/lib/ai/modeller";
 import { ILAN_LISTESI_SEMASI, type IlanCikti } from "@/lib/ai/semalar";
 import { aracKoduBul } from "@/lib/arac";
 import { ilBul } from "@/lib/iller";
-import { search1Ara, search1Kullanilabilir } from "@/lib/kaynaklar/search1";
+import { irtibatTelefonuBul, telefonlariCikar } from "@/lib/kaynaklar/onDedup";
+import { search1Ara, search1Kullanilabilir, search1Oku } from "@/lib/kaynaklar/search1";
 import { htmlMetneCevir, ilanOzeti } from "@/lib/kaynaklar/web";
 import {
   bosSonuc,
@@ -18,6 +19,8 @@ import {
  * Search1API (Google, son 24 saat) → her sonuç snippet'i ayrı ilan metni.
  * Jev ilan olmayanları eler; kalanlar Telegram ile aynı çözücüden geçer.
  */
+const OKUMA_MAX = 3;
+
 async function search1IleTara(sorgu: string): Promise<TaramaSonucu> {
   const sonuclar = await search1Ara(sorgu, { maxSonuc: 10 });
   const metinler = sonuclar.map((s) => ({
@@ -32,6 +35,16 @@ async function search1IleTara(sorgu: string): Promise<TaramaSonucu> {
     adaylar = metinler.filter((_, i) => skorlar[i] === null || skorlar[i]! >= esik);
   }
 
+  // Google özeti kesik: numara görünmüyorsa gönderinin tamamını oku (kredi sınırlı)
+  let okunan = 0;
+  for (const m of adaylar) {
+    if (okunan >= OKUMA_MAX) break;
+    if (telefonlariCikar(m.metin).length > 0 || irtibatTelefonuBul(m.metin)) continue;
+    okunan += 1;
+    const tam = await search1Oku(m.link);
+    if (tam) m.metin = htmlMetneCevir(`${m.metin}\n${tam}`);
+  }
+
   const cozumler = await Promise.all(
     adaylar.map(async (m) => {
       try {
@@ -44,7 +57,14 @@ async function search1IleTara(sorgu: string): Promise<TaramaSonucu> {
       }
     })
   );
-  return { bulunanlar: cozumler.flat(), hata: null };
+  // Aranamayan ilan işe yaramaz: numarasızları kaydetme
+  const hepsi = cozumler.flat();
+  const numarali = hepsi.filter((b) => b.ilan.telefon);
+  console.log(
+    `[search1] sonuc=${sonuclar.length} aday=${adaylar.length} okunan=${okunan} ` +
+      `ilan=${hepsi.length} numarasizElenen=${hepsi.length - numarali.length}`
+  );
+  return { bulunanlar: numarali, hata: null };
 }
 
 const SISTEM = `Sen Türkiye'de nakliyeci için internetten yük ilanı arayan bir asistansın.
@@ -128,7 +148,9 @@ export const aiAramaAdaptoru: KaynakAdaptoru = {
         })
         .filter(
           (i) =>
-            i.guvenSkoru >= 15 && Boolean(i.cikisIl || i.varisIl || i.nereden)
+            i.guvenSkoru >= 15 &&
+            Boolean(i.telefon) &&
+            Boolean(i.cikisIl || i.varisIl || i.nereden)
         )
         .map((ilan) => ({ ilan, hamMetin: ilanOzeti(ilan, kaynak.ad) }));
 

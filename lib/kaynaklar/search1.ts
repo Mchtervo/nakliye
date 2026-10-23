@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 
 const SEARCH1_URL = "https://api.search1api.com/search";
+const SEARCH1_CRAWL_URL = "https://api.search1api.com/crawl";
 const ZAMAN_ASIMI_MS = 15000;
+const CRAWL_ZAMAN_ASIMI_MS = 30000;
 const SAYAC_ANAHTAR = "search1_gunluk_sayac";
 const VARSAYILAN_GUNLUK_LIMIT = 20;
 
@@ -80,4 +82,33 @@ export async function search1Ara(
   }
   const j = (await cevap.json()) as { results?: Search1Sonuc[] };
   return (j.results ?? []).filter((r) => r.link && r.snippet);
+}
+
+/**
+ * Sayfanın tam metni (1 kredi). Google özeti kesik olduğunda telefon için
+ * kullanılır; limit dolduysa veya okuma başarısızsa null.
+ */
+export async function search1Oku(url: string): Promise<string | null> {
+  if (!(await krediAyir())) return null;
+  try {
+    const cevap = await fetch(SEARCH1_CRAWL_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SEARCH1API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(CRAWL_ZAMAN_ASIMI_MS),
+      cache: "no-store",
+    });
+    if (!cevap.ok) return null;
+    const j = (await cevap.json()) as { results?: { content?: string } };
+    const icerik = j.results?.content;
+    if (!icerik) return null;
+    // Ön bilgi (meta) bloğunu at, markdown linklerini düz metne çevir
+    const govde = icerik.replace(/^---\n[\s\S]*?\n---\n/, "");
+    return govde.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").slice(0, 3000);
+  } catch {
+    return null;
+  }
 }
