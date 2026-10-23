@@ -360,32 +360,22 @@ export async function hasatLinkleriniKaydet(
       continue;
     }
 
-    // WA — şimdilik pasif
-    if (hedefSet.has(l.hedef)) {
-      rapor.mevcut += 1;
+    // WA davet — WhatsApp ADAY havuzu (numarayla girilecek)
+    if (l.tur === "WHATSAPP" && l.kod) {
+      const { whatsappDavetiniKaydet } = await import("@/lib/kaynaklar/whatsapp");
+      try {
+        const s = await whatsappDavetiniKaydet(l.kod, not);
+        if (s === "mevcut") rapor.mevcut += 1;
+        else {
+          rapor.yeni += 1;
+          rapor.grup += 1;
+        }
+      } catch {
+        rapor.atlanan += 1;
+      }
       continue;
     }
-    try {
-      await prisma.ilanKaynagi.create({
-        data: {
-          tur: TELEGRAM_UYE,
-          hedef: l.hedef,
-          ad: l.ad.slice(0, 120),
-          aktif: false,
-          durum: "ADAY",
-          kullaniciAdi: null,
-          uyeSayisi: null,
-          oncelik: 1,
-          hasatKaynak: not,
-          sonHata: "WhatsApp link — ileride",
-        },
-      });
-      hedefSet.add(l.hedef);
-      rapor.yeni += 1;
-      rapor.grup += 1;
-    } catch {
-      rapor.atlanan += 1;
-    }
+    rapor.atlanan += 1;
   }
 
   return rapor;

@@ -56,7 +56,7 @@ import {
 } from "@/lib/kaynaklar/onDedup";
 import { guvenliKirp } from "@/lib/metin";
 import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
-import { WHATSAPP_GRUP } from "@/lib/kaynaklar/whatsapp";
+import { WHATSAPP_GRUP, whatsappDavetleriniHasatEt } from "@/lib/kaynaklar/whatsapp";
 
 export const TELEGRAM_UYE = "TELEGRAM_UYE";
 
@@ -204,6 +204,12 @@ export async function mesajlariKuyrugaAl(
     }[] = [];
 
     for (const m of grup.mesajlar.slice(0, 200)) {
+      // Kartopu: ilan olmasa bile davet linki toplanır (YükleGit yöntemi)
+      await whatsappDavetleriniHasatEt(
+        m.metin,
+        `Hasat #${kaynak.id}`
+      ).catch(() => null);
+
       const sebep = elemeSebebi(m.metin, hedefIller);
       if (sebep) {
         eleGrup(sebep, m.metin);
