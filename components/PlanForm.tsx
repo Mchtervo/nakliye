@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
 const GUN_SECENEKLERI = [2, 3, 4, 5, 6, 7] as const;
 
@@ -18,10 +18,12 @@ export default function PlanForm({
   const [from, setFrom] = useState(baslangic);
   const [gunSayisi, setGunSayisi] = useState(String(gun));
 
-  useEffect(() => {
+  const [oncekiProp, setOncekiProp] = useState({ baslangic, gun });
+  if (oncekiProp.baslangic !== baslangic || oncekiProp.gun !== gun) {
+    setOncekiProp({ baslangic, gun });
     setFrom(baslangic);
     setGunSayisi(String(gun));
-  }, [baslangic, gun]);
+  }
 
   function planla(e?: React.FormEvent) {
     e?.preventDefault();

@@ -10,6 +10,12 @@ export default function GezinmeIlerleme() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [gorunur, setGorunur] = useState(false);
+  const konum = `${pathname}?${searchParams.toString()}`;
+  const [oncekiKonum, setOncekiKonum] = useState(konum);
+  if (oncekiKonum !== konum) {
+    setOncekiKonum(konum);
+    setGorunur(false);
+  }
 
   useEffect(() => {
     function tiklama(e: MouseEvent) {
@@ -46,10 +52,6 @@ export default function GezinmeIlerleme() {
       window.removeEventListener("gezinme-basla", elleBasla);
     };
   }, [pathname]);
-
-  useEffect(() => {
-    setGorunur(false);
-  }, [pathname, searchParams]);
 
   useEffect(() => {
     if (!gorunur) return;

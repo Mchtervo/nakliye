@@ -1,11 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
+
+const STANDALONE_SORGU = "(display-mode: standalone)";
+
+function standaloneAbone(degisti: () => void) {
+  const mq = window.matchMedia(STANDALONE_SORGU);
+  mq.addEventListener("change", degisti);
+  return () => mq.removeEventListener("change", degisti);
+}
+
+function standaloneMi(): boolean {
+  return (
+    window.matchMedia(STANDALONE_SORGU).matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+const degismezAbone = () => () => {};
+const iosCihazMi = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const sunucudaYanlis = () => false;
 
 /**
  * Telefon / masaüstü ana ekranına uygulama kısayolu ekler.
@@ -13,23 +32,13 @@ type BeforeInstallPromptEvent = Event & {
  */
 export default function AnaEkranaEkle() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [kurulu, setKurulu] = useState(false);
-  const [iosMu, setIosMu] = useState(false);
+  const [yeniKuruldu, setKurulu] = useState(false);
+  const standalone = useSyncExternalStore(standaloneAbone, standaloneMi, sunucudaYanlis);
+  const iosMu = useSyncExternalStore(degismezAbone, iosCihazMi, sunucudaYanlis);
+  const kurulu = standalone || yeniKuruldu;
   const [mesaj, setMesaj] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      ("standalone" in navigator &&
-        (navigator as Navigator & { standalone?: boolean }).standalone === true);
-    if (standalone) setKurulu(true);
-
-    const ua = navigator.userAgent;
-    const ios = /iPhone|iPad|iPod/i.test(ua);
-    setIosMu(ios);
-
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);

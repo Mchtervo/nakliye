@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
 export type RotaCip = {
   etiket: string;
@@ -33,10 +33,12 @@ export default function IlanAramaCubugu({
   const [from, setFrom] = useState(nereden);
   const [to, setTo] = useState(nereye);
 
-  useEffect(() => {
+  const [oncekiProp, setOncekiProp] = useState({ nereden, nereye });
+  if (oncekiProp.nereden !== nereden || oncekiProp.nereye !== nereye) {
+    setOncekiProp({ nereden, nereye });
     setFrom(nereden);
     setTo(nereye);
-  }, [nereden, nereye]);
+  }
 
   function ara(e?: React.FormEvent) {
     e?.preventDefault();
