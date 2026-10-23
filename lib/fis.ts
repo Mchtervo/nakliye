@@ -15,7 +15,7 @@ const IZINLI_TIPLER: Record<string, string> = {
 };
 
 function uzantiBul(dosya: File): string | null {
-  let uzanti = IZINLI_TIPLER[dosya.type];
+  const uzanti = IZINLI_TIPLER[dosya.type];
   if (uzanti) return uzanti;
   const ad = dosya.name.toLowerCase();
   if (ad.endsWith(".jpg") || ad.endsWith(".jpeg")) return ".jpg";

@@ -467,7 +467,7 @@ export default async function AyarlarSayfasi() {
       </section>
 
       <section className="kart-paper space-y-3 p-4 sm:p-5 reveal reveal-d6">
-        <h2 className="font-display text-lg font-bold text-ink">Şifre değiştir</h2>
+        <h2 className="font-display text-lg font-bold text-paper">Şifre değiştir</h2>
         <SifreDegistirForm />
       </section>
 

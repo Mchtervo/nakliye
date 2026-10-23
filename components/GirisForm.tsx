@@ -35,9 +35,6 @@ export default function GirisForm({ next }: { next: string }) {
       <button type="submit" disabled={bekliyor} className="btn btn-amber btn-block">
         {bekliyor ? "Giriş yapılıyor..." : "Giriş Yap"}
       </button>
-      <p className="text-center text-xs text-[#6a7a90]">
-        İlk kurulum şifresi: <strong>nakliye2026</strong> — Ayarlar&apos;dan değiştir.
-      </p>
     </form>
   );
 }

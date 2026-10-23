@@ -169,14 +169,14 @@ export default function YukForm({
       </div>
 
       {!duzenle && (
-        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-black/8 bg-white p-3">
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/8 bg-white/[0.06] p-3">
           <input
             type="checkbox"
             name="odendiMi"
             value="1"
             className="h-5 w-5 rounded accent-[#f0a020]"
           />
-          <span className="text-sm font-semibold text-ink">
+          <span className="text-sm font-semibold text-paper">
             Ödemesi peşin alındı (ödendi olarak kaydet)
           </span>
         </label>

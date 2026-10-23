@@ -273,7 +273,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
 
   // Koridor ayarı yoksa varsayılan 8 il. Varsa aynen (ek iller birleştirilir).
   const koridorHam = a[AYAR_ANAHTARLARI.aiKoridorIller];
-  let koridorIller =
+  const koridorIller =
     koridorHam === undefined
       ? [...VARSAYILAN_KORIDOR_ILLER]
       : koridorIlleriCozumle(koridorHam);

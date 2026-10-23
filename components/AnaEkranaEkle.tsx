@@ -94,7 +94,7 @@ export default function AnaEkranaEkle() {
           Ana ekrana ekle
         </button>
       ) : iosMu ? (
-        <div className="rounded-xl border border-black/10 bg-[#eef3f2] px-3 py-3 text-sm font-medium text-fog">
+        <div className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm font-medium text-fog">
           <p className="font-bold text-paper">iPhone / iPad:</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
             <li>
@@ -109,7 +109,7 @@ export default function AnaEkranaEkle() {
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="rounded-xl border border-black/10 bg-[#eef3f2] px-3 py-3 text-sm font-medium text-fog">
+          <div className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-sm font-medium text-fog">
             <p className="font-bold text-paper">Android / Chrome:</p>
             <p className="mt-1">
               Menü (⋮) → <strong className="text-paper">Uygulamayı yükle</strong>{" "}

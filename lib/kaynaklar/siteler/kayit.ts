@@ -25,14 +25,16 @@ export async function siteKaynaginiGarantiEt(
 ): Promise<{ id: number; aktif: boolean }> {
   const mevcut = await prisma.ilanKaynagi.findFirst({
     where: { tur: "WEB", hedef: site.hedef },
-    select: { id: true, aktif: true },
+    select: { id: true, aktif: true, ad: true, durum: true },
   });
   if (mevcut) {
-    await prisma.ilanKaynagi.update({
-      where: { id: mevcut.id },
-      data: { ad: site.ad, durum: "AKTIF" },
-    });
-    return mevcut;
+    if (mevcut.ad !== site.ad || mevcut.durum !== "AKTIF") {
+      await prisma.ilanKaynagi.update({
+        where: { id: mevcut.id },
+        data: { ad: site.ad, durum: "AKTIF" },
+      });
+    }
+    return { id: mevcut.id, aktif: mevcut.aktif };
   }
   const yeni = await prisma.ilanKaynagi.create({
     data: {

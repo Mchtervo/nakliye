@@ -1,10 +1,51 @@
+import { ilanlariCozumle } from "@/lib/ai/ilanCozumle";
 import { aiJson } from "@/lib/ai/istemci";
+import { jevEsik, jevKullanilabilir, jevYukIlaniSkoru } from "@/lib/ai/jev";
 import { MODEL_ANALIZ } from "@/lib/ai/modeller";
 import { ILAN_LISTESI_SEMASI, type IlanCikti } from "@/lib/ai/semalar";
 import { aracKoduBul } from "@/lib/arac";
 import { ilBul } from "@/lib/iller";
-import { ilanOzeti } from "@/lib/kaynaklar/web";
-import { bosSonuc, type KaynakAdaptoru, type TaramaSonucu } from "@/lib/kaynaklar/tip";
+import { search1Ara, search1Kullanilabilir } from "@/lib/kaynaklar/search1";
+import { htmlMetneCevir, ilanOzeti } from "@/lib/kaynaklar/web";
+import {
+  bosSonuc,
+  type BulunanIlan,
+  type KaynakAdaptoru,
+  type TaramaSonucu,
+} from "@/lib/kaynaklar/tip";
+
+/**
+ * Search1API (Google, son 24 saat) → her sonuç snippet'i ayrı ilan metni.
+ * Jev ilan olmayanları eler; kalanlar Telegram ile aynı çözücüden geçer.
+ */
+async function search1IleTara(sorgu: string): Promise<TaramaSonucu> {
+  const sonuclar = await search1Ara(sorgu, { maxSonuc: 10 });
+  const metinler = sonuclar.map((s) => ({
+    link: s.link,
+    metin: htmlMetneCevir(`${s.title}\n${s.snippet}`),
+  }));
+
+  let adaylar = metinler;
+  if (jevKullanilabilir()) {
+    const esik = jevEsik();
+    const skorlar = await Promise.all(metinler.map((m) => jevYukIlaniSkoru(m.metin)));
+    adaylar = metinler.filter((_, i) => skorlar[i] === null || skorlar[i]! >= esik);
+  }
+
+  const cozumler = await Promise.all(
+    adaylar.map(async (m) => {
+      try {
+        const ilanlar = await ilanlariCozumle(m.metin, [], { kaynakOnek: "search1" });
+        return ilanlar.map(
+          (ilan): BulunanIlan => ({ ilan, hamMetin: `${m.metin}\n${m.link}` })
+        );
+      } catch {
+        return [];
+      }
+    })
+  );
+  return { bulunanlar: cozumler.flat(), hata: null };
+}
 
 const SISTEM = `Sen Türkiye'de nakliyeci için internetten yük ilanı arayan bir asistansın.
 Web arama aracını kullanarak güncel yük/navlun ilanlarını bul.
@@ -23,6 +64,14 @@ export const aiAramaAdaptoru: KaynakAdaptoru = {
   async tara(kaynak): Promise<TaramaSonucu> {
     const sorgu = kaynak.hedef.trim();
     if (!sorgu) return bosSonuc("Arama sorgusu boş.");
+
+    if (search1Kullanilabilir()) {
+      try {
+        return await search1IleTara(sorgu);
+      } catch (hata) {
+        return bosSonuc(hata instanceof Error ? hata.message : "Search1API araması başarısız.");
+      }
+    }
 
     try {
       const cikti = await aiJson<IlanCikti>({

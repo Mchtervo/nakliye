@@ -170,7 +170,7 @@ export default async function ParaSayfasi({
 
       {sekme === "kasa" && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-white/12 bg-paper-2 p-4 text-ink">
+          <div className="rounded-2xl border border-white/12 bg-paper-2 p-4 text-paper">
             <h2 className="font-display mb-3 text-lg font-bold">Yeni hareket</h2>
             <KasaForm bugunTarih={bugunTarihStr()} />
           </div>
@@ -182,7 +182,7 @@ export default async function ParaSayfasi({
               hareketler.map((h) => (
                 <div
                   key={h.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/8 bg-[#f0f5f4] p-3.5"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.06] p-3.5"
                 >
                   <div>
                     <p className="font-semibold text-paper">

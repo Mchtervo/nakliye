@@ -136,7 +136,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
                 aria-label="Menüyü kapat"
                 onClick={() => setMenuAcik(false)}
               />
-              <div className="absolute right-0 z-20 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-white/12 bg-[#1a2433] py-1 shadow-xl">
+              <div className="absolute right-0 z-20 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-white/12 bg-[#2c2c2e] py-1 shadow-xl">
                 {ilan.durum !== "ALINDI" && (
                   <button
                     type="button"
@@ -298,7 +298,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
 
       {/* Net — tek satır; detay gizli */}
       {karVar && ilan.kar?.net && (
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-[#f0f5f4] px-3 py-2.5">
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-white/[0.06] px-3 py-2.5">
           <span className="text-sm text-fog">Tahmini net</span>
           <span
             className={`font-display text-lg font-bold ${
@@ -321,7 +321,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
       )}
 
       {maliyetAcik && ilan.kar && (
-        <div className="mt-2 space-y-1 rounded-xl border border-black/8 bg-[#f0f5f4] px-3 py-2.5 text-sm text-fog">
+        <div className="mt-2 space-y-1 rounded-xl border border-white/8 bg-white/[0.06] px-3 py-2.5 text-sm text-fog">
           {ilan.kar.mesafe && <p>Mesafe: {ilan.kar.mesafe}</p>}
           {ilan.kar.yakit && <p>Yakıt: {ilan.kar.yakit}</p>}
           {ilan.kar.hgs && <p>HGS: {ilan.kar.hgs}</p>}
@@ -333,7 +333,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
       )}
 
       {/* İletişim */}
-      <div className="mt-3 border-t border-black/8 pt-3">
+      <div className="mt-3 border-t border-white/8 pt-3">
         {ilan.firmaAdi && (
           <p className="truncate text-sm font-medium text-paper/90">
             {ilan.firmaAdi}
@@ -379,7 +379,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
           {detayAcik ? "Mesajı gizle" : "Ham mesaj"}
         </button>
         {detayAcik && (
-          <p className="mt-2 whitespace-pre-wrap rounded-xl bg-[#f0f5f4] px-3 py-2 text-sm leading-relaxed text-fog">
+          <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white/[0.06] px-3 py-2 text-sm leading-relaxed text-fog">
             {ilan.hamMetin}
           </p>
         )}
@@ -394,7 +394,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
             telefon={ilan.telefon}
           />
         ) : (
-          <div className="rounded-xl border border-black/12 py-3.5 text-center text-sm text-fog">
+          <div className="rounded-xl border border-white/12 py-3.5 text-center text-sm text-fog">
             Yazılamaz
           </div>
         )}
@@ -406,7 +406,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
             Ara
           </a>
         ) : (
-          <span className="flex items-center justify-center rounded-xl border border-black/12 py-3.5 text-sm text-fog/50">
+          <span className="flex items-center justify-center rounded-xl border border-white/12 py-3.5 text-sm text-fog/50">
             Ara
           </span>
         )}

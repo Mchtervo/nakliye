@@ -129,7 +129,7 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
         <button
           type="button"
           onClick={() => setNotAcik((v) => !v)}
-          className="rounded-xl border border-black/20 bg-[#e8eeec] py-2.5 text-sm font-bold text-asphalt hover:bg-[#dce4e1]"
+          className="rounded-xl border border-white/20 bg-white/[0.08] py-2.5 text-sm font-bold text-paper hover:bg-white/[0.12]"
         >
           Not ekle
         </button>
@@ -140,7 +140,7 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
           className={`rounded-xl py-2.5 text-sm font-bold disabled:opacity-60 ${
             isaretli
               ? "border border-ok/40 bg-ok/20 text-ok"
-              : "border border-black/20 bg-[#e8eeec] text-asphalt hover:bg-[#dce4e1]"
+              : "border border-white/20 bg-white/[0.08] text-paper hover:bg-white/[0.12]"
           }`}
         >
           {isaretli ? "İşaretli" : "Müşteri işaretle"}
@@ -156,7 +156,7 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
             required
             maxLength={500}
             placeholder="Not ekle…"
-            className="w-full rounded-xl border border-black/10 bg-[#f0f5f4] px-3 py-2 text-sm text-ink placeholder:text-black/35 focus:border-teal/50 focus:outline-none"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm text-paper placeholder:text-white/30 focus:border-teal/50 focus:outline-none"
           />
           <button
             type="submit"

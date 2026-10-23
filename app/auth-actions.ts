@@ -22,7 +22,11 @@ export async function girisYap(
   const kayitli = await kayitliSifre();
 
   const ok = sifreDogrula(sifre, kayitli);
-  if (!ok) return { hata: "Şifre hatalı." };
+  if (!ok) {
+    // Kaba kuvvet denemelerini yavaşlat (şifre en az 4 karakter olabiliyor)
+    await new Promise((r) => setTimeout(r, 1200));
+    return { hata: "Şifre hatalı." };
+  }
 
   const jar = await cookies();
   jar.set(OTURUM_COOKIE, await oturumTokeniOlustur(), {

@@ -92,7 +92,7 @@ export default function MesajHazirlaButonu({
           onClick={() => setAcik(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#1a1f2e] p-4 shadow-xl"
+            className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#1c1c1e] p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between gap-2">

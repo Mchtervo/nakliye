@@ -306,6 +306,13 @@ export async function ilanlariKaydet(
       dedupAtlanan += 1;
       continue;
     }
+    // Tek mesajda birden çok telefon → AI her numaraya ayrı ilan çıkarır; aynı mesaj + aynı rota tek kayıt
+    const mesajRotaKey =
+      hamMesajId != null ? `m${hamMesajId}|${ilan.cikisIl}|${ilan.varisIl || "_"}` : null;
+    if (mesajRotaKey && batchRota.has(mesajRotaKey)) {
+      dedupAtlanan += 1;
+      continue;
+    }
     // Tam rota çiftlerinde aynı çift tekrarını atla; varışsızları atlama
     if (ilan.varisIl) {
       const rotaSonek = `|${ilan.cikisIl}|${ilan.varisIl}`;
@@ -315,6 +322,7 @@ export async function ilanlariKaydet(
       }
     }
     batchRota.add(rotaKey);
+    if (mesajRotaKey) batchRota.add(mesajRotaKey);
 
     const dedupHash = dedupHashUret(ilan);
     const kimlik = { gonderenUserId, kaynakMesajId, hamMesajId };

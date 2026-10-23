@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai/ilanCozumle";
 import { butceMusaitMi } from "@/lib/ai/butce";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
+import { jevEsik, jevKullanilabilir, jevYukIlaniSkoru } from "@/lib/ai/jev";
 import { AI_MAX_DENEME } from "@/lib/ai/modeller";
 import {
   AYAR_ANAHTARLARI,
@@ -877,6 +878,39 @@ export async function kuyrugunuCoz(
     await elemeArtir({ ROTA_DEDUP: onDedupAtlanan });
     rapor.islenen += onDedupAtlanan;
   }
+
+  // Jev ön elemesi — ilan olmadığı neredeyse kesin mesajlar OpenAI'ye gitmesin.
+  // Skor alınamazsa (hata/zaman aşımı) mesaj elenmez.
+  if (aiParti.length > 0 && jevKullanilabilir()) {
+    const esik = jevEsik();
+    const skorlar = await Promise.all(aiParti.map((m) => jevYukIlaniSkoru(m.metin)));
+    const kalanlar: typeof aiParti = [];
+    let jevElenen = 0;
+    for (let i = 0; i < aiParti.length; i++) {
+      const m = aiParti[i]!;
+      const skor = skorlar[i];
+      if (skor === null || skor === undefined || skor >= esik) {
+        kalanlar.push(m);
+        continue;
+      }
+      await prisma.hamMesaj.update({
+        where: { id: m.id },
+        data: {
+          islendi: true,
+          hata: `JEV_ELE: ilan skoru ${skor.toFixed(2)} < ${esik} — AI atlandı`,
+          denemeSayisi: { decrement: 1 },
+        },
+      });
+      jevElenen += 1;
+    }
+    if (jevElenen > 0) {
+      await elemeArtir({ JEV_ELE: jevElenen });
+      rapor.islenen += jevElenen;
+      console.log(`[kuyruk] jev elendi=${jevElenen}/${aiParti.length} esik=${esik}`);
+    }
+    aiParti.splice(0, aiParti.length, ...kalanlar);
+  }
+
   if (aiParti.length === 0) {
     rapor.funnel = {
       aiCevapBos: 0,

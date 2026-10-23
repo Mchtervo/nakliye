@@ -68,7 +68,7 @@ export default function IlanAramaCubugu({
       {bekliyor && (
         <div
           role="status"
-          className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-[2px]"
+          className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-[2px]"
         >
           <p className="rounded-full border border-amber/40 bg-amber/15 px-4 py-2.5 text-sm font-bold text-amber">
             Yük aranıyor…
@@ -89,7 +89,7 @@ export default function IlanAramaCubugu({
             onChange={(e) => setFrom(e.target.value)}
             placeholder="Ankara, Ostim…"
             disabled={bekliyor}
-            className="w-full rounded-xl border border-black/10 bg-[#f0f5f4] px-3 py-2.5 text-sm text-ink placeholder:text-black/35 focus:border-teal/50 focus:outline-none disabled:opacity-60"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm text-paper placeholder:text-white/30 focus:border-teal/50 focus:outline-none disabled:opacity-60"
             autoComplete="off"
           />
         </label>
@@ -102,7 +102,7 @@ export default function IlanAramaCubugu({
             onChange={(e) => setTo(e.target.value)}
             placeholder="Bolu, Gerede…"
             disabled={bekliyor}
-            className="w-full rounded-xl border border-black/10 bg-[#f0f5f4] px-3 py-2.5 text-sm text-ink placeholder:text-black/35 focus:border-teal/50 focus:outline-none disabled:opacity-60"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm text-paper placeholder:text-white/30 focus:border-teal/50 focus:outline-none disabled:opacity-60"
             autoComplete="off"
           />
         </label>
@@ -119,7 +119,7 @@ export default function IlanAramaCubugu({
               type="button"
               disabled={bekliyor}
               onClick={temizle}
-              className="rounded-xl border border-black/12 px-3 py-2.5 text-sm font-semibold text-fog hover:text-paper disabled:opacity-60"
+              className="rounded-xl border border-white/12 px-3 py-2.5 text-sm font-semibold text-fog hover:text-paper disabled:opacity-60"
             >
               Temizle
             </button>
@@ -147,7 +147,7 @@ export default function IlanAramaCubugu({
                 className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
                   aktif
                     ? "border-amber/50 bg-amber/15 text-amber"
-                    : "border-black/10 text-fog hover:border-black/20 hover:text-paper"
+                    : "border-white/10 text-fog hover:border-white/20 hover:text-paper"
                 }`}
               >
                 {c.etiket}

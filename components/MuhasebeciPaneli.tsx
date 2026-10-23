@@ -306,7 +306,7 @@ export default function MuhasebeciPaneli({
           <p className="mt-2 text-sm font-semibold text-ember">{telefonDurum.hata}</p>
         )}
         {!telefonDurum?.hata && baslangicTelefon && telefon === baslangicTelefon && (
-          <p className="mt-2 text-xs text-[#6a7a90]">Kayıtlı numara: {baslangicTelefon}</p>
+          <p className="mt-2 text-xs text-fog">Kayıtlı numara: {baslangicTelefon}</p>
         )}
       </form>
 
