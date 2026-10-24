@@ -145,15 +145,17 @@ export function linkleriHasatEt(metin: string): HasatLink[] {
   }
 
   const waRe =
-    /(?:https?:\/\/)?(?:chat\.whatsapp\.com|whatsapp\.com\/channel)\/([A-Za-z0-9_\-]+)/gi;
+    /(?:https?:\/\/)?(?:www\.)?(chat\.whatsapp\.com|whatsapp\.com\/channel)\/([A-Za-z0-9_\-]+)/gi;
   while ((m = waRe.exec(metin)) !== null) {
-    const kod = m[1];
+    const yol = m[1] || "";
+    const kod = m[2];
     if (!kod) continue;
+    const kanal = /channel/i.test(yol) || kod.startsWith("0029");
     ekle({
       tur: "WHATSAPP",
-      hedef: `wa:${kod}`,
+      hedef: kanal ? `wa-ch:${kod}` : `wa:${kod}`,
       kullaniciAdi: null,
-      ad: `WA ${kod.slice(0, 10)}`,
+      ad: kanal ? `WA kanal ${kod.slice(0, 10)}` : `WA ${kod.slice(0, 10)}`,
       kod,
     });
   }
@@ -364,7 +366,11 @@ export async function hasatLinkleriniKaydet(
     if (l.tur === "WHATSAPP" && l.kod) {
       const { whatsappDavetiniKaydet } = await import("@/lib/kaynaklar/whatsapp");
       try {
-        const s = await whatsappDavetiniKaydet(l.kod, not);
+        const s = await whatsappDavetiniKaydet(
+          l.kod,
+          not,
+          l.hedef.startsWith("wa-ch:") ? "kanal" : "grup"
+        );
         if (s === "mevcut") rapor.mevcut += 1;
         else {
           rapor.yeni += 1;

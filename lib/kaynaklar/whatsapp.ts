@@ -47,24 +47,44 @@ export async function whatsappGruplariniEsitle(gruplar: WhatsappGrubu[]): Promis
 }
 
 const WA_DAVET_KALIP =
-  /(?:https?:\/\/)?(?:chat\.whatsapp\.com|whatsapp\.com\/channel)\/([A-Za-z0-9_\-]+)/gi;
+  /(?:https?:\/\/)?(?:www\.)?(chat\.whatsapp\.com|whatsapp\.com\/channel)\/([A-Za-z0-9_\-]+)/gi;
 
-export function whatsappDavetKodlari(metin: string): string[] {
-  const kodlar: string[] = [];
+export type WhatsappLinkTip = "grup" | "kanal";
+
+export type WhatsappLink = { tip: WhatsappLinkTip; kod: string };
+
+/** WhatsApp kanal davet kodları genelde 0029 ile başlar. */
+export function kanalKoduMu(kod: string): boolean {
+  return kod.startsWith("0029");
+}
+
+export function whatsappLinkleri(metin: string): WhatsappLink[] {
+  const cikti: WhatsappLink[] = [];
   const gorulen = new Set<string>();
-  let m: RegExpExecArray | null;
   const re = new RegExp(WA_DAVET_KALIP.source, "gi");
+  let m: RegExpExecArray | null;
   while ((m = re.exec(metin)) !== null) {
-    const kod = m[1];
+    const yol = m[1] || "";
+    const kod = m[2];
     if (!kod || gorulen.has(kod)) continue;
     gorulen.add(kod);
-    kodlar.push(kod);
+    const tip: WhatsappLinkTip =
+      /channel/i.test(yol) || kanalKoduMu(kod) ? "kanal" : "grup";
+    cikti.push({ tip, kod });
   }
-  return kodlar;
+  return cikti;
+}
+
+export function whatsappDavetKodlari(metin: string): string[] {
+  return whatsappLinkleri(metin).map((l) => l.kod);
 }
 
 export function whatsappDavetUrl(kod: string): string {
   return `https://chat.whatsapp.com/${kod}`;
+}
+
+export function whatsappKanalUrl(kod: string): string {
+  return `https://www.whatsapp.com/channel/${kod}`;
 }
 
 /** Herkese açık, Ankara/koridor civarı davetler. Sanal numara günde birkaçına kendi girer. */
@@ -127,6 +147,7 @@ export async function siradakiDavet(): Promise<{ id: number; kod: string } | nul
       tur: WHATSAPP_GRUP,
       durum: "ADAY",
       hedef: { startsWith: "https://chat.whatsapp.com/" },
+      NOT: { hedef: { startsWith: "https://chat.whatsapp.com/0029" } },
     },
     orderBy: [{ oncelik: "desc" }, { id: "asc" }],
     select: { id: true, hedef: true },
@@ -135,6 +156,56 @@ export async function siradakiDavet(): Promise<{ id: number; kod: string } | nul
   const kod = aday.hedef.split("/").pop()?.split("?")[0] || "";
   if (!kod) return null;
   return { id: aday.id, kod };
+}
+
+export async function siradakiKanalDavet(): Promise<{ id: number; kod: string } | null> {
+  const aday = await prisma.ilanKaynagi.findFirst({
+    where: {
+      tur: WHATSAPP_GRUP,
+      durum: "ADAY",
+      OR: [
+        { hedef: { contains: "whatsapp.com/channel/" } },
+        { hedef: { startsWith: "https://chat.whatsapp.com/0029" } },
+      ],
+    },
+    orderBy: [{ oncelik: "desc" }, { id: "asc" }],
+    select: { id: true, hedef: true },
+  });
+  if (!aday) return null;
+  const kod = aday.hedef.split("/").pop()?.split("?")[0] || "";
+  if (!kod) return null;
+  return { id: aday.id, kod };
+}
+
+/** Yanlışlıkla grup daveti diye yazılmış kanal kodlarını kanal sırasına alır. */
+export async function yanlisKanalDavetleriniDuzelt(): Promise<number> {
+  const yanlis = await prisma.ilanKaynagi.findMany({
+    where: {
+      tur: WHATSAPP_GRUP,
+      durum: "ADAY",
+      hedef: { startsWith: "https://chat.whatsapp.com/0029" },
+    },
+    select: { id: true, hedef: true },
+  });
+  let adet = 0;
+  for (const y of yanlis) {
+    const kod = y.hedef.split("/").pop()?.split("?")[0] || "";
+    if (!kod) continue;
+    try {
+      await prisma.ilanKaynagi.update({
+        where: { id: y.id },
+        data: {
+          hedef: whatsappKanalUrl(kod),
+          ad: `WA kanal ${kod.slice(0, 10)}`,
+          sonHata: "Sırada — kanal takibi",
+        },
+      });
+      adet += 1;
+    } catch {
+      /* aynı kanal URL'si zaten varsa unique */
+    }
+  }
+  return adet;
 }
 
 export async function davetKapat(id: number, ad: string, not: string): Promise<void> {
@@ -173,9 +244,10 @@ export async function whatsappKanaliKaydet(
 /** Davet linkini ADAY olarak yazar; sanal numara uygunsa kendisi girer. */
 export async function whatsappDavetiniKaydet(
   kod: string,
-  hasatKaynak: string
+  hasatKaynak: string,
+  tip: WhatsappLinkTip = kanalKoduMu(kod) ? "kanal" : "grup"
 ): Promise<"yeni" | "mevcut"> {
-  const hedef = whatsappDavetUrl(kod);
+  const hedef = tip === "kanal" ? whatsappKanalUrl(kod) : whatsappDavetUrl(kod);
   const varOlan = await prisma.ilanKaynagi.findUnique({
     where: { tur_hedef: { tur: WHATSAPP_GRUP, hedef } },
     select: { id: true },
@@ -185,12 +257,15 @@ export async function whatsappDavetiniKaydet(
     data: {
       tur: WHATSAPP_GRUP,
       hedef,
-      ad: `WA davet ${kod.slice(0, 10)}`,
+      ad: tip === "kanal" ? `WA kanal ${kod.slice(0, 10)}` : `WA davet ${kod.slice(0, 10)}`,
       aktif: false,
       durum: "ADAY",
-      oncelik: 12,
+      oncelik: tip === "kanal" ? 14 : 12,
       hasatKaynak: hasatKaynak.slice(0, 120),
-      sonHata: "Sırada — numara günde en fazla 4 gruba kendi girer",
+      sonHata:
+        tip === "kanal"
+          ? "Sırada — kanal takibi"
+          : "Sırada — numara günde en fazla 4 gruba kendi girer",
     },
   });
   return "yeni";
@@ -202,9 +277,9 @@ export async function whatsappDavetleriniHasatEt(
   hasatKaynak: string
 ): Promise<{ yeni: number; mevcut: number }> {
   const rapor = { yeni: 0, mevcut: 0 };
-  for (const kod of whatsappDavetKodlari(metin)) {
+  for (const l of whatsappLinkleri(metin)) {
     try {
-      const s = await whatsappDavetiniKaydet(kod, hasatKaynak);
+      const s = await whatsappDavetiniKaydet(l.kod, hasatKaynak, l.tip);
       rapor[s] += 1;
     } catch {
       /* unique yarışı */
@@ -269,6 +344,18 @@ type MesajIcerik = {
   viewOnceMessageV2?: { message?: MesajIcerik | null } | null;
   viewOnceMessageV2Extension?: { message?: MesajIcerik | null } | null;
   editedMessage?: { message?: MesajIcerik | null } | null;
+  templateMessage?: {
+    hydratedTemplate?: { hydratedContentText?: string | null } | null;
+    hydratedFourRowTemplate?: { hydratedContentText?: string | null } | null;
+  } | null;
+  highlyStructuredMessage?: {
+    hydratedHsm?: { hydratedContentText?: string | null } | null;
+  } | null;
+  interactiveMessage?: {
+    body?: { text?: string | null } | null;
+    header?: { title?: string | null; subtitle?: string | null } | null;
+  } | null;
+  listMessage?: { description?: string | null; title?: string | null } | null;
 };
 
 /** Metin, uzun metin, kanal paylaşımı veya fotoğraf/video/belge açıklaması. */
@@ -288,7 +375,14 @@ export function whatsappMetni(m: MesajIcerik | null | undefined): string | null 
     m.imageMessage?.caption ||
     m.videoMessage?.caption ||
     m.documentMessage?.caption ||
-    m.buttonsMessage?.contentText;
+    m.buttonsMessage?.contentText ||
+    m.templateMessage?.hydratedTemplate?.hydratedContentText ||
+    m.templateMessage?.hydratedFourRowTemplate?.hydratedContentText ||
+    m.highlyStructuredMessage?.hydratedHsm?.hydratedContentText ||
+    m.interactiveMessage?.body?.text ||
+    m.interactiveMessage?.header?.title ||
+    m.listMessage?.description ||
+    m.listMessage?.title;
   return metin?.trim() || null;
 }
 

@@ -13,7 +13,12 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestWaWebVersion,
+  getBinaryNodeChild,
+  getBinaryNodeChildString,
+  getBinaryNodeChildren,
+  getBinaryNodeMessages,
   useMultiFileAuthState as dosyaOturumu,
+  type BinaryNode,
   type SocketConfig,
   type WAMessage,
   type WASocket,
@@ -29,10 +34,12 @@ import {
   katilimHakkiKullan,
   katilimHakkiVarMi,
   siradakiDavet,
+  siradakiKanalDavet,
   whatsappDavetleriniHasatEt,
   whatsappGruplariniEsitle,
   whatsappKanaliKaydet,
   whatsappMetni,
+  yanlisKanalDavetleriniDuzelt,
   yukGrubuAdiMi,
 } from "@/lib/kaynaklar/whatsapp";
 import {
@@ -45,6 +52,9 @@ import {
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || ".wa-oturum";
 const TELEFON = (process.env.WHATSAPP_TELEFON || "").replace(/\D/g, "");
 const GRUP_ESITLEME_MS = 30 * 60 * 1000;
+const KANAL_TARAMA_MS = 10 * 60 * 1000;
+const KANAL_CEK_ADET = 20;
+const KANAL_TARAMA_TAVAN = 25;
 /** Çevrimdışıyken biriken eski mesajlar alınmaz. */
 const MAX_MESAJ_YASI_SN = 6 * 60 * 60;
 const MIN_METIN = 15;
@@ -101,6 +111,101 @@ async function gruplariEsitle(sock: WASocket) {
     log(`Gruplar: katılınan=${liste.length} yükGrubu=${yuk} takipte=${gruplar.size}`);
   } catch (e) {
     uyari("Grup eşitleme hatası:", e instanceof Error ? e.message : e);
+  }
+}
+
+function kanalJidMi(id?: string | null): id is string {
+  return Boolean(id?.endsWith("@newsletter"));
+}
+
+async function kanalKaydet(jid: string, ad?: string | null): Promise<void> {
+  const id = await whatsappKanaliKaydet(jid, ad);
+  gruplar.set(jid, id);
+}
+
+function kanalIqMesajlari(jid: string, result: BinaryNode): WAMessage[] {
+  const kok = getBinaryNodeChild(result, "message_updates") || result;
+  const protoMesajlar = getBinaryNodeMessages(kok);
+  if (protoMesajlar.length > 0) {
+    return protoMesajlar.map((m) => ({
+      ...m,
+      key: { ...m.key, remoteJid: m.key?.remoteJid || jid },
+    })) as WAMessage[];
+  }
+  const cikti: WAMessage[] = [];
+  for (const d of getBinaryNodeChildren(kok, "message")) {
+    const yazi =
+      getBinaryNodeChildString(d, "plaintext") ||
+      (typeof d.content === "string" ? d.content : null);
+    if (!yazi?.trim()) continue;
+    const ts = Number(d.attrs?.t || d.attrs?.ts || 0);
+    cikti.push({
+      key: {
+        remoteJid: jid,
+        id: d.attrs?.server_id || d.attrs?.id || `${ts}-${yazi.length}`,
+        fromMe: false,
+      },
+      messageTimestamp: ts,
+      message: { conversation: yazi },
+    });
+  }
+  return cikti;
+}
+
+async function kanallariTara(sock: WASocket): Promise<void> {
+  const jidler = [...gruplar.keys()].filter(kanalJidMi).slice(0, KANAL_TARAMA_TAVAN);
+  if (jidler.length === 0) {
+    log("Kanal taraması: takipte kanal yok (hesabın Kanallar listesi boş).");
+    return;
+  }
+  let cekilen = 0;
+  for (const jid of jidler) {
+    try {
+      await sock.subscribeNewsletterUpdates(jid).catch(() => null);
+      const sonuc = (await sock.newsletterFetchMessages(
+        jid,
+        KANAL_CEK_ADET,
+        0,
+        0
+      )) as BinaryNode;
+      const mesajlar = kanalIqMesajlari(jid, sonuc);
+      if (mesajlar.length === 0) continue;
+      cekilen += mesajlar.length;
+      await mesajlariIsle(mesajlar);
+    } catch (e) {
+      uyari("Kanal çekilemedi:", jid, e instanceof Error ? e.message : e);
+    }
+  }
+  log(`Kanal taraması: kanal=${jidler.length} mesaj=${cekilen}`);
+}
+
+/** Hasattan gelen kanal linkine günde az sayıda kendini ekler. */
+async function kanallaraGir(sock: WASocket): Promise<void> {
+  if (!(await katilimHakkiVarMi())) return;
+  const aday = await siradakiKanalDavet();
+  if (!aday) return;
+  try {
+    const meta = await sock.newsletterMetadata("invite", aday.kod);
+    const ad = (meta?.name || "").trim();
+    if (!meta?.id) {
+      await davetKapat(aday.id, ad || "WA kanal", "Kanal bulunamadı");
+      return;
+    }
+    if (ad && !yukGrubuAdiMi(ad)) {
+      await davetKapat(aday.id, ad, "Yük kanalı değil — takip edilmedi");
+      log(`Kanal atlandı (yük değil): ${ad}`);
+      return;
+    }
+    await sock.newsletterFollow(meta.id);
+    await katilimHakkiKullan();
+    await kanalKaydet(meta.id, ad || meta.id);
+    await sock.subscribeNewsletterUpdates(meta.id).catch(() => null);
+    await davetKapat(aday.id, ad || "WA kanal", "Takip edildi");
+    log(`Kanal takip: ${ad || meta.id}`);
+  } catch (e) {
+    const mesaj = e instanceof Error ? e.message : String(e);
+    await davetKapat(aday.id, "WA kanal", `Takip edilemedi: ${mesaj}`);
+    uyari("Kanal takip edilemedi:", mesaj.slice(0, 160));
   }
 }
 
@@ -240,7 +345,7 @@ async function baglan(): Promise<void> {
     logger: sessizLogger(),
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    shouldSyncHistoryMessage: () => false,
+    shouldSyncHistoryMessage: () => true,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -248,6 +353,7 @@ async function baglan(): Promise<void> {
   let kodIstendi = false;
   let esitlemeZamanlayici: ReturnType<typeof setInterval> | null = null;
   let gorusmeZamanlayici: ReturnType<typeof setInterval> | null = null;
+  let kanalZamanlayici: ReturnType<typeof setInterval> | null = null;
 
   sock.ev.on("connection.update", async (u) => {
     if (u.qr && !kodIstendi && !state.creds.registered) {
@@ -268,22 +374,32 @@ async function baglan(): Promise<void> {
     if (u.connection === "open") {
       eslemeKoduSayisi = 0;
       log("Bağlandı.");
+      const duzelen = await yanlisKanalDavetleriniDuzelt().catch(() => 0);
+      if (duzelen) log(`Kanal davet düzeltildi: ${duzelen}`);
       await gruplariEsitle(sock);
       gruplar = await aktifWhatsappGruplari();
       await davetlereGir(sock);
+      await kanallaraGir(sock);
+      void kanallariTara(sock);
       void gorusmeleriYurut(sock);
       if (esitlemeZamanlayici) clearInterval(esitlemeZamanlayici);
       if (gorusmeZamanlayici) clearInterval(gorusmeZamanlayici);
+      if (kanalZamanlayici) clearInterval(kanalZamanlayici);
       esitlemeZamanlayici = setInterval(() => {
         void gruplariEsitle(sock);
         void davetlereGir(sock);
       }, GRUP_ESITLEME_MS);
       gorusmeZamanlayici = setInterval(() => void gorusmeleriYurut(sock), 60 * 1000);
+      kanalZamanlayici = setInterval(() => {
+        void kanallaraGir(sock);
+        void kanallariTara(sock);
+      }, KANAL_TARAMA_MS);
     }
 
     if (u.connection === "close") {
       if (esitlemeZamanlayici) clearInterval(esitlemeZamanlayici);
       if (gorusmeZamanlayici) clearInterval(gorusmeZamanlayici);
+      if (kanalZamanlayici) clearInterval(kanalZamanlayici);
       const kod = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
         ?.output?.statusCode;
       if (kod === DisconnectReason.loggedOut) {
@@ -317,14 +433,17 @@ async function baglan(): Promise<void> {
     }
   });
 
-  sock.ev.on("chats.upsert", (chats) => {
+  const sohbetKanallari = (chats: { id?: string; name?: string }[]) => {
     for (const c of chats) {
-      const id = c.id;
-      if (!id?.endsWith("@newsletter")) continue;
-      void whatsappKanaliKaydet(id, c.name).then((kid) => {
-        gruplar.set(id, kid);
-      });
+      if (!kanalJidMi(c.id)) continue;
+      void kanalKaydet(c.id, c.name);
     }
+  };
+  sock.ev.on("chats.upsert", sohbetKanallari);
+  sock.ev.on("messaging-history.set", ({ chats, messages }) => {
+    sohbetKanallari(chats);
+    const kanalMesaj = messages.filter((m) => kanalJidMi(m.key.remoteJid));
+    if (kanalMesaj.length) void mesajlariIsle(kanalMesaj);
   });
 
   sock.ev.on("groups.upsert", () => void gruplariEsitle(sock));
