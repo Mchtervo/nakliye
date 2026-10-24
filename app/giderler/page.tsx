@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { tlYaz, tarihYaz } from "@/lib/para";
 import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
 import { ayAraligi } from "@/lib/tarih";
+import { ayEtiketi, ayParametresiOku } from "@/lib/kdv";
 import { giderSil } from "@/app/actions";
+import AySecici from "@/components/AySecici";
 import SilButonu from "@/components/SilButonu";
 
 export const dynamic = "force-dynamic";
@@ -13,37 +15,23 @@ export default async function GiderlerSayfasi({
 }: {
   searchParams: Promise<{ ay?: string }>;
 }) {
-  const sp = await searchParams;
-  const simdi = new Date();
-  let yil = simdi.getFullYear();
-  let ay = simdi.getMonth() + 1;
-  if (sp.ay && /^\d{4}-\d{2}$/.test(sp.ay)) {
-    const [y, a] = sp.ay.split("-").map(Number);
-    if (a >= 1 && a <= 12) {
-      yil = y;
-      ay = a;
-    }
-  }
+  const { yil, ay } = ayParametresiOku((await searchParams).ay);
   const { bas, son } = ayAraligi(yil, ay);
-  const onceki = new Date(yil, ay - 2, 1);
-  const sonraki = new Date(yil, ay, 1);
-  const ayKod = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  const ayAdi = new Intl.DateTimeFormat("tr-TR", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(yil, ay - 1, 1));
+  const ayAdi = ayEtiketi(yil, ay);
 
   const [giderler, tumGider] = await Promise.all([
     prisma.gider.findMany({
       where: { tarih: { gte: bas, lt: son } },
       orderBy: [{ tarih: "desc" }, { id: "desc" }],
     }),
-    prisma.gider.aggregate({ _sum: { toplamTutar: true, kdvTutar: true } }),
+    prisma.gider.aggregate({
+      _sum: { toplamTutar: true, netTutar: true, kdvTutar: true },
+    }),
   ]);
 
   const isletmeGiderleri = giderler.filter((g) => isletmeGideriMi(g.kategori));
   const genelToplam = isletmeGiderleri.reduce((t, g) => t + g.toplamTutar, 0);
+  const genelNet = isletmeGiderleri.reduce((t, g) => t + g.netTutar, 0);
   const genelKdv = giderler.reduce((t, g) => t + g.kdvTutar, 0);
   const demirbaslar = giderler.filter((g) => g.kategori === "DEMIRBAS");
   const demirbasToplam = demirbaslar.reduce((t, g) => t + g.toplamTutar, 0);
@@ -85,50 +73,55 @@ export default async function GiderlerSayfasi({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-asphalt-2 p-1">
-          <Link
-            href={`/giderler?ay=${ayKod(onceki)}`}
-            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-fog hover:bg-white/5 hover:text-paper"
-          >
-            ←
-          </Link>
-          <span className="min-w-[9rem] text-center text-sm font-bold capitalize text-paper">
-            {ayAdi}
-          </span>
-          <Link
-            href={`/giderler?ay=${ayKod(sonraki)}`}
-            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-fog hover:bg-white/5 hover:text-paper"
-          >
-            →
-          </Link>
-        </div>
+        <AySecici yol="/giderler" yil={yil} ay={ay} />
         <p className="text-xs text-fog">
-          Bugüne kadar {tlYaz(tumGider._sum.toplamTutar ?? 0)} · KDV{" "}
-          {tlYaz(tumGider._sum.kdvTutar ?? 0)}
+          Bugüne kadar {tlYaz(tumGider._sum.toplamTutar ?? 0)} · net{" "}
+          {tlYaz(tumGider._sum.netTutar ?? 0)}
         </p>
       </div>
 
+      <section className="kart grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 sm:p-5">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            {ayAdi} toplam
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums text-ember">
+            {tlYaz(genelToplam)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            Net gider
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums">
+            {tlYaz(genelNet)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            KDV
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums text-amber">
+            {tlYaz(genelKdv)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            {demirbaslar.length > 0 ? "Demirbaş" : "Adet"}
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums">
+            {demirbaslar.length > 0
+              ? tlYaz(demirbasToplam)
+              : `${isletmeGiderleri.length}`}
+          </p>
+          {demirbaslar.length > 0 && (
+            <p className="mt-0.5 text-xs text-fog">KDV {tlYaz(demirbasKdv)}</p>
+          )}
+        </div>
+      </section>
+
       {giderler.length > 0 && (
         <section className="kart space-y-4 p-4 sm:p-5 reveal reveal-d1">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-fog">
-                {ayAdi} gider
-              </div>
-              <div className="font-display text-3xl font-extrabold text-ember">
-                {tlYaz(genelToplam)}
-              </div>
-              <div className="mt-0.5 text-xs text-fog">
-                {isletmeGiderleri.length} işletme gideri · tüm kayıtlarda KDV{" "}
-                {tlYaz(genelKdv)}
-                {demirbaslar.length > 0
-                  ? ` (demirbaş KDV: ${tlYaz(demirbasKdv)})`
-                  : ""}
-              </div>
-            </div>
-          </div>
-
-          <div className="lane-strip opacity-50" />
 
           <div>
             <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-fog">
@@ -192,7 +185,7 @@ export default async function GiderlerSayfasi({
 
       {giderler.length === 0 ? (
         <div className="bos-durum">
-          Henüz gider kaydı yok. &quot;Yeni Gider&quot; ile ilk giderini ekle.
+          {ayAdi} ayında gider yok. &quot;Yeni Gider&quot; ile ekle veya başka ay seç.
         </div>
       ) : (
         <div className="space-y-3">

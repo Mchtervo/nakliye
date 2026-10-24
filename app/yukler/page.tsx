@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz, tarihYaz } from "@/lib/para";
+import { ayAraligi } from "@/lib/tarih";
+import { ayEtiketi, ayParametresiOku } from "@/lib/kdv";
 import { yukSil, yukOdendiIsaretle } from "@/app/actions";
+import AySecici from "@/components/AySecici";
 import SilButonu from "@/components/SilButonu";
 import OdendiButonu from "@/components/OdendiButonu";
 import OdemeGirForm from "@/components/OdemeGirForm";
@@ -19,16 +22,34 @@ function DurumRozeti({ odenen, kalan }: { odenen: number; kalan: number }) {
   return <span className="rozet rozet-bekliyor">{tlYaz(kalan)} bekliyor</span>;
 }
 
-export default async function YuklerSayfasi() {
-  const yukler = await prisma.yuk.findMany({
-    include: { firma: true, odemeler: true },
-    orderBy: [{ tarih: "desc" }, { id: "desc" }],
-  });
+export default async function YuklerSayfasi({
+  searchParams,
+}: {
+  searchParams: Promise<{ ay?: string }>;
+}) {
+  const { yil, ay } = ayParametresiOku((await searchParams).ay);
+  const { bas, son } = ayAraligi(yil, ay);
+  const ayAdi = ayEtiketi(yil, ay);
 
-  const toplamAlacak = yukler.reduce((t, y) => {
-    const odenen = y.odemeler.reduce((o, p) => o + p.tutar, 0);
-    return t + Math.max(0, y.toplamTutar - odenen);
-  }, 0);
+  const [yukler, tumYuk] = await Promise.all([
+    prisma.yuk.findMany({
+      where: { tarih: { gte: bas, lt: son } },
+      include: { firma: true, odemeler: true },
+      orderBy: [{ tarih: "desc" }, { id: "desc" }],
+    }),
+    prisma.yuk.aggregate({
+      _sum: { toplamTutar: true, netTutar: true, kdvTutar: true },
+    }),
+  ]);
+
+  const gelirToplam = yukler.reduce((t, y) => t + y.toplamTutar, 0);
+  const gelirNet = yukler.reduce((t, y) => t + y.netTutar, 0);
+  const gelirKdv = yukler.reduce((t, y) => t + y.kdvTutar, 0);
+  const tahsil = yukler.reduce(
+    (t, y) => t + y.odemeler.reduce((o, p) => o + p.tutar, 0),
+    0
+  );
+  const kalanAlacak = Math.max(0, gelirToplam - tahsil);
 
   return (
     <div className="space-y-5">
@@ -39,26 +60,57 @@ export default async function YuklerSayfasi() {
             Seferler
           </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {toplamAlacak > 0 && (
-            <div className="kart px-3 py-2 text-right">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-amber">
-                Toplam kalan alacak
-              </div>
-              <div className="font-display text-lg font-extrabold text-amber">
-                {tlYaz(toplamAlacak)}
-              </div>
-            </div>
-          )}
-          <Link href="/yukler/yeni" className="btn btn-amber">
-            + Yeni Yük
-          </Link>
-        </div>
+        <Link href="/yukler/yeni" className="btn btn-amber">
+          + Yeni Yük
+        </Link>
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <AySecici yol="/yukler" yil={yil} ay={ay} />
+        <p className="text-xs text-fog">
+          Bugüne kadar {tlYaz(tumYuk._sum.toplamTutar ?? 0)} · net{" "}
+          {tlYaz(tumYuk._sum.netTutar ?? 0)}
+        </p>
+      </div>
+
+      <section className="kart grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 sm:p-5">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            {ayAdi} toplam
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums">
+            {tlYaz(gelirToplam)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            Net gelir
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums text-ok">
+            {tlYaz(gelirNet)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            KDV
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums text-amber">
+            {tlYaz(gelirKdv)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
+            {kalanAlacak > 0 ? "Kalan alacak" : "Tahsil"}
+          </p>
+          <p className="mt-1 font-display text-xl font-extrabold tabular-nums text-amber">
+            {tlYaz(kalanAlacak > 0 ? kalanAlacak : tahsil)}
+          </p>
+        </div>
+      </section>
 
       {yukler.length === 0 ? (
         <div className="bos-durum">
-          Henüz yük kaydı yok. &quot;Yeni Yük&quot; ile ilk taşımanı ekle.
+          {ayAdi} ayında sefer yok. &quot;Yeni Yük&quot; ile ekle veya başka ay seç.
         </div>
       ) : (
         <div className="space-y-3">
