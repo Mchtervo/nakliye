@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { kurPromptuOku, kurPromptunaAbone, type KurPrompt } from "@/lib/pwaKur";
+import { kurPromptuOku, kurPromptunaAbone, kurPromptunuTemizle } from "@/lib/pwaKur";
 import PushIzinButonu from "@/components/PushIzinButonu";
 import TestBildirimButonu from "@/components/TestBildirimButonu";
 
@@ -32,22 +32,17 @@ export default function TelefonTuslari({
   acikAnahtar: string | null;
   excelHref: string;
 }) {
-  const [prompt, setPrompt] = useState<KurPrompt | null>(null);
   const [kurulu, setKurulu] = useState(false);
   const [yardim, setYardim] = useState(false);
   const [mesaj, setMesaj] = useState<string | null>(null);
+  const prompt = useSyncExternalStore(kurPromptunaAbone, kurPromptuOku, () => null);
   const standalone = useSyncExternalStore(standaloneAbone, standaloneMi, () => false);
   const ios = useSyncExternalStore(bosAbone, iosMu, () => false);
 
   useEffect(() => {
-    setPrompt(kurPromptuOku());
-    return kurPromptunaAbone(setPrompt);
-  }, []);
-
-  useEffect(() => {
     const bitti = () => {
       setKurulu(true);
-      setPrompt(null);
+      kurPromptunuTemizle();
       setMesaj("Eklendi. Ana ekrandaki Nakliye ikonuna bas.");
     };
     window.addEventListener("appinstalled", bitti);
@@ -62,7 +57,7 @@ export default function TelefonTuslari({
         setKurulu(true);
         setMesaj("Eklendi. Ana ekrandan aç.");
       }
-      setPrompt(null);
+      kurPromptunuTemizle();
       return;
     }
     setYardim(true);

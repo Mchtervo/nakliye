@@ -8,7 +8,7 @@ export type KurPrompt = Event & {
 declare global {
   interface Window {
     __ndKur?: KurPrompt | null;
-    __ndKurDinle?: (e: KurPrompt | null) => void;
+    __ndKurDinle?: () => void;
   }
 }
 
@@ -17,10 +17,15 @@ export function kurPromptuOku(): KurPrompt | null {
   return window.__ndKur ?? null;
 }
 
-export function kurPromptunaAbone(fn: (e: KurPrompt | null) => void): () => void {
-  window.__ndKurDinle = fn;
-  if (window.__ndKur) fn(window.__ndKur);
+export function kurPromptunaAbone(fn: () => void): () => void {
+  window.__ndKurDinle = () => fn();
   return () => {
-    if (window.__ndKurDinle === fn) window.__ndKurDinle = undefined;
+    window.__ndKurDinle = undefined;
   };
+}
+
+export function kurPromptunuTemizle(): void {
+  if (typeof window === "undefined") return;
+  window.__ndKur = null;
+  window.__ndKurDinle?.();
 }
