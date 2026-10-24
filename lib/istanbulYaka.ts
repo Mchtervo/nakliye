@@ -3,7 +3,7 @@
  * Avrupa yakası yükleme/boşaltma = köprü/tünel → kayıt dışı.
  * Sadece "İstanbul" yazılmışsa (ilçe yok) bilinmiyor sayılır, elenmez.
  */
-import { sadelestir } from "@/lib/iller";
+import { ilBul, sadelestir } from "@/lib/iller";
 
 export type IstanbulYaka = "ANADOLU" | "AVRUPA" | "BILINMIYOR";
 
@@ -60,32 +60,61 @@ export function istanbulYakaBul(
   return "BILINMIYOR";
 }
 
+function koridordaMi(
+  koridor: Iterable<string> | null | undefined,
+  yer: string | null | undefined
+): boolean {
+  if (!koridor || !yer) return false;
+  const il = ilBul(yer);
+  if (!il) return false;
+  for (const k of koridor) {
+    if (k === il) return true;
+  }
+  return false;
+}
+
 /**
  * Köprü geçişli mi?
- * İstanbul uçlarından biri açıkça Avrupa semtiyse true.
- * Gebze/Kocaeli/Ankara/Bolu uçları yakaya bakılmaz.
+ * Avrupa semti, diğer uç koridordaysa (Ankara, Bolu, Gebze, Mersin…) elenmez:
+ * Esenyurt→Gebze ve Yenibosna→Ankara kalır. Avrupa→Muğla gibi koridor dışı varış elenir.
  */
-export function kopruGecisliMi(args: {
-  cikisIl?: string | null;
-  varisIl?: string | null;
-  nereden?: string | null;
-  nereye?: string | null;
-}): boolean {
+export function kopruGecisliMi(
+  args: {
+    cikisIl?: string | null;
+    varisIl?: string | null;
+    nereden?: string | null;
+    nereye?: string | null;
+  },
+  koridor?: Iterable<string> | null
+): boolean {
   const cikisIst = args.cikisIl === "İstanbul";
   const varisIst = args.varisIl === "İstanbul";
   if (!cikisIst && !varisIst) return false;
 
-  if (cikisIst && istanbulYakaBul(args.nereden) === "AVRUPA") return true;
-  if (varisIst && istanbulYakaBul(args.nereye) === "AVRUPA") return true;
+  if (cikisIst && istanbulYakaBul(args.nereden) === "AVRUPA") {
+    if (koridordaMi(koridor, args.varisIl) || koridordaMi(koridor, args.nereye)) {
+      return false;
+    }
+    return true;
+  }
+  if (varisIst && istanbulYakaBul(args.nereye) === "AVRUPA") {
+    if (koridordaMi(koridor, args.cikisIl) || koridordaMi(koridor, args.nereden)) {
+      return false;
+    }
+    return true;
+  }
   return false;
 }
 
-/** Kayda uygun mu? (köprü geçişli → false) */
-export function yakaKaydaUygunMu(args: {
-  cikisIl?: string | null;
-  varisIl?: string | null;
-  nereden?: string | null;
-  nereye?: string | null;
-}): boolean {
-  return !kopruGecisliMi(args);
+/** Kayda uygun mu? Koridorun diğer ucu varsa Avrupa semti de kalır. */
+export function yakaKaydaUygunMu(
+  args: {
+    cikisIl?: string | null;
+    varisIl?: string | null;
+    nereden?: string | null;
+    nereye?: string | null;
+  },
+  koridor?: Iterable<string> | null
+): boolean {
+  return !kopruGecisliMi(args, koridor);
 }

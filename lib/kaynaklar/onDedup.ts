@@ -19,9 +19,12 @@ export type HamRota = {
 
 /** Metindeki cep telefonlarını 05xxxxxxxxx biçimine çevirir. */
 export function telefonlariCikar(metin: string): string[] {
-  const eslesmeler =
-    metin.match(/(\+?90|0)\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/g) ||
-    [];
+  const eslesmeler = [
+    ...(metin.match(/(\+?90|0)\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/g) ||
+      []),
+    // Kanal ilanı: "0507 8 14 20 97"
+    ...(metin.match(/(?:\+?90|0)(?:[\s.-]*\d){10}/g) || []),
+  ];
   const sonuc = new Set<string>();
   for (const ham of eslesmeler) {
     const r = telefonNormalize(ham);

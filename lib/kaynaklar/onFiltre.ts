@@ -27,10 +27,11 @@ const SPAM_KALIPLARI = [
 
 /** İlan sinyali: rota / fiyat / telefon / araç tipi. */
 const ROTA_ISARETI =
-  /[→➡➜▶️►\->]|(\b(den|dan|ten|tan|nereye|nereden)\b)|(\/\s*[a-zçğıöşü])/i;
+  /[→➡➜—–▶️►\->]|(\b(den|dan|ten|tan|nereye|nereden)\b)|(\/\s*[a-zçğıöşü])/i;
 const FIYAT_ISARETI =
   /(\d{3,})\s*(\+|tl|₺|kdv)|(\/\s*ton)|(\b(komple|navlun|bin)\b)/i;
-const TELEFON_ISARETI = /(\+?90|0)\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/;
+const TELEFON_ISARETI =
+  /(?:\+?90|0)\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}|(?:\+?90|0)(?:[\s.-]*\d){10}/;
 const ARAC_ISARETI =
   /\b(tenteli|frigo|damper|lowbed|kamyon|kamyonet|tir|tır|dorse|sal\b|kirkayak)/i;
 

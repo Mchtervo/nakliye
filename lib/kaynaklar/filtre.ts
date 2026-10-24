@@ -77,12 +77,15 @@ export function ilgiliMi(ilan: KaydedilenIlan, tercih: AiTercihleri): boolean {
   }
 
   if (
-    !yakaKaydaUygunMu({
-      cikisIl: ilan.cikisIl,
-      varisIl: ilan.varisIl,
-      nereden: ilan.nereden,
-      nereye: ilan.nereye,
-    })
+    !yakaKaydaUygunMu(
+      {
+        cikisIl: ilan.cikisIl,
+        varisIl: ilan.varisIl,
+        nereden: ilan.nereden,
+        nereye: ilan.nereye,
+      },
+      tercih.koridorIller
+    )
   ) {
     return false;
   }

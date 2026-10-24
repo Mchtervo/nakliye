@@ -483,14 +483,17 @@ function ilanKaydaUygunMu(
     return false;
   }
 
-  // Avrupa yakası (Hadımköy/İkitelli…) = köprü → kaydetme
+  // Avrupa semti, diğer uç koridordaysa kalır (Yenibosna→Ankara, Esenyurt→Gebze).
   if (
-    !yakaKaydaUygunMu({
-      cikisIl: ilan.cikisIl,
-      varisIl: ilan.varisIl,
-      nereden: ilan.nereden,
-      nereye: ilan.nereye,
-    })
+    !yakaKaydaUygunMu(
+      {
+        cikisIl: ilan.cikisIl,
+        varisIl: ilan.varisIl,
+        nereden: ilan.nereden,
+        nereye: ilan.nereye,
+      },
+      koridorSet
+    )
   ) {
     return false;
   }

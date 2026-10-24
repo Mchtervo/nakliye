@@ -433,13 +433,14 @@ async function baglan(): Promise<void> {
     }
   });
 
-  const sohbetKanallari = (chats: { id?: string; name?: string }[]) => {
+  const sohbetKanallari = (chats: { id?: string | null; name?: string | null }[]) => {
     for (const c of chats) {
       if (!kanalJidMi(c.id)) continue;
       void kanalKaydet(c.id, c.name);
     }
   };
   sock.ev.on("chats.upsert", sohbetKanallari);
+  sock.ev.on("chats.update", sohbetKanallari);
   sock.ev.on("messaging-history.set", ({ chats, messages }) => {
     sohbetKanallari(chats);
     const kanalMesaj = messages.filter((m) => kanalJidMi(m.key.remoteJid));

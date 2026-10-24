@@ -741,9 +741,11 @@ KAPSAM (KORİDOR):
   ilçe veya semt adları VARIŞTIR.
 - "ANKARA YÜKLEME" ve hiçbir varış yazmıyorsa → YAZ, nereye=null.
 - İki uç da dışarıdaysa yazma.
-- İstanbul: ANADOLU yakası + Gebze hattı (Tuzla, Pendik, Kartal…).
-  Avrupa yakası (Hadımköy, İkitelli, Esenyurt, Ambarlı, Silivri…)
-  köprü/tünel ister → YAZMA.
+- İstanbul Avrupa yakası da YAZ, diğer uç koridordaysa:
+  Esenyurt, Yenibosna, Hadımköy, İkitelli → Ankara, Bolu, Gebze, Kocaeli, Mersin, Konya.
+  Aynı şekilde Mersin veya İstanbul çıkışlı, varışı koridordaki her yükü YAZ.
+  Mahalle ve ilçe adını bağlı ile yaz (Yenibosna=İstanbul, Gerede=Bolu, Tarsus=Mersin).
+  Avrupa yakası + koridor dışı varış (Muğla, Bakü) → YAZMA.
 İller: ${iller.join(", ")}
 İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Tuzla→İstanbul,
 Yahşihan→Kırıkkale, Gölbaşı→Ankara).`;
@@ -760,14 +762,17 @@ function kapsamEleVeTip(
   const tip = koridorTipiBelirle(iller, ilan.cikisIl, ilan.varisIl);
   ilan.koridorTipi = tip;
   if (tip === "DISI") return { ele: "DISI", tip };
-  // Avrupa yakası (Hadımköy…) = köprü geçiş → kaydetme
+  // Avrupa semti kalır, diğer uç koridordaysa (Esenyurt→Gebze). Koridor dışı varış elenir.
   if (
-    kopruGecisliMi({
-      cikisIl: ilan.cikisIl,
-      varisIl: ilan.varisIl,
-      nereden: ilan.nereden,
-      nereye: ilan.nereye,
-    })
+    kopruGecisliMi(
+      {
+        cikisIl: ilan.cikisIl,
+        varisIl: ilan.varisIl,
+        nereden: ilan.nereden,
+        nereye: ilan.nereye,
+      },
+      iller
+    )
   ) {
     return { ele: "DISI", tip };
   }
