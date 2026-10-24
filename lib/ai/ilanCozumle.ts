@@ -741,11 +741,11 @@ KAPSAM (KORİDOR):
   ilçe veya semt adları VARIŞTIR.
 - "ANKARA YÜKLEME" ve hiçbir varış yazmıyorsa → YAZ, nereye=null.
 - İki uç da dışarıdaysa yazma.
-- İstanbul Avrupa yakası da YAZ, diğer uç koridordaysa:
-  Esenyurt, Yenibosna, Hadımköy, İkitelli → Ankara, Bolu, Gebze, Kocaeli, Mersin, Konya.
-  Aynı şekilde Mersin veya İstanbul çıkışlı, varışı koridordaki her yükü YAZ.
-  Mahalle ve ilçe adını bağlı ile yaz (Yenibosna=İstanbul, Gerede=Bolu, Tarsus=Mersin).
-  Avrupa yakası + koridor dışı varış (Muğla, Bakü) → YAZMA.
+- İstanbul Avrupa yakası da YAZ. İkitelli, Bağcılar, Esenyurt, Yenibosna çıkışlı
+  ve varışı Türkiye'de bir il olan yükü yaz (İkitelli→Sakarya, İkitelli→Ankara,
+  Bağcılar→Adana, Düzce→Pendik). Mahalle adını bağlı ile yaz
+  (İkitelli=İstanbul, Kazan=Ankara, Pendik=İstanbul, Kurtköy=İstanbul).
+  Varış il değilse (Bakü) Avrupa yakasından YAZMA.
 İller: ${iller.join(", ")}
 İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Tuzla→İstanbul,
 Yahşihan→Kırıkkale, Gölbaşı→Ankara).`;
@@ -762,7 +762,7 @@ function kapsamEleVeTip(
   const tip = koridorTipiBelirle(iller, ilan.cikisIl, ilan.varisIl);
   ilan.koridorTipi = tip;
   if (tip === "DISI") return { ele: "DISI", tip };
-  // Avrupa semti kalır, diğer uç koridordaysa (Esenyurt→Gebze). Koridor dışı varış elenir.
+  // Avrupa semti kalır, diğer uç Türkiye'de bir ilse (İkitelli→Adana). Bakü elenir.
   if (
     kopruGecisliMi(
       {

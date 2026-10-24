@@ -1,6 +1,7 @@
 /**
- * İstanbul yakası — Anadolu hattı (Gebze/Kocaeli tarafı).
- * Avrupa yakası yükleme/boşaltma = köprü/tünel → kayıt dışı.
+ * İstanbul yakası.
+ * Avrupa semti, diğer uç Türkiye'de bir ilse kalır (İkitelli→Adana, Esenyurt→Ankara).
+ * Diğer uç il değilse (Bakü) elenir.
  * Sadece "İstanbul" yazılmışsa (ilçe yok) bilinmiyor sayılır, elenmez.
  */
 import { ilBul, sadelestir } from "@/lib/iller";
@@ -75,8 +76,8 @@ function koridordaMi(
 
 /**
  * Köprü geçişli mi?
- * Avrupa semti, diğer uç koridordaysa (Ankara, Bolu, Gebze, Mersin…) elenmez:
- * Esenyurt→Gebze ve Yenibosna→Ankara kalır. Avrupa→Muğla gibi koridor dışı varış elenir.
+ * Avrupa semti, diğer uç Türkiye'de bilinen bir ilse elenmez
+ * (İkitelli→Sakarya, Bağcılar→Adana). İl olmayan varış (Bakü) elenir.
  */
 export function kopruGecisliMi(
   args: {
@@ -92,13 +93,23 @@ export function kopruGecisliMi(
   if (!cikisIst && !varisIst) return false;
 
   if (cikisIst && istanbulYakaBul(args.nereden) === "AVRUPA") {
-    if (koridordaMi(koridor, args.varisIl) || koridordaMi(koridor, args.nereye)) {
+    if (
+      koridordaMi(koridor, args.varisIl) ||
+      koridordaMi(koridor, args.nereye) ||
+      ilBul(args.varisIl) ||
+      ilBul(args.nereye)
+    ) {
       return false;
     }
     return true;
   }
   if (varisIst && istanbulYakaBul(args.nereye) === "AVRUPA") {
-    if (koridordaMi(koridor, args.cikisIl) || koridordaMi(koridor, args.nereden)) {
+    if (
+      koridordaMi(koridor, args.cikisIl) ||
+      koridordaMi(koridor, args.nereden) ||
+      ilBul(args.cikisIl) ||
+      ilBul(args.nereden)
+    ) {
       return false;
     }
     return true;

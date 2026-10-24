@@ -96,6 +96,8 @@ async function bildir(metin: string) {
 }
 
 let gruplar = new Map<string, number>();
+/** Kanal adı. İlanda numara yoksa başlıktaki irtibat kullanılır. */
+const kanalAdlari = new Map<string, string>();
 let eslemeKoduSayisi = 0;
 let alinan = 0;
 let kuyruga = 0;
@@ -123,6 +125,8 @@ function kanalJidMi(id?: string | null): id is string {
 async function kanalKaydet(jid: string, ad?: string | null): Promise<void> {
   const id = await whatsappKanaliKaydet(jid, ad);
   gruplar.set(jid, id);
+  const temiz = (ad || "").trim();
+  if (temiz) kanalAdlari.set(jid, temiz);
 }
 
 function kanalAdiOku(satir: Record<string, unknown>): string {
@@ -177,18 +181,25 @@ async function takiptekiKanallar(
         : Buffer.from(ham);
   const json = JSON.parse(bayt.toString("utf-8")) as {
     data?: { xwa2_newsletter_subscribed?: unknown };
+    xwa2_newsletter_subscribed?: unknown;
     errors?: { message?: string }[];
   };
   if (json.errors?.length) {
     throw new Error(json.errors.map((e) => e.message || "kanal listesi").join(", "));
   }
-  const liste = json.data?.xwa2_newsletter_subscribed;
+  const liste =
+    json.data?.xwa2_newsletter_subscribed ?? json.xwa2_newsletter_subscribed;
   if (!Array.isArray(liste)) return [];
   const cikti: { jid: string; ad: string }[] = [];
   for (const satir of liste) {
     if (!satir || typeof satir !== "object") continue;
     const kayit = satir as Record<string, unknown>;
-    const id = typeof kayit.id === "string" ? kayit.id : "";
+    const id =
+      typeof kayit.id === "string"
+        ? kayit.id
+        : typeof kayit.newsletter_id === "string"
+          ? kayit.newsletter_id
+          : "";
     if (!id) continue;
     cikti.push({ jid: kanalJidYap(id), ad: kanalAdiOku(kayit) });
   }
@@ -208,27 +219,7 @@ function kanalYazisi(dugum: BinaryNode): proto.IMessage | null {
   }
 }
 
-/** Kanal gönderisinin metni. message_updates sadece görüntülenme sayar, yazı getirmez. */
-async function kanalMesajlariniCek(
-  sock: WASocket,
-  jid: string,
-  adet: number
-): Promise<WAMessage[]> {
-  const result = (await sock.query({
-    tag: "iq",
-    attrs: {
-      id: sock.generateMessageTag(),
-      type: "get",
-      xmlns: "newsletter",
-      to: WA_SUNUCU,
-    },
-    content: [
-      {
-        tag: "messages",
-        attrs: { type: "jid", jid, count: String(adet) },
-      },
-    ],
-  })) as BinaryNode;
+function kanalDugumleriniOku(result: BinaryNode, jid: string): WAMessage[] {
   const kok = getBinaryNodeChild(result, "messages") || result;
   const cikti: WAMessage[] = [];
   for (const d of getBinaryNodeChildren(kok, "message")) {
@@ -248,6 +239,48 @@ async function kanalMesajlariniCek(
   return cikti;
 }
 
+/**
+ * Kanal gönderisinin metni. Sorgu kanalın kendi adresine gider;
+ * s.whatsapp.net + message_updates yalnızca görüntülenme sayar.
+ */
+async function kanalIq(
+  sock: WASocket,
+  to: string,
+  messagesAttrs: Record<string, string>
+): Promise<BinaryNode> {
+  return (await sock.query({
+    tag: "iq",
+    attrs: {
+      id: sock.generateMessageTag(),
+      type: "get",
+      xmlns: "newsletter",
+      to,
+    },
+    content: [{ tag: "messages", attrs: messagesAttrs }],
+  })) as BinaryNode;
+}
+
+async function kanalMesajlariniCek(
+  sock: WASocket,
+  jid: string,
+  adet: number
+): Promise<WAMessage[]> {
+  const adetYazi = String(adet);
+  try {
+    const kanala = await kanalIq(sock, jid, { count: adetYazi });
+    const dogrudan = kanalDugumleriniOku(kanala, jid);
+    if (dogrudan.length > 0) return dogrudan;
+  } catch (e) {
+    uyari("Kanal yazısı okunamadı:", e instanceof Error ? e.message : e);
+  }
+  const sunucu = await kanalIq(sock, WA_SUNUCU, {
+    type: "jid",
+    jid,
+    count: adetYazi,
+  });
+  return kanalDugumleriniOku(sunucu, jid);
+}
+
 async function kanallariTara(sock: WASocket): Promise<void> {
   let bulunan = 0;
   let yukKanali = 0;
@@ -255,7 +288,8 @@ async function kanallariTara(sock: WASocket): Promise<void> {
     const liste = await takiptekiKanallar(sock);
     bulunan = liste.length;
     for (const k of liste) {
-      if (k.ad && !yukGrubuAdiMi(k.ad)) continue;
+      const numaraAdi = telefonlariCikar(k.ad).length > 0;
+      if (k.ad && !yukGrubuAdiMi(k.ad) && !numaraAdi) continue;
       yukKanali += 1;
       await kanalKaydet(k.jid, k.ad || null);
     }
@@ -263,7 +297,9 @@ async function kanallariTara(sock: WASocket): Promise<void> {
       log(
         `Kanal adı yük değil, atlandı: ${liste
           .slice(0, 8)
-          .map((k) => k.ad || k.jid)
+          .map((k) =>
+            telefonlariCikar(k.ad).length > 0 ? "numara" : k.ad || "adsız"
+          )
           .join(" | ")}`
       );
     }
@@ -325,9 +361,12 @@ function mesajMetni(m: WAMessage): string | null {
   const metin = whatsappMetni(m.message);
   if (!metin || metin.length < MIN_METIN) return null;
   if (telefonlariCikar(metin).length > 0) return metin;
-  // Numarasız ilan: WhatsApp'ta irtibat genelde gönderenin kendisi
+  // Numarasız ilan: irtibat gönderende ya da kanal başlığındaki numarada
   const tel = gonderenTelefonu(m.key);
-  return tel ? `${metin}\nTel: ${tel}` : metin;
+  if (tel) return `${metin}\nTel: ${tel}`;
+  const jid = m.key.remoteJid;
+  const baslikTel = jid ? telefonlariCikar(kanalAdlari.get(jid) || "")[0] : "";
+  return baslikTel ? `${metin}\nTel: ${baslikTel}` : metin;
 }
 
 /** Günde bir grup. Adı yük/nakliye değilse girmez, sonrakine bakar. */

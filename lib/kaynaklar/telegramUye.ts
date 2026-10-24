@@ -483,7 +483,7 @@ function ilanKaydaUygunMu(
     return false;
   }
 
-  // Avrupa semti, diğer uç koridordaysa kalır (Yenibosna→Ankara, Esenyurt→Gebze).
+  // Avrupa semti, diğer uç Türkiye'de bir ilse kalır (İkitelli→Adana).
   if (
     !yakaKaydaUygunMu(
       {
