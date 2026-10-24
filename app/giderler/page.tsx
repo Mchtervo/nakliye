@@ -2,15 +2,45 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz, tarihYaz } from "@/lib/para";
 import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
+import { ayAraligi } from "@/lib/tarih";
 import { giderSil } from "@/app/actions";
 import SilButonu from "@/components/SilButonu";
 
 export const dynamic = "force-dynamic";
 
-export default async function GiderlerSayfasi() {
-  const giderler = await prisma.gider.findMany({
-    orderBy: [{ tarih: "desc" }, { id: "desc" }],
-  });
+export default async function GiderlerSayfasi({
+  searchParams,
+}: {
+  searchParams: Promise<{ ay?: string }>;
+}) {
+  const sp = await searchParams;
+  const simdi = new Date();
+  let yil = simdi.getFullYear();
+  let ay = simdi.getMonth() + 1;
+  if (sp.ay && /^\d{4}-\d{2}$/.test(sp.ay)) {
+    const [y, a] = sp.ay.split("-").map(Number);
+    if (a >= 1 && a <= 12) {
+      yil = y;
+      ay = a;
+    }
+  }
+  const { bas, son } = ayAraligi(yil, ay);
+  const onceki = new Date(yil, ay - 2, 1);
+  const sonraki = new Date(yil, ay, 1);
+  const ayKod = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const ayAdi = new Intl.DateTimeFormat("tr-TR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(yil, ay - 1, 1));
+
+  const [giderler, tumGider] = await Promise.all([
+    prisma.gider.findMany({
+      where: { tarih: { gte: bas, lt: son } },
+      orderBy: [{ tarih: "desc" }, { id: "desc" }],
+    }),
+    prisma.gider.aggregate({ _sum: { toplamTutar: true, kdvTutar: true } }),
+  ]);
 
   const isletmeGiderleri = giderler.filter((g) => isletmeGideriMi(g.kategori));
   const genelToplam = isletmeGiderleri.reduce((t, g) => t + g.toplamTutar, 0);
@@ -54,12 +84,36 @@ export default async function GiderlerSayfasi() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-asphalt-2 p-1">
+          <Link
+            href={`/giderler?ay=${ayKod(onceki)}`}
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-fog hover:bg-white/5 hover:text-paper"
+          >
+            ←
+          </Link>
+          <span className="min-w-[9rem] text-center text-sm font-bold capitalize text-paper">
+            {ayAdi}
+          </span>
+          <Link
+            href={`/giderler?ay=${ayKod(sonraki)}`}
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-fog hover:bg-white/5 hover:text-paper"
+          >
+            →
+          </Link>
+        </div>
+        <p className="text-xs text-fog">
+          Bugüne kadar {tlYaz(tumGider._sum.toplamTutar ?? 0)} · KDV{" "}
+          {tlYaz(tumGider._sum.kdvTutar ?? 0)}
+        </p>
+      </div>
+
       {giderler.length > 0 && (
         <section className="kart space-y-4 p-4 sm:p-5 reveal reveal-d1">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-fog">
-                Toplam gider
+                {ayAdi} gider
               </div>
               <div className="font-display text-3xl font-extrabold text-ember">
                 {tlYaz(genelToplam)}

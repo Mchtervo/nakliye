@@ -150,14 +150,18 @@ export async function davetKapat(id: number, ad: string, not: string): Promise<v
 }
 
 /** Takip edilen WhatsApp kanalı (ilan duyurusu). */
-export async function whatsappKanaliKaydet(jid: string): Promise<number> {
+export async function whatsappKanaliKaydet(
+  jid: string,
+  ad?: string | null
+): Promise<number> {
+  const isim = (ad || "").trim().slice(0, 120) || "WhatsApp kanalı";
   const satir = await prisma.ilanKaynagi.upsert({
     where: { tur_hedef: { tur: WHATSAPP_GRUP, hedef: jid } },
-    update: {},
+    update: isim !== "WhatsApp kanalı" ? { ad: isim, aktif: true, durum: "AKTIF" } : { aktif: true, durum: "AKTIF" },
     create: {
       tur: WHATSAPP_GRUP,
       hedef: jid,
-      ad: "WhatsApp kanalı",
+      ad: isim,
       aktif: true,
       durum: "AKTIF",
     },
@@ -258,22 +262,33 @@ type MesajIcerik = {
   imageMessage?: { caption?: string | null } | null;
   videoMessage?: { caption?: string | null } | null;
   documentMessage?: { caption?: string | null } | null;
+  buttonsMessage?: { contentText?: string | null } | null;
+  documentWithCaptionMessage?: { message?: MesajIcerik | null } | null;
   ephemeralMessage?: { message?: MesajIcerik | null } | null;
   viewOnceMessage?: { message?: MesajIcerik | null } | null;
   viewOnceMessageV2?: { message?: MesajIcerik | null } | null;
+  viewOnceMessageV2Extension?: { message?: MesajIcerik | null } | null;
+  editedMessage?: { message?: MesajIcerik | null } | null;
 };
 
-/** Metin, uzun metin veya fotoğraf/video/belge açıklaması. */
+/** Metin, uzun metin, kanal paylaşımı veya fotoğraf/video/belge açıklaması. */
 export function whatsappMetni(m: MesajIcerik | null | undefined): string | null {
   if (!m) return null;
-  const ic = m.ephemeralMessage?.message || m.viewOnceMessage?.message || m.viewOnceMessageV2?.message;
+  const ic =
+    m.ephemeralMessage?.message ||
+    m.viewOnceMessage?.message ||
+    m.viewOnceMessageV2?.message ||
+    m.viewOnceMessageV2Extension?.message ||
+    m.editedMessage?.message ||
+    m.documentWithCaptionMessage?.message;
   if (ic) return whatsappMetni(ic);
   const metin =
     m.conversation ||
     m.extendedTextMessage?.text ||
     m.imageMessage?.caption ||
     m.videoMessage?.caption ||
-    m.documentMessage?.caption;
+    m.documentMessage?.caption ||
+    m.buttonsMessage?.contentText;
   return metin?.trim() || null;
 }
 

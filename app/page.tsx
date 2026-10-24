@@ -5,6 +5,7 @@ import { tlYaz, tlYazKisa, tarihYaz } from "@/lib/para";
 import { isletmeGideriMi, kategoriAdi } from "@/lib/sabitler";
 import { telefonGoster } from "@/lib/telefon";
 import AraButonu from "@/components/AraButonu";
+import WhatsAppButonu from "@/components/WhatsAppButonu";
 import AnaEkranaEkle from "@/components/AnaEkranaEkle";
 import AylikGrafik, { type AyVerisi } from "@/components/panel/AylikGrafik";
 
@@ -98,7 +99,7 @@ export default async function PanelSayfasi() {
   const sonrakiAyBasi = new Date(simdi.getFullYear(), simdi.getMonth() + 1, 1);
   const grafikBasi = new Date(simdi.getFullYear(), simdi.getMonth() - (AY_SAYISI - 1), 1);
 
-  const [yukler, giderler, bekleyenYukler, ayarlar, kasaToplam, yeniIlan] = await Promise.all([
+  const [yukler, giderler, bekleyenYukler, ayarlar, kasaToplam, yeniIlan, tumYuk, tumGider] = await Promise.all([
     prisma.yuk.findMany({
       where: { tarih: { gte: grafikBasi, lt: sonrakiAyBasi } },
       select: {
@@ -138,6 +139,8 @@ export default async function PanelSayfasi() {
         sonGorulme: { gte: new Date(simdi.getTime() - 2 * 24 * 60 * 60 * 1000) },
       },
     }),
+    prisma.yuk.aggregate({ _sum: { toplamTutar: true, kdvTutar: true } }),
+    prisma.gider.aggregate({ _sum: { toplamTutar: true, kdvTutar: true } }),
   ]);
 
   const ayarDeger = (a: string) => ayarlar.find((x) => x.anahtar === a)?.deger || "";
@@ -295,6 +298,27 @@ export default async function PanelSayfasi() {
         </div>
       </header>
 
+      <section className="kart grid grid-cols-3 gap-3 p-3.5 sm:p-4">
+        <Link href="/yukler" className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">Bugüne kadar gelir</p>
+          <p className="mt-1 font-display text-lg font-bold tabular-nums sm:text-xl">
+            {tlYazKisa(tumYuk._sum.toplamTutar ?? 0)}
+          </p>
+        </Link>
+        <Link href="/giderler" className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">Bugüne kadar gider</p>
+          <p className="mt-1 font-display text-lg font-bold tabular-nums text-ember sm:text-xl">
+            {tlYazKisa(tumGider._sum.toplamTutar ?? 0)}
+          </p>
+        </Link>
+        <Link href="/kdv" className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">Bugüne kadar KDV</p>
+          <p className="mt-1 font-display text-lg font-bold tabular-nums text-amber sm:text-xl">
+            {tlYazKisa((tumYuk._sum.kdvTutar ?? 0) - (tumGider._sum.kdvTutar ?? 0))}
+          </p>
+        </Link>
+      </section>
+
       <section className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         {kpiler.map((k, i) => (
           <Link key={k.etiket} href={k.href} className={`kart p-3.5 sm:p-4 reveal reveal-d${i + 1}`}>
@@ -431,7 +455,12 @@ export default async function PanelSayfasi() {
                     <Link href={`/firmalar/${f.id}`} className="min-w-0 flex-1 truncate text-[15px] font-medium">
                       {f.ad}
                     </Link>
-                    {f.telefon && <AraButonu telefon={f.telefon} etiket="Ara" />}
+                    {f.telefon && (
+                      <>
+                        <WhatsAppButonu telefon={f.telefon} />
+                        <AraButonu telefon={f.telefon} etiket="Ara" />
+                      </>
+                    )}
                     <span className="font-display text-[15px] font-semibold tabular-nums text-amber">
                       {tlYazKisa(f.kalan)}
                     </span>

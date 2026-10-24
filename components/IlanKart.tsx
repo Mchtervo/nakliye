@@ -8,6 +8,7 @@ import BilgiSorButonu from "@/components/BilgiSorButonu";
 import { aracBelirsizMi } from "@/lib/arac";
 import { beklemeBuyuk } from "@/lib/ilanTazelik";
 import { fiyatGorunumu, gecenSure } from "@/lib/ilanGorunum";
+import { whatsappMesajUrl } from "@/lib/whatsapp";
 
 export type IlanKartKar = {
   mesafe: string | null;
@@ -231,8 +232,10 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         )}
       </div>
 
-      {metaParcalar.length > 0 && (
-        <p className="mt-1.5 text-sm text-fog">{metaParcalar.join(" · ")}</p>
+      {(metaParcalar.length > 0 || ilan.kaynakAd) && (
+        <p className="mt-1.5 text-sm text-fog">
+          {[...metaParcalar, ilan.kaynakAd].filter(Boolean).join(" · ")}
+        </p>
       )}
 
       {/* Rozet — sadece önemli */}
@@ -350,7 +353,9 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         )}
         {ilan.telefon ? (
           <a
-            href={`tel:${ilan.telefon}`}
+            href={whatsappMesajUrl(ilan.telefon, "") || `tel:${ilan.telefon}`}
+            target="_blank"
+            rel="noopener noreferrer"
             className="mt-0.5 inline-block text-base font-bold tracking-wide text-amber"
           >
             {ilan.telefon}
@@ -410,16 +415,18 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
             Yazılamaz
           </div>
         )}
-        {ilan.telefon ? (
+        {ilan.telefon && whatsappMesajUrl(ilan.telefon, "") ? (
           <a
-            href={`tel:${ilan.telefon}`}
+            href={whatsappMesajUrl(ilan.telefon, "")!}
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center justify-center rounded-xl bg-amber py-3.5 text-sm font-bold text-[#1a1208] hover:brightness-110"
           >
-            Ara
+            WhatsApp
           </a>
         ) : (
           <span className="flex items-center justify-center rounded-xl border border-white/12 py-3.5 text-sm text-fog/50">
-            Ara
+            WhatsApp
           </span>
         )}
       </div>

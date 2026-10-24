@@ -269,6 +269,7 @@ async function baglan(): Promise<void> {
       eslemeKoduSayisi = 0;
       log("Bağlandı.");
       await gruplariEsitle(sock);
+      gruplar = await aktifWhatsappGruplari();
       await davetlereGir(sock);
       void gorusmeleriYurut(sock);
       if (esitlemeZamanlayici) clearInterval(esitlemeZamanlayici);
@@ -310,14 +311,19 @@ async function baglan(): Promise<void> {
   });
 
   sock.ev.on("messages.upsert", ({ messages, type }) => {
-    if (type === "notify") {
+    // notify = canlı; append = kanal + kısa kopuklukta biriken grup mesajı
+    if (type === "notify" || type === "append") {
       void mesajlariIsle(messages);
-      return;
     }
-    // Kanallar çoğu zaman "append" gelir; grup geçmişi alınmaz
-    if (type === "append") {
-      const kanallar = messages.filter((m) => m.key.remoteJid?.endsWith("@newsletter"));
-      if (kanallar.length > 0) void mesajlariIsle(kanallar);
+  });
+
+  sock.ev.on("chats.upsert", (chats) => {
+    for (const c of chats) {
+      const id = c.id;
+      if (!id?.endsWith("@newsletter")) continue;
+      void whatsappKanaliKaydet(id, c.name).then((kid) => {
+        gruplar.set(id, kid);
+      });
     }
   });
 

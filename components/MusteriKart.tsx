@@ -6,6 +6,7 @@ import {
   musteriNotKaydet,
 } from "@/app/musteri-actions";
 import { telefonGorunum, type MusteriSinif } from "@/lib/musteriHavuz";
+import { whatsappMesajUrl } from "@/lib/whatsapp";
 import { gecenSure } from "@/lib/ilanGorunum";
 
 function sinifEtiket(s: MusteriSinif): string {
@@ -62,15 +63,31 @@ export default function MusteriKart({ m }: { m: MusteriKartVeri }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate font-semibold text-paper">
-            {baslik}
+            {baslikTelefonMu ? (
+              <a
+                href={whatsappMesajUrl(m.telefon, "") || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber"
+              >
+                {baslik}
+              </a>
+            ) : (
+              baslik
+            )}
             {!baslikTelefonMu && m.baskinCikis ? (
               <span className="font-normal text-fog"> · {m.baskinCikis}</span>
             ) : null}
           </div>
           {!baslikTelefonMu && (
-            <p className="mt-0.5 text-sm font-bold text-teal">
+            <a
+              href={whatsappMesajUrl(m.telefon, "") || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 text-sm font-bold text-teal"
+            >
               {telefonGorunum(m.telefon)}
-            </p>
+            </a>
           )}
           {baslikTelefonMu && m.baskinCikis && (
             <p className="mt-0.5 text-xs text-fog">{m.baskinCikis}</p>

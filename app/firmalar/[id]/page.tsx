@@ -8,7 +8,9 @@ import OdendiButonu from "@/components/OdendiButonu";
 import OdemeGirForm from "@/components/OdemeGirForm";
 import ParaOzeti from "@/components/ParaOzeti";
 import AraButonu from "@/components/AraButonu";
+import WhatsAppButonu from "@/components/WhatsAppButonu";
 import { telefonGoster } from "@/lib/telefon";
+import { whatsappMesajUrl } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +55,15 @@ export default async function FirmaDetaySayfasi({
         </h1>
         {firma.telefon && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <p className="text-sm text-fog">{telefonGoster(firma.telefon)}</p>
+            <a
+              href={whatsappMesajUrl(firma.telefon, "") || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-amber"
+            >
+              {telefonGoster(firma.telefon)}
+            </a>
+            <WhatsAppButonu telefon={firma.telefon} />
             <AraButonu telefon={firma.telefon} etiket="Ara" />
           </div>
         )}
