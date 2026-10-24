@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { tlYaz, tarihYaz } from "@/lib/para";
 import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
 import { ayAraligi } from "@/lib/tarih";
-import { ayEtiketi, ayParametresiOku } from "@/lib/kdv";
+import { ayEtiketi, ayParametresi, ayParametresiOku } from "@/lib/kdv";
 import { giderSil } from "@/app/actions";
 import AySecici from "@/components/AySecici";
 import SilButonu from "@/components/SilButonu";
@@ -63,6 +63,12 @@ export default async function GiderlerSayfasi({
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
+          <a
+            href={`/api/excel?ay=${ayParametresi(yil, ay)}`}
+            className="btn btn-teal !px-3 !py-2 text-xs sm:text-sm"
+          >
+            Excel indir
+          </a>
           <Link href="/muhasebeci" className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm">
             Muhasebeciye Gönder
           </Link>

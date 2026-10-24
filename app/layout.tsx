@@ -47,6 +47,12 @@ export default function RootLayout({
   return (
     <html lang="tr" className={`${sans.variable} h-full antialiased`}>
       <body className="min-h-full font-sans">
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "window.__ndKur=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__ndKur=e;if(window.__ndKurDinle)window.__ndKurDinle(e);});",
+          }}
+        />
         <Suspense fallback={null}>
           <GezinmeIlerleme />
         </Suspense>

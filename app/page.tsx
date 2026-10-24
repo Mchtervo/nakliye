@@ -6,7 +6,9 @@ import { isletmeGideriMi, kategoriAdi } from "@/lib/sabitler";
 import { telefonGoster } from "@/lib/telefon";
 import AraButonu from "@/components/AraButonu";
 import WhatsAppButonu from "@/components/WhatsAppButonu";
-import AnaEkranaEkle from "@/components/AnaEkranaEkle";
+import TelefonTuslari from "@/components/TelefonTuslari";
+import { pushAcikAnahtar } from "@/lib/bildirim/push";
+import { ayParametresi } from "@/lib/kdv";
 import AylikGrafik, { type AyVerisi } from "@/components/panel/AylikGrafik";
 
 export const dynamic = "force-dynamic";
@@ -289,6 +291,12 @@ export default async function PanelSayfasi() {
           <p className="mt-0.5 text-[15px] text-fog">İşte {ayAdi} özetin ve son hareketlerin.</p>
         </div>
         <div className="flex gap-2">
+          <a
+            href={`/api/excel?ay=${ayParametresi(simdi.getFullYear(), simdi.getMonth() + 1)}`}
+            className="btn btn-teal !min-h-9 !px-3.5 text-sm"
+          >
+            Excel
+          </a>
           <Link href="/raporlar" className="btn btn-ghost !min-h-9 !px-3.5 text-sm">
             Raporlar
           </Link>
@@ -297,6 +305,11 @@ export default async function PanelSayfasi() {
           </Link>
         </div>
       </header>
+
+      <TelefonTuslari
+        acikAnahtar={pushAcikAnahtar()}
+        excelHref={`/api/excel?ay=${ayParametresi(simdi.getFullYear(), simdi.getMonth() + 1)}`}
+      />
 
       <section className="kart grid grid-cols-3 gap-3 p-3.5 sm:p-4">
         <Link href="/yukler" className="min-w-0">
@@ -493,7 +506,6 @@ export default async function PanelSayfasi() {
         </div>
       </div>
 
-      <AnaEkranaEkle />
     </div>
   );
 }

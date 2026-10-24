@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz, tarihYaz } from "@/lib/para";
 import { ayAraligi } from "@/lib/tarih";
-import { ayEtiketi, ayParametresiOku } from "@/lib/kdv";
+import { ayEtiketi, ayParametresi, ayParametresiOku } from "@/lib/kdv";
 import { yukSil, yukOdendiIsaretle } from "@/app/actions";
 import AySecici from "@/components/AySecici";
 import SilButonu from "@/components/SilButonu";
@@ -60,9 +60,14 @@ export default async function YuklerSayfasi({
             Seferler
           </h1>
         </div>
-        <Link href="/yukler/yeni" className="btn btn-amber">
-          + Yeni Yük
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a href={`/api/excel?ay=${ayParametresi(yil, ay)}`} className="btn btn-teal">
+            Excel indir
+          </a>
+          <Link href="/yukler/yeni" className="btn btn-amber">
+            + Yeni Yük
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">

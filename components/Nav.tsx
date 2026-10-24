@@ -135,6 +135,31 @@ const DAHA_GRUPLAR: DahaGrup[] = [
         ),
       },
       {
+        href: "/api/excel",
+        ad: "Excel indir",
+        aciklama: "Bu ayın sefer ve gideri",
+        renk: "#30d158",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" />
+            <path d="M14 3v5h5" />
+            <path d="M8 13h8M8 17h5" />
+          </svg>
+        ),
+      },
+      {
+        href: "/#telefon-tuslari",
+        ad: "Ana ekrana ekle",
+        aciklama: "Telefon ikonu + bildirim",
+        renk: "#ff9f0a",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <rect x="7" y="2" width="10" height="20" rx="2" />
+            <path d="M12 18h.01" />
+          </svg>
+        ),
+      },
+      {
         href: "/raporlar",
         ad: "Raporlar",
         aciklama: "Aylık özet",
