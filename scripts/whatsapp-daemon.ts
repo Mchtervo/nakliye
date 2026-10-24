@@ -14,9 +14,8 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestWaWebVersion,
   getBinaryNodeChild,
-  getBinaryNodeChildString,
   getBinaryNodeChildren,
-  getBinaryNodeMessages,
+  proto,
   useMultiFileAuthState as dosyaOturumu,
   type BinaryNode,
   type SocketConfig,
@@ -55,6 +54,9 @@ const GRUP_ESITLEME_MS = 30 * 60 * 1000;
 const KANAL_TARAMA_MS = 10 * 60 * 1000;
 const KANAL_CEK_ADET = 20;
 const KANAL_TARAMA_TAVAN = 25;
+const WA_SUNUCU = "s.whatsapp.net";
+/** whatsmeow: hesabın katıldığı kanallar. Chrome/web sorgusu. */
+const KANAL_LISTE_SORGUSU = "6388546374527196";
 /** Çevrimdışıyken biriken eski mesajlar alınmaz. */
 const MAX_MESAJ_YASI_SN = 6 * 60 * 60;
 const MIN_METIN = 15;
@@ -123,52 +125,162 @@ async function kanalKaydet(jid: string, ad?: string | null): Promise<void> {
   gruplar.set(jid, id);
 }
 
-function kanalIqMesajlari(jid: string, result: BinaryNode): WAMessage[] {
-  const kok = getBinaryNodeChild(result, "message_updates") || result;
-  const protoMesajlar = getBinaryNodeMessages(kok);
-  if (protoMesajlar.length > 0) {
-    return protoMesajlar.map((m) => ({
-      ...m,
-      key: { ...m.key, remoteJid: m.key?.remoteJid || jid },
-    })) as WAMessage[];
+function kanalAdiOku(satir: Record<string, unknown>): string {
+  const ad = satir.name;
+  if (typeof ad === "string") return ad;
+  if (ad && typeof ad === "object" && "text" in ad && typeof ad.text === "string") {
+    return ad.text;
   }
+  const thread = satir.thread_metadata;
+  if (!thread || typeof thread !== "object") return "";
+  const isim = (thread as { name?: unknown }).name;
+  if (typeof isim === "string") return isim;
+  if (isim && typeof isim === "object" && "text" in isim && typeof isim.text === "string") {
+    return isim.text;
+  }
+  return "";
+}
+
+function kanalJidYap(id: string): string {
+  const temiz = id.trim();
+  return temiz.endsWith("@newsletter") ? temiz : `${temiz}@newsletter`;
+}
+
+/** Bağlı numaranın zaten takip ettiği kanallar. Sohbet listesinde görünmezler. */
+async function takiptekiKanallar(
+  sock: WASocket
+): Promise<{ jid: string; ad: string }[]> {
+  const result = (await sock.query({
+    tag: "iq",
+    attrs: {
+      id: sock.generateMessageTag(),
+      type: "get",
+      xmlns: "w:mex",
+      to: WA_SUNUCU,
+    },
+    content: [
+      {
+        tag: "query",
+        attrs: { query_id: KANAL_LISTE_SORGUSU },
+        content: Buffer.from(JSON.stringify({ variables: {} }), "utf-8"),
+      },
+    ],
+  })) as BinaryNode;
+  const child = getBinaryNodeChild(result, "result");
+  const ham = child?.content;
+  if (!ham || Array.isArray(ham)) return [];
+  const bayt =
+    typeof ham === "string"
+      ? Buffer.from(ham, "utf-8")
+      : Buffer.isBuffer(ham)
+        ? ham
+        : Buffer.from(ham);
+  const json = JSON.parse(bayt.toString("utf-8")) as {
+    data?: { xwa2_newsletter_subscribed?: unknown };
+    errors?: { message?: string }[];
+  };
+  if (json.errors?.length) {
+    throw new Error(json.errors.map((e) => e.message || "kanal listesi").join(", "));
+  }
+  const liste = json.data?.xwa2_newsletter_subscribed;
+  if (!Array.isArray(liste)) return [];
+  const cikti: { jid: string; ad: string }[] = [];
+  for (const satir of liste) {
+    if (!satir || typeof satir !== "object") continue;
+    const kayit = satir as Record<string, unknown>;
+    const id = typeof kayit.id === "string" ? kayit.id : "";
+    if (!id) continue;
+    cikti.push({ jid: kanalJidYap(id), ad: kanalAdiOku(kayit) });
+  }
+  return cikti;
+}
+
+function kanalYazisi(dugum: BinaryNode): proto.IMessage | null {
+  const duz = getBinaryNodeChild(dugum, "plaintext");
+  const icerik = duz?.content ?? dugum.content;
+  if (!icerik || typeof icerik === "string" || Array.isArray(icerik)) {
+    return typeof icerik === "string" ? { conversation: icerik } : null;
+  }
+  try {
+    return proto.Message.decode(Buffer.from(icerik));
+  } catch {
+    return null;
+  }
+}
+
+/** Kanal gönderisinin metni. message_updates sadece görüntülenme sayar, yazı getirmez. */
+async function kanalMesajlariniCek(
+  sock: WASocket,
+  jid: string,
+  adet: number
+): Promise<WAMessage[]> {
+  const result = (await sock.query({
+    tag: "iq",
+    attrs: {
+      id: sock.generateMessageTag(),
+      type: "get",
+      xmlns: "newsletter",
+      to: WA_SUNUCU,
+    },
+    content: [
+      {
+        tag: "messages",
+        attrs: { type: "jid", jid, count: String(adet) },
+      },
+    ],
+  })) as BinaryNode;
+  const kok = getBinaryNodeChild(result, "messages") || result;
   const cikti: WAMessage[] = [];
   for (const d of getBinaryNodeChildren(kok, "message")) {
-    const yazi =
-      getBinaryNodeChildString(d, "plaintext") ||
-      (typeof d.content === "string" ? d.content : null);
-    if (!yazi?.trim()) continue;
-    const ts = Number(d.attrs?.t || d.attrs?.ts || 0);
+    const message = kanalYazisi(d);
+    if (!message) continue;
+    const ts = Number(d.attrs?.t || 0);
     cikti.push({
       key: {
         remoteJid: jid,
-        id: d.attrs?.server_id || d.attrs?.id || `${ts}-${yazi.length}`,
+        id: d.attrs?.id || d.attrs?.server_id || `${jid}-${ts}`,
         fromMe: false,
       },
       messageTimestamp: ts,
-      message: { conversation: yazi },
+      message,
     });
   }
   return cikti;
 }
 
 async function kanallariTara(sock: WASocket): Promise<void> {
+  let bulunan = 0;
+  let yukKanali = 0;
+  try {
+    const liste = await takiptekiKanallar(sock);
+    bulunan = liste.length;
+    for (const k of liste) {
+      if (k.ad && !yukGrubuAdiMi(k.ad)) continue;
+      yukKanali += 1;
+      await kanalKaydet(k.jid, k.ad || null);
+    }
+    if (bulunan > 0 && yukKanali === 0) {
+      log(
+        `Kanal adı yük değil, atlandı: ${liste
+          .slice(0, 8)
+          .map((k) => k.ad || k.jid)
+          .join(" | ")}`
+      );
+    }
+  } catch (e) {
+    uyari("Takip edilen kanallar okunamadı:", e instanceof Error ? e.message : e);
+  }
+
   const jidler = [...gruplar.keys()].filter(kanalJidMi).slice(0, KANAL_TARAMA_TAVAN);
   if (jidler.length === 0) {
-    log("Kanal taraması: takipte kanal yok (hesabın Kanallar listesi boş).");
+    log(`Kanal taraması: takip=${bulunan} yükKanalı=0`);
     return;
   }
   let cekilen = 0;
   for (const jid of jidler) {
     try {
       await sock.subscribeNewsletterUpdates(jid).catch(() => null);
-      const sonuc = (await sock.newsletterFetchMessages(
-        jid,
-        KANAL_CEK_ADET,
-        0,
-        0
-      )) as BinaryNode;
-      const mesajlar = kanalIqMesajlari(jid, sonuc);
+      const mesajlar = await kanalMesajlariniCek(sock, jid, KANAL_CEK_ADET);
       if (mesajlar.length === 0) continue;
       cekilen += mesajlar.length;
       await mesajlariIsle(mesajlar);
@@ -176,7 +288,7 @@ async function kanallariTara(sock: WASocket): Promise<void> {
       uyari("Kanal çekilemedi:", jid, e instanceof Error ? e.message : e);
     }
   }
-  log(`Kanal taraması: kanal=${jidler.length} mesaj=${cekilen}`);
+  log(`Kanal taraması: hesapta=${bulunan} yük=${yukKanali} mesaj=${cekilen}`);
 }
 
 /** Hasattan gelen kanal linkine günde az sayıda kendini ekler. */
