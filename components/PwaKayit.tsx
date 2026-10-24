@@ -8,7 +8,7 @@ export default function PwaKayit() {
     const yakala = (e: Event) => {
       e.preventDefault();
       window.__ndKur = e as KurPrompt;
-      window.__ndKurDinle?.(window.__ndKur);
+      window.__ndKurDinle?.();
     };
     window.addEventListener("beforeinstallprompt", yakala);
     if (!("serviceWorker" in navigator)) {
