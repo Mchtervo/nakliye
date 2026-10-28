@@ -64,13 +64,9 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
   const router = useRouter();
   const [bekliyor, baslat] = useTransition();
   const [detayAcik, setDetayAcik] = useState(false);
-  const [maliyetAcik, setMaliyetAcik] = useState(false);
   const [menuAcik, setMenuAcik] = useState(false);
 
   const fiyat = fiyatGorunumu(ilan);
-  const rota = `${ilan.nereden || ilan.cikisIl || "?"} → ${
-    ilan.nereye || ilan.varisIl || "varış belirtilmemiş"
-  }`;
   const createdAt =
     typeof ilan.createdAt === "string"
       ? new Date(ilan.createdAt)
@@ -83,12 +79,6 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
   const iletisimVar = Boolean(ilan.gonderenUserId || ilan.telefon);
   const bekleme = beklemeBuyuk(tazeTarih);
   const karVar = Boolean(ilan.kar && (ilan.kar.mesafe || ilan.kar.net));
-
-  const metaParcalar = [
-    ilan.yukTipi || null,
-    ilan.tonaj ? `${ilan.tonaj} ton` : null,
-    ilan.aracTipi || null,
-  ].filter(Boolean);
 
   function yukeCevir() {
     const p = new URLSearchParams();
@@ -110,26 +100,68 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
     });
   }
 
+  // Tek rozet: en önemli durum. Kalan uyarılar "Detay"da.
+  const durumRozeti: { yazi: string; renk: string } | null =
+    ilan.durum === "ALINDI"
+      ? { yazi: "Alındı", renk: "bg-teal/15 text-teal" }
+      : ilan.durum === "PAZARLIKTA"
+        ? { yazi: "Pazarlık", renk: "bg-amber/15 text-amber" }
+        : ilan.durum === "ILETISIME_GECILDI"
+          ? { yazi: "Arandı", renk: "bg-amber/15 text-amber" }
+          : ilan.durum === "ILGILENIYOR"
+            ? { yazi: "Takipte", renk: "bg-white/10 text-paper" }
+            : ilan.durum === "ELENDI"
+              ? { yazi: "Elendi", renk: "bg-ember/15 text-ember" }
+              : ilan.donusTalebiId || ilan.koridorTipi === "VARIS"
+                ? { yazi: "Dönüş", renk: "bg-white/10 text-paper" }
+                : null;
+
+  const bilgiParcalar = [
+    ilan.tonaj ? `${ilan.tonaj} ton` : null,
+    ilan.aracTipi || null,
+    ilan.aracUzunluk != null
+      ? `${ilan.aracUzunluk.toLocaleString("tr-TR", {
+          maximumFractionDigits: 2,
+        })} m`
+      : null,
+    ilan.yukTipi || null,
+  ].filter(Boolean) as string[];
+
+  const uyarilar = [
+    !ilan.varisIl && ilan.cikisIl ? "Varış belirtilmemiş" : null,
+    ilan.koridorTipi === "CIKIS" && ilan.varisIl ? "Varış bölge dışında" : null,
+    aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod) ? "Araç tipi belirsiz" : null,
+    ilan.kar?.uyari || null,
+  ].filter(Boolean) as string[];
+
+  const waUrl = ilan.telefon ? whatsappMesajUrl(ilan.telefon, "") : null;
+  const cikis = ilan.nereden || ilan.cikisIl || "?";
+  const varis = ilan.nereye || ilan.varisIl || null;
+
+  const menuOge =
+    "block w-full px-3 py-2.5 text-left text-sm font-semibold hover:bg-white/8 disabled:opacity-50";
+
   return (
     <article
       id={`ilan-${ilan.id}`}
-      className={`cam p-4 ${
-        ilan.odakli ? "ring-2 ring-amber/40" : ""
+      className={`cam p-4 ${ilan.odakli ? "ring-2 ring-amber/40" : ""} ${
+        ilan.vurgulu ? "ring-1 ring-teal/30" : ""
       } ${ilan.soluk || ilan.durum === "CEVAP_YOK" ? "opacity-70" : ""}`}
     >
-      {/* Üst: süre + menü */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-fog">
-          <span className="font-bold text-paper">{bekleme}</span>
-          <span> · {gecenSure(tazeTarih)}</span>
-        </p>
-        <div className="relative shrink-0">
+      {/* 1. Rota + menü */}
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="min-w-0 flex-1 font-display text-[1.25rem] font-bold leading-snug tracking-tight text-paper">
+          {cikis}
+          <span className="mx-1.5 text-fog">→</span>
+          {varis ?? <span className="text-base font-semibold text-fog">varış yok</span>}
+        </h2>
+        <div className="relative -mr-1 -mt-1 shrink-0">
           <button
             type="button"
             aria-label="Diğer işlemler"
             aria-expanded={menuAcik}
             onClick={() => setMenuAcik((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-fog hover:bg-white/8 hover:text-paper"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none text-fog hover:bg-white/8 hover:text-paper"
           >
             ⋯
           </button>
@@ -143,21 +175,11 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
               />
               <div className="absolute right-0 z-20 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-white/12 bg-[#2c2c2e] py-1 shadow-xl">
                 {ilan.durum !== "ALINDI" && (
-                  <button
-                    type="button"
-                    disabled={bekliyor}
-                    onClick={alindiIsaretle}
-                    className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-paper hover:bg-white/8 disabled:opacity-50"
-                  >
+                  <button type="button" disabled={bekliyor} onClick={alindiIsaretle} className={`${menuOge} text-paper`}>
                     Alındı
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={bekliyor}
-                  onClick={yukeCevir}
-                  className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-paper hover:bg-white/8 disabled:opacity-50"
-                >
+                <button type="button" disabled={bekliyor} onClick={yukeCevir} className={`${menuOge} text-paper`}>
                   Sefer yaz
                 </button>
                 {ilan.durum !== "ILGILENIYOR" &&
@@ -172,7 +194,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
                           await ilanDurumGuncelle(ilan.id, "ILGILENIYOR");
                         });
                       }}
-                      className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-paper hover:bg-white/8 disabled:opacity-50"
+                      className={`${menuOge} text-paper`}
                     >
                       Takibe al
                     </button>
@@ -187,7 +209,7 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
                         await ilanDurumGuncelle(ilan.id, "ELENDI");
                       });
                     }}
-                    className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-fog hover:bg-white/8 disabled:opacity-50"
+                    className={`${menuOge} text-fog`}
                   >
                     Geç
                   </button>
@@ -196,14 +218,13 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
                   type="button"
                   disabled={bekliyor}
                   onClick={() => {
-                    if (!window.confirm("Bu ilanı silmek istediğine emin misin?"))
-                      return;
+                    if (!window.confirm("Bu ilanı silmek istediğine emin misin?")) return;
                     setMenuAcik(false);
                     baslat(async () => {
                       await ilanSil(ilan.id);
                     });
                   }}
-                  className="block w-full px-3 py-2.5 text-left text-sm font-semibold text-ember/90 hover:bg-ember/10 disabled:opacity-50"
+                  className={`${menuOge} text-ember/90 hover:!bg-ember/10`}
                 >
                   Sil
                 </button>
@@ -213,197 +234,87 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
         </div>
       </div>
 
-      {/* Rota — tek odak */}
-      <h2 className="mt-2 font-display text-[1.35rem] font-bold leading-snug tracking-tight text-paper sm:text-2xl">
-        {rota}
-      </h2>
-
-      {/* Fiyat — tek satır, formülsüz */}
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        {fiyat.ana ? (
-          <p className="font-display text-xl font-bold text-amber">{fiyat.ana}</p>
-        ) : fiyat.belirsiz ? (
-          <p className="text-sm font-semibold text-fog">Fiyat belirsiz</p>
-        ) : (
-          <p className="text-sm font-semibold text-fog">Fiyat yok</p>
-        )}
-        {fiyat.tahmin && (
-          <p className="text-sm text-fog">{fiyat.tahmin}</p>
+      {/* 2. Zaman + tek rozet */}
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fog">
+        <span>
+          <span className="font-semibold text-paper/80">{bekleme}</span> · {gecenSure(tazeTarih)}
+        </span>
+        {durumRozeti && (
+          <span className={`rounded-md px-1.5 py-0.5 font-semibold ${durumRozeti.renk}`}>
+            {durumRozeti.yazi}
+          </span>
         )}
       </div>
 
-      {(metaParcalar.length > 0 || ilan.kaynakAd) && (
-        <p className="mt-1.5 text-sm text-fog">
-          {[...metaParcalar, ilan.kaynakAd].filter(Boolean).join(" · ")}
+      {/* 3. Yük bilgisi — tek satır */}
+      {bilgiParcalar.length > 0 && (
+        <p className="mt-2 truncate text-sm text-paper/85">{bilgiParcalar.join(" · ")}</p>
+      )}
+
+      {/* 4. Fiyat solda, tahmini net sağda */}
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          {fiyat.ana ? (
+            <p className="font-display text-xl font-bold leading-none text-amber">
+              {fiyat.ana}
+              {fiyat.tahmin && (
+                <span className="ml-2 text-sm font-semibold text-fog">{fiyat.tahmin}</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-sm font-semibold text-fog">
+              {fiyat.belirsiz ? "Fiyat belirsiz" : "Fiyat yazmıyor"}
+            </p>
+          )}
+        </div>
+        {karVar && ilan.kar?.net && ilan.kar.net !== "fiyat okunamadı" && (
+          <div className="shrink-0 text-right">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-fog">Net</p>
+            <p
+              className={`font-display text-base font-bold leading-tight ${
+                ilan.kar.netPozitif === false ? "text-ember" : "text-teal"
+              }`}
+            >
+              {ilan.kar.net}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {ilan.waNot && (
+        <p className="mt-2 rounded-lg bg-white/[0.05] px-2.5 py-1.5 text-xs font-medium text-paper/80">
+          {ilan.waNot}
         </p>
       )}
 
-      {/* Rozet — sadece önemli */}
-      {(ilan.durum === "ALINDI" ||
-        ilan.durum === "ILETISIME_GECILDI" ||
-        ilan.durum === "ILGILENIYOR" ||
-        ilan.durum === "PAZARLIKTA" ||
-        ilan.donusTalebiId ||
-        ilan.koridorTipi === "VARIS" ||
-        ilan.koridorTipi === "CIKIS" ||
-        !ilan.varisIl ||
-        ilan.durum === "ELENDI" ||
-        ilan.aracUzunluk != null ||
-        aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod)) && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {ilan.durum === "ALINDI" && (
-            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
-              Alındı
-            </span>
-          )}
-          {ilan.durum === "ILETISIME_GECILDI" && (
-            <span className="rounded-md bg-amber/15 px-2 py-0.5 text-xs font-semibold text-amber">
-              Arandı
-            </span>
-          )}
-          {ilan.durum === "ILGILENIYOR" && (
-            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
-              Takipte
-            </span>
-          )}
-          {ilan.durum === "PAZARLIKTA" && (
-            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
-              Pazarlık
-            </span>
-          )}
-          {(ilan.donusTalebiId || ilan.koridorTipi === "VARIS") && (
-            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-paper">
-              Dönüş yükü
-            </span>
-          )}
-          {!ilan.varisIl && ilan.cikisIl && (
-            <span className="rounded-md bg-amber/15 px-2 py-0.5 text-xs font-semibold text-amber">
-              Varış belirtilmemiş
-            </span>
-          )}
-          {ilan.koridorTipi === "CIKIS" && ilan.varisIl && (
-            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-fog">
-              Bölge dışı varış
-            </span>
-          )}
-          {ilan.durum === "ELENDI" && (
-            <span className="rounded-md bg-ember/15 px-2 py-0.5 text-xs font-semibold text-ember">
-              Elenmiş
-            </span>
-          )}
-          {ilan.aracUzunluk != null && (
-            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-fog">
-              {ilan.aracUzunluk.toLocaleString("tr-TR", {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })}{" "}
-              m
-            </span>
-          )}
-          {aracBelirsizMi(ilan.aracTipi, ilan.aracTipiKod) && (
-            <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-fog">
-              Araç belirsiz
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Net — tek satır; detay gizli */}
-      {karVar && ilan.kar?.net && (
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-white/[0.06] px-3 py-2.5">
-          <span className="text-sm text-fog">Tahmini net</span>
-          <span
-            className={`font-display text-lg font-bold ${
-              ilan.kar.netPozitif === false ? "text-ember" : "text-paper"
-            }`}
+      {/* 5. Aksiyonlar: WhatsApp · Ara · Sor */}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {waUrl ? (
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center rounded-xl bg-amber py-3 text-sm font-bold text-[#1a1208] hover:brightness-110"
           >
-            {ilan.kar.net}
+            WhatsApp
+          </a>
+        ) : (
+          <span className="flex items-center justify-center rounded-xl border border-white/12 py-3 text-sm text-fog/50">
+            WhatsApp
           </span>
-        </div>
-      )}
-
-      {karVar && (
-        <button
-          type="button"
-          onClick={() => setMaliyetAcik((v) => !v)}
-          className="mt-2 text-xs font-semibold text-fog underline-offset-2 hover:text-paper hover:underline"
-        >
-          {maliyetAcik ? "Maliyeti gizle" : "Mesafe / yakıt göster"}
-        </button>
-      )}
-
-      {maliyetAcik && ilan.kar && (
-        <div className="mt-2 space-y-1 rounded-xl border border-white/8 bg-white/[0.06] px-3 py-2.5 text-sm text-fog">
-          {ilan.kar.mesafe && <p>Mesafe: {ilan.kar.mesafe}</p>}
-          {ilan.kar.yakit && <p>Yakıt: {ilan.kar.yakit}</p>}
-          {ilan.kar.hgs && <p>HGS: {ilan.kar.hgs}</p>}
-          {ilan.kar.tlKm && <p>₺/km: {ilan.kar.tlKm}</p>}
-          {ilan.kar.uyari && (
-            <p className="pt-1 text-ember">{ilan.kar.uyari}</p>
-          )}
-        </div>
-      )}
-
-      {/* İletişim */}
-      <div className="mt-3 border-t border-white/8 pt-3">
-        {ilan.firmaAdi && (
-          <p className="truncate text-sm font-medium text-paper/90">
-            {ilan.firmaAdi}
-          </p>
         )}
         {ilan.telefon ? (
           <a
-            href={whatsappMesajUrl(ilan.telefon, "") || `tel:${ilan.telefon}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-0.5 inline-block text-base font-bold tracking-wide text-amber"
+            href={`tel:${ilan.telefon}`}
+            className="flex items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] py-3 text-sm font-bold text-paper hover:bg-white/[0.12]"
           >
-            {ilan.telefon}
+            Ara
           </a>
         ) : (
-          <p className="mt-0.5 text-sm text-fog">Telefon yok</p>
+          <span className="flex items-center justify-center rounded-xl border border-white/12 py-3 text-sm text-fog/50">
+            Ara
+          </span>
         )}
-        {ilan.waNot && (
-          <p className="mt-1 text-sm font-medium text-paper/80">{ilan.waNot}</p>
-        )}
-      </div>
-
-      {ilan.donusOnerileri && ilan.donusOnerileri.length > 0 && (
-        <p className="mt-2 text-xs text-fog">
-          Dönüş:{" "}
-          <Link
-            href={`/ai/yukler?sekme=HEPSI&id=${ilan.donusOnerileri[0].id}`}
-            className="font-semibold text-paper hover:underline"
-          >
-            {ilan.donusOnerileri[0].rota}
-          </Link>
-          {" · "}
-          <Link
-            href={`/plan?nerede=${encodeURIComponent(ilan.varisIl || ilan.nereye || "")}`}
-            className="font-semibold text-amber hover:underline"
-          >
-            Planla
-          </Link>
-        </p>
-      )}
-
-      <div className="mt-2">
-        <button
-          type="button"
-          onClick={() => setDetayAcik((v) => !v)}
-          className="text-xs font-semibold text-fog underline-offset-2 hover:text-paper hover:underline"
-        >
-          {detayAcik ? "Mesajı gizle" : "Ham mesaj"}
-        </button>
-        {detayAcik && (
-          <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white/[0.06] px-3 py-2 text-sm leading-relaxed text-fog">
-            {ilan.hamMetin}
-          </p>
-        )}
-      </div>
-
-      {/* İki net aksiyon */}
-      <div className="mt-4 grid grid-cols-2 gap-2">
         {iletisimVar ? (
           <BilgiSorButonu
             ilanId={ilan.id}
@@ -411,25 +322,71 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
             telefon={ilan.telefon}
           />
         ) : (
-          <div className="rounded-xl border border-white/12 py-3.5 text-center text-sm text-fog">
-            Yazılamaz
-          </div>
-        )}
-        {ilan.telefon && whatsappMesajUrl(ilan.telefon, "") ? (
-          <a
-            href={whatsappMesajUrl(ilan.telefon, "")!}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center rounded-xl bg-amber py-3.5 text-sm font-bold text-[#1a1208] hover:brightness-110"
-          >
-            WhatsApp
-          </a>
-        ) : (
-          <span className="flex items-center justify-center rounded-xl border border-white/12 py-3.5 text-sm text-fog/50">
-            WhatsApp
+          <span className="flex items-center justify-center rounded-xl border border-white/12 py-3 text-sm text-fog/50">
+            Sor
           </span>
         )}
       </div>
+
+      {/* 6. Alt satır: firma/numara + detay */}
+      <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-fog">
+        <span className="min-w-0 truncate">
+          {[ilan.firmaAdi, ilan.telefon].filter(Boolean).join(" · ") || "İletişim yok"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setDetayAcik((v) => !v)}
+          className="shrink-0 font-semibold text-fog underline-offset-2 hover:text-paper hover:underline"
+        >
+          {detayAcik ? "Kapat" : `Detay${uyarilar.length ? ` (${uyarilar.length})` : ""}`}
+        </button>
+      </div>
+
+      {detayAcik && (
+        <div className="mt-2 space-y-2 rounded-xl bg-white/[0.05] p-3 text-sm text-fog">
+          {uyarilar.length > 0 && (
+            <ul className="space-y-0.5 text-amber">
+              {uyarilar.map((u) => (
+                <li key={u}>• {u}</li>
+              ))}
+            </ul>
+          )}
+          {ilan.kar && (ilan.kar.mesafe || ilan.kar.yakit || ilan.kar.hgs || ilan.kar.tlKm) && (
+            <p>
+              {[
+                ilan.kar.mesafe && `Mesafe ${ilan.kar.mesafe}`,
+                ilan.kar.yakit && `Yakıt ${ilan.kar.yakit}`,
+                ilan.kar.hgs && `HGS ${ilan.kar.hgs}`,
+                ilan.kar.tlKm && `${ilan.kar.tlKm}/km`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+          {ilan.kaynakAd && <p>Kaynak: {ilan.kaynakAd}</p>}
+          {ilan.donusOnerileri && ilan.donusOnerileri.length > 0 && (
+            <p>
+              Dönüş:{" "}
+              <Link
+                href={`/ai/yukler?sekme=HEPSI&id=${ilan.donusOnerileri[0].id}`}
+                className="font-semibold text-paper hover:underline"
+              >
+                {ilan.donusOnerileri[0].rota}
+              </Link>
+              {" · "}
+              <Link
+                href={`/plan?nerede=${encodeURIComponent(ilan.varisIl || ilan.nereye || "")}`}
+                className="font-semibold text-amber hover:underline"
+              >
+                Planla
+              </Link>
+            </p>
+          )}
+          <p className="whitespace-pre-wrap border-t border-white/8 pt-2 leading-relaxed text-paper/75">
+            {ilan.hamMetin}
+          </p>
+        </div>
+      )}
     </article>
   );
 }

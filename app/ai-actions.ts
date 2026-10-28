@@ -320,6 +320,36 @@ export async function kaynakEkle(
   return { bilgi: "Kaynak eklendi. İlk tarama en geç 15 dakika içinde." };
 }
 
+/** Ayarlar: yapıştırılan chat.whatsapp.com linklerini ADAY sırasına (en öne) yazar. */
+export async function waDavetEkle(
+  _oncekiDurum: AiSonuc,
+  formData: FormData
+): Promise<AiSonuc> {
+  const { whatsappLinkleri, whatsappDavetiniKaydet } = await import(
+    "@/lib/kaynaklar/whatsapp"
+  );
+  const metin = String(formData.get("linkler") ?? "");
+  const linkler = whatsappLinkleri(metin);
+  if (linkler.length === 0) {
+    return { hata: "Link bulunamadı. chat.whatsapp.com/... ile başlayan linkleri yapıştır." };
+  }
+  let yeni = 0;
+  let mevcut = 0;
+  for (const l of linkler) {
+    try {
+      const s = await whatsappDavetiniKaydet(l.kod, "Elle eklendi", l.tip, 50);
+      if (s === "yeni") yeni += 1;
+      else mevcut += 1;
+    } catch {
+      mevcut += 1;
+    }
+  }
+  revalidatePath("/ayarlar");
+  return {
+    bilgi: `${yeni} yeni link sıraya alındı${mevcut ? `, ${mevcut} tanesi zaten vardı` : ""}. Numara günde en fazla 4 gruba girer; önce bunlar.`,
+  };
+}
+
 export async function kaynakDurumDegistir(id: number): Promise<void> {
   const kaynak = await prisma.ilanKaynagi.findUnique({ where: { id } });
   if (!kaynak) return;

@@ -80,10 +80,10 @@ export default function IlanAramaCubugu({
 
       <form
         onSubmit={ara}
-        className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto]"
       >
         <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">
+          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-fog">
             Nereden
           </span>
           <input
@@ -96,7 +96,7 @@ export default function IlanAramaCubugu({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-paper/75">
+          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-fog">
             Nereye
           </span>
           <input
@@ -108,7 +108,7 @@ export default function IlanAramaCubugu({
             autoComplete="off"
           />
         </label>
-        <div className="flex items-end gap-2">
+        <div className="col-span-2 flex items-end gap-2 sm:col-span-1">
           <button
             type="submit"
             disabled={bekliyor}
@@ -130,7 +130,7 @@ export default function IlanAramaCubugu({
       </form>
 
       {cipler.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1">
+        <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pt-1 [scrollbar-width:none]">
           {cipler.map((c) => {
             const aktif =
               nereden.toLocaleLowerCase("tr-TR") ===
@@ -146,7 +146,7 @@ export default function IlanAramaCubugu({
                 key={c.etiket}
                 href={`/ai/yukler?${p.toString()}`}
                 onClick={gezinmeBaslat}
-                className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${
                   aktif
                     ? "border-amber/50 bg-amber/15 text-amber"
                     : "border-white/10 text-fog hover:border-white/20 hover:text-paper"

@@ -30,9 +30,8 @@ const SEKMELER = [
   { kod: "YENI", ad: "Yeni" },
   { kod: "ILGILENIYOR", ad: "Takip" },
   { kod: "DONUS", ad: "Dönüş" },
-  { kod: "MUSTERI", ad: "Müşteri" },
-  { kod: "SUPHELI", ad: "Şüpheli" },
   { kod: "HEPSI", ad: "Hepsi" },
+  { kod: "SUPHELI", ad: "Şüpheli" },
 ] as const;
 
 const DORT_SAAT_MS = 4 * 60 * 60 * 1000;
@@ -452,51 +451,44 @@ export default async function AiYuklerSayfasi({
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3 reveal">
-        <div>
-          <p className="sayfa-eyebrow">İlanlar</p>
-          <h1 className="font-display text-3xl font-extrabold tracking-tight text-paper sm:text-4xl">
+    <div className="mx-auto max-w-lg space-y-3">
+      {/* Başlık: tek satır durum + 2 tuş. Arşiv alta taşındı. */}
+      <div className="flex items-start justify-between gap-3 reveal">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-paper">
             Yük bul
           </h1>
-          {iyiSayisi > 0 ? (
-            <p className="mt-1.5 text-sm font-semibold text-teal">
-              {iyiSayisi} taze iyi iş
-            </p>
-          ) : (
-            <p className="mt-1.5 text-sm text-fog">
-              {yeniSayisi > 0
-                ? `${yeniSayisi} yeni ilan hazır`
-                : kaynakSayisi > 0
-                  ? "Şu an öne çıkan yok — biraz bekle"
-                  : "Kaynak yok — Ayarlar’dan aç"}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <AksiyonButonu
-            calistir={simdiTara}
-            etiket="Yenile"
-            bekleyenEtiket="..."
-            sinif="btn btn-amber !px-3 !py-2 text-xs sm:text-sm"
-          />
-          <Link
-            href={sekmeHref(sekme, neredenHam, nereyeHam, !arsivGoster)}
-            className={`btn !px-3 !py-2 text-xs sm:text-sm ${
-              arsivGoster ? "btn-amber" : "btn-ghost"
-            }`}
-          >
-            {arsivGoster ? "Arşiv açık" : "Arşivi göster"}
-          </Link>
-          <Link
-            href="/ayarlar#ai"
-            className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm"
-          >
-            Filtre
+          <p className="mt-1 text-sm">
+            {iyiSayisi > 0 ? (
+              <span className="font-semibold text-teal">{iyiSayisi} taze iyi iş</span>
+            ) : (
+              <span className="text-fog">
+                {yeniSayisi > 0
+                  ? `${yeniSayisi} yeni ilan`
+                  : kaynakSayisi > 0
+                    ? "Şu an yeni ilan yok"
+                    : "Kaynak yok — Ayarlar’dan aç"}
+              </span>
+            )}
+          </p>
+          <Link href="/ayarlar#ai" className="mt-0.5 block truncate text-xs text-fog hover:text-amber">
+            {[
+              tercih.aracTipleri.map((k) => aracTipiAdi(k)).join("/") || null,
+              tercih.maxTonaj ? `≤${tercih.maxTonaj}t` : null,
+              tercih.minUcret ? `≥${tlYaz(tercih.minUcret)}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "Filtre yok"}{" "}
+            <span className="text-amber">· değiştir</span>
           </Link>
         </div>
+        <AksiyonButonu
+          calistir={simdiTara}
+          etiket="Yenile"
+          bekleyenEtiket="..."
+          sinif="btn btn-amber shrink-0 !px-4 !py-2 text-sm"
+        />
       </div>
-      <div className="lane-strip max-w-[10rem] opacity-70" />
 
       {killSwitch && (
         <div className="rounded-xl border border-amber/30 bg-amber/10 px-3 py-2.5 text-sm text-paper">
@@ -562,22 +554,6 @@ export default async function AiYuklerSayfasi({
           );
         })}
       </div>
-
-      {sekme === "YENI" && (
-        <p className="text-xs text-fog">
-          {[
-            tercih.aracTipleri.map((k) => aracTipiAdi(k)).join(" / ") || null,
-            tercih.maxTonaj ? `≤${tercih.maxTonaj}t` : null,
-            tercih.minUcret ? `≥${tlYaz(tercih.minUcret)}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "filtre yok"}
-          {" · "}
-          <Link href="/ayarlar#ai" className="text-amber">
-            değiştir
-          </Link>
-        </p>
-      )}
 
       {sirali.length === 0 ? (
         <div className="bos-durum space-y-3">
@@ -645,8 +621,14 @@ export default async function AiYuklerSayfasi({
         </div>
       )}
 
+      <div className="flex items-center justify-center gap-4 pb-4 text-xs font-semibold">
+        <Link
+          href={sekmeHref(sekme, neredenHam, nereyeHam, !arsivGoster)}
+          className={arsivGoster ? "text-amber" : "text-fog hover:text-amber"}
+        >
+          {arsivGoster ? "Arşivi gizle" : "Arşivi göster"}
+        </Link>
       {sirali.length > 0 && (
-        <div className="flex justify-center pb-4">
           <AksiyonButonu
             calistir={eskiIlanlariTemizle}
             etiket="6 saati geçenleri sil"
@@ -654,8 +636,8 @@ export default async function AiYuklerSayfasi({
             onay="6 saattir yenilenmeyen ilanlar silinsin mi?"
             sinif="text-xs font-semibold text-fog hover:text-amber"
           />
-        </div>
       )}
+      </div>
     </div>
   );
 }

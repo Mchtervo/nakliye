@@ -80,7 +80,7 @@ export default function BilgiSorButonu({
         type="button"
         disabled={bekliyor}
         onClick={bas}
-        className="w-full rounded-xl border border-white/12 bg-white/[0.06] px-3 py-3.5 text-sm font-bold text-paper transition-colors hover:bg-white/[0.12] disabled:opacity-50"
+        className="w-full rounded-xl border border-white/12 bg-white/[0.06] px-2 py-3 text-sm font-bold text-paper transition-colors hover:bg-white/[0.12] disabled:opacity-50"
       >
         {bekliyor ? "Gönderiliyor…" : "Bilgi Sor"}
       </button>

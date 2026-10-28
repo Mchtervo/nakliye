@@ -93,6 +93,30 @@ const BILINEN_DAVETLER = [
   "EWeW56jhh0IHvpADg8bMs8",
   "CKAnkHWFL6rKOd99ZliDmt",
   "lphp40x2a9jhyq8s0mrnfu",
+  // 2026-10-28: Facebook/Instagram/ilan sitelerinde açık paylaşılmış nakliye grupları.
+  // Numara girmeden önce grup adını kontrol eder; yük grubu değilse girmez.
+  "BO2tWW3kLXRG8JOT88Tm8C", // Ankara Net Nakliyat
+  "I8vX7ZgNR3O8kKlgO80O55", // Ankara Ostim/Akyurt ilanında paylaşılan grup
+  "D5f52IZrvau6LQSJUoEMpX", // Gebze Nakliyeciler Sitesi
+  "G15ZnH08nDM7aYaTrkXoCu", // Gebze Nakliyeciler Sitesi (2)
+  "CQRM9CbLVVcB9kCRz3coRW", // Kocaeli nakliye grubu
+  "KQaryc8coziAJ8Of4bxkum", // 7/24 Yük Paylaşım Nakliye Lojistik
+  "Bbe46M0k6931RbwcwMHinn", // Tüm Nakliyeciler Burada
+  "LWHyGtCl3p10qQUFvBqHDe", // Tüm Türkiye nakliye
+  "INHANQG8iTB3unbiIVLL1D", // Tırcılar / kamyoncular
+  "C1bdcvhAwPU3yGoUSYAch7", // CS Nakliyat (7/24 yüklemeli)
+  "EG7JfSdi0oGLwdKjfyCW8K", // Erollar Lojistik nakliye grubu
+  "Jrjkq2whcf6DVBv7diSRAK", // Yük veren + taşıyıcı grubu
+  "BpmY8jsJPac9bMlr67Ej9B", // Nakliyeciler grubu (Instagram)
+  "FjoWC9D6JC1A9yFQzxd6qa", // Türkiye geneli açık tır + tenteli grubu
+  "ERogKJRbHnD7JubXkUi060", // Tenteli yükleme ilanında paylaşılan grup
+  "EAs6xxu99SK5qK9cr8z5ZZ", // MKT Grup Ankara nakliye
+  "DxjOjiJ29rkAsHKbNCIjXB", // Nakliyeciler WhatsApp iş paylaşım
+  "BTctNSSrBhjCr1eWiInnTI", // Nakliyeciler sitesi yük grubu
+  "CzYEyiDS0mb9oY9AGwnee4", // Yük paylaşım grubu (Kocaeli/Sapanca)
+  "CCEtde41wrOAcyEHmIQCL6", // Güncel yük ve araç paylaşımları 3
+  "FUvsy6gyslIEgVa77p6IQi", // Balıkesir/İstanbul lojistik yük grubu
+  "ImRUbaf18HqDLOE7zPQF8V", // Asilhan Nakliyat yük paylaşım
 ];
 
 export async function bilinenDavetleriYaz(): Promise<void> {
@@ -245,7 +269,9 @@ export async function whatsappKanaliKaydet(
 export async function whatsappDavetiniKaydet(
   kod: string,
   hasatKaynak: string,
-  tip: WhatsappLinkTip = kanalKoduMu(kod) ? "kanal" : "grup"
+  tip: WhatsappLinkTip = kanalKoduMu(kod) ? "kanal" : "grup",
+  /** Elle eklenen linkler hasattan önce girilsin diye yüksek verilir. */
+  oncelikZorla?: number
 ): Promise<"yeni" | "mevcut"> {
   const hedef = tip === "kanal" ? whatsappKanalUrl(kod) : whatsappDavetUrl(kod);
   const varOlan = await prisma.ilanKaynagi.findUnique({
@@ -260,7 +286,7 @@ export async function whatsappDavetiniKaydet(
       ad: tip === "kanal" ? `WA kanal ${kod.slice(0, 10)}` : `WA davet ${kod.slice(0, 10)}`,
       aktif: false,
       durum: "ADAY",
-      oncelik: tip === "kanal" ? 14 : 12,
+      oncelik: oncelikZorla ?? (tip === "kanal" ? 14 : 12),
       hasatKaynak: hasatKaynak.slice(0, 120),
       sonHata:
         tip === "kanal"

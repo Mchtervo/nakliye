@@ -6,6 +6,7 @@ import AiTercihForm from "@/components/AiTercihForm";
 import YenidenIsleButonu from "@/components/YenidenIsleButonu";
 import TestBildirimButonu from "@/components/TestBildirimButonu";
 import KaynakForm from "@/components/KaynakForm";
+import WaDavetForm from "@/components/WaDavetForm";
 import PushIzinButonu from "@/components/PushIzinButonu";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import { prisma } from "@/lib/prisma";
@@ -393,6 +394,7 @@ export default async function AyarlarSayfasi() {
             gruba gir, okuyucu otomatik takibe alır. {waTakip} grup okunuyor.
           </p>
         </div>
+        <WaDavetForm />
         {waDavetler.length === 0 ? (
           <p className="rounded-xl border border-dashed border-white/12 px-3 py-2.5 text-sm text-fog">
             Henüz davet yok. Telegram / WhatsApp mesajında{" "}
