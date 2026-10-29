@@ -33,7 +33,6 @@ import {
 } from "@/lib/bolgeler";
 import {
   koridorIlKumesi,
-  koridorKaydaAlinirMi,
   koridorTipiBelirle,
 } from "@/lib/koridor";
 import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
@@ -462,7 +461,7 @@ export type KuyrukRaporu = {
 type PartiMesaj = { id: number; metin: string };
 
 /**
- * Kayıt öncesi: araç tipi + koridor (TAM, VARIS/dönüş, CIKIS).
+ * Kayıt öncesi: araç tipi + iki uç da hatta (TAM).
  * Araç belirsiz (kod/metin yok) → geçir; sadece açık uyumsuz elenir.
  * DISI burada false — üst katmanda sayılır.
  */
@@ -479,11 +478,9 @@ function ilanKaydaUygunMu(
     ilan.koridorTipi ||
     koridorTipiBelirle(koridorSet, ilan.cikisIl, ilan.varisIl);
   ilan.koridorTipi = tip;
-  if (!koridorKaydaAlinirMi(koridorSet, ilan.cikisIl, ilan.varisIl)) {
-    return false;
-  }
+  if (tip !== "TAM") return false;
 
-  // Avrupa semti, diğer uç Türkiye'de bir ilse kalır (İkitelli→Adana).
+  // İstanbul Avrupa yakası (köprünün ilerisi) kayda girmez.
   if (
     !yakaKaydaUygunMu(
       {

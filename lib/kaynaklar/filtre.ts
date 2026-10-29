@@ -131,8 +131,8 @@ export function ilgilileriSuz(
 export const LISTE_GUVEN = 40;
 
 /**
- * Site ilanı (yuklegel) yük ekranına ve bildirime girer:
- * çıkış koridorda, varış yazılı, skor liste eşiğinde.
+ * Site ilanı yük ekranına ve bildirime girer:
+ * iki uç da hatta, İstanbul ucu köprünün bu tarafında.
  */
 export function webIlanGorunurMu(
   ilan: {
@@ -147,7 +147,7 @@ export function webIlanGorunurMu(
   if (ilan.guvenSkoru < LISTE_GUVEN) return false;
   if (!ilan.varisIl) return false;
   const tip = koridorTipiBelirle(tercih.koridorIller, ilan.cikisIl, ilan.varisIl);
-  if (tip !== "TAM" && tip !== "CIKIS") return false;
+  if (tip !== "TAM") return false;
   return yakaKaydaUygunMu(
     {
       cikisIl: ilan.cikisIl,
@@ -162,7 +162,7 @@ export function webIlanGorunurMu(
 /**
  * Liste sayfası filtresi.
  * Skor 40+ yeter (50 altı eskiden paneli boşaltıyordu; şüpheli sekmesi ayrı).
- * Site ilanları da çıkar: çıkış koridorda ve varış yazılıysa.
+ * İki uç da hattın içindeyse çıkar. Doğu varışı listelenmez.
  */
 export function tercihKosulu(
   tercih: AiTercihleri,
@@ -188,8 +188,7 @@ export function tercihKosulu(
 
   const iller = koridorIlKumesi(tercih.koridorIller);
   if (iller.length > 0) {
-    // Koridor çıkışlı ve varışı belli (TAM + dışarı giden CIKIS); varışsızlar listelenmez
-    kosullar.push({ cikisIl: { in: iller } }, { varisIl: { not: null } });
+    kosullar.push({ cikisIl: { in: iller } }, { varisIl: { in: iller } });
   }
 
   return { AND: kosullar };

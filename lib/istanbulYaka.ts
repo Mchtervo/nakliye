@@ -1,10 +1,10 @@
 /**
  * İstanbul yakası.
- * Avrupa semti, diğer uç Türkiye'de bir ilse kalır (İkitelli→Adana, Esenyurt→Ankara).
- * Diğer uç il değilse (Bakü) elenir.
+ * Köprünün bu tarafı (Anadolu: Pendik, Tuzla, Kartal, Gebze hattı) kalır.
+ * Köprünün ilerisi (İkitelli, Esenyurt, Bağcılar, Hadımköy) elenir.
  * Sadece "İstanbul" yazılmışsa (ilçe yok) bilinmiyor sayılır, elenmez.
  */
-import { ilBul, sadelestir } from "@/lib/iller";
+import { sadelestir } from "@/lib/iller";
 
 export type IstanbulYaka = "ANADOLU" | "AVRUPA" | "BILINMIYOR";
 
@@ -61,23 +61,10 @@ export function istanbulYakaBul(
   return "BILINMIYOR";
 }
 
-function koridordaMi(
-  koridor: Iterable<string> | null | undefined,
-  yer: string | null | undefined
-): boolean {
-  if (!koridor || !yer) return false;
-  const il = ilBul(yer);
-  if (!il) return false;
-  for (const k of koridor) {
-    if (k === il) return true;
-  }
-  return false;
-}
-
 /**
  * Köprü geçişli mi?
- * Avrupa semti, diğer uç Türkiye'de bilinen bir ilse elenmez
- * (İkitelli→Sakarya, Bağcılar→Adana). İl olmayan varış (Bakü) elenir.
+ * Avrupa yakası (köprünün ilerisi) her zaman elenir.
+ * İlçe yazılmamış "İstanbul" elenmez.
  */
 export function kopruGecisliMi(
   args: {
@@ -88,36 +75,16 @@ export function kopruGecisliMi(
   },
   koridor?: Iterable<string> | null
 ): boolean {
+  void koridor;
   const cikisIst = args.cikisIl === "İstanbul";
   const varisIst = args.varisIl === "İstanbul";
   if (!cikisIst && !varisIst) return false;
-
-  if (cikisIst && istanbulYakaBul(args.nereden) === "AVRUPA") {
-    if (
-      koridordaMi(koridor, args.varisIl) ||
-      koridordaMi(koridor, args.nereye) ||
-      ilBul(args.varisIl) ||
-      ilBul(args.nereye)
-    ) {
-      return false;
-    }
-    return true;
-  }
-  if (varisIst && istanbulYakaBul(args.nereye) === "AVRUPA") {
-    if (
-      koridordaMi(koridor, args.cikisIl) ||
-      koridordaMi(koridor, args.nereden) ||
-      ilBul(args.cikisIl) ||
-      ilBul(args.nereden)
-    ) {
-      return false;
-    }
-    return true;
-  }
+  if (cikisIst && istanbulYakaBul(args.nereden) === "AVRUPA") return true;
+  if (varisIst && istanbulYakaBul(args.nereye) === "AVRUPA") return true;
   return false;
 }
 
-/** Kayda uygun mu? Koridorun diğer ucu varsa Avrupa semti de kalır. */
+/** Kayda uygun mu? Avrupa yakası değilse kalır. */
 export function yakaKaydaUygunMu(
   args: {
     cikisIl?: string | null;

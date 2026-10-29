@@ -4,16 +4,26 @@
  */
 import { ilBul } from "@/lib/iller";
 
-/** Varsayılan koridor — kod dışı genişletme Ayarlar'dan. */
+/**
+ * Çalışılan hat. Beypazarı Ankara'ya, Gerede ve mahalleler Bolu'ya bağlıdır.
+ * Gebze Kocaeli'dedir. İstanbul'un Avrupa yakası bu listeye rağmen ayrıca elenir.
+ */
 export const VARSAYILAN_KORIDOR_ILLER: readonly string[] = [
   "Ankara",
   "Kırıkkale",
   "Çankırı",
+  "Eskişehir",
+  "Yozgat",
+  "Mersin",
+  "Adana",
   "Bolu",
   "Düzce",
   "Sakarya",
   "Kocaeli",
   "İstanbul",
+  "Bursa",
+  "İzmir",
+  "Edirne",
 ] as const;
 
 /** Virgüllü / satırlı ham metinden geçerli il listesi. */

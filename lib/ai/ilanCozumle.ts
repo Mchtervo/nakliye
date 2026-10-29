@@ -725,35 +725,31 @@ export type MesajCozumRaporu = {
 
 /**
  * Çözümleme kapsamı — prompt ve sunucu AYNI liste.
- * VARIŞ koridorda ise yaz (dönüş yükü); sadece çıkış koridordaysa yazma.
+ * İki uç da hattın içindeyse yaz. Doğu ucu ve İstanbul Avrupa yakası yazılmaz.
  */
 function kapsamTalimati(iller: string[]): string {
   if (iller.length === 0 || iller.length >= 70) return "";
   return `
 
 KAPSAM (KORİDOR):
-- VARIŞ şu illerden biriyse ilanı YAZ (çıkış dışarıda olsa da —
-  ör. Elazığ→Ankara = dönüş yükü).
-- ÇIKIŞ listede, VARIŞ dışarıda (Bolu→Samsun, Gebze→Urfa) → YAZ,
-  varışı da yaz.
-- "GEBZE YÜKLEMELİ Urfa+Antep TIR" = Gebze çıkışlı, varış Urfa ve Antep
-  (her varış ayrı ilan). Yükleme başlığının altındaki/yanındaki şehir,
-  ilçe veya semt adları VARIŞTIR.
-- "ANKARA YÜKLEME" ve hiçbir varış yazmıyorsa → YAZ, nereye=null.
-- İki uç da dışarıdaysa yazma.
-- İstanbul Avrupa yakası da YAZ. İkitelli, Bağcılar, Esenyurt, Yenibosna çıkışlı
-  ve varışı Türkiye'de bir il olan yükü yaz (İkitelli→Sakarya, İkitelli→Ankara,
-  Bağcılar→Adana, Düzce→Pendik). Mahalle adını bağlı ile yaz
-  (İkitelli=İstanbul, Kazan=Ankara, Pendik=İstanbul, Kurtköy=İstanbul).
-  Varış il değilse (Bakü) Avrupa yakasından YAZMA.
+- İki uç da listedeyse YAZ (Ankara→İzmir, Mersin→Adana, Bolu→Bursa, Gebze→Eskişehir).
+- Bir uç listede değilse YAZMA. Doğu ve güneydoğu varış/çıkış YAZMA
+  (Van, Erzurum, Elazığ, Malatya, Diyarbakır, Urfa, Antep, Hatay, Samsun).
+- "ANKARA YÜKLEME" ve hiçbir varış yazmıyorsa nereye=null, YAZMA.
+- İstanbul'da yalnız köprünün bu tarafı (Anadolu): Pendik, Tuzla, Kartal,
+  Kurtköy, Ataşehir, Ümraniye, Gebze. Bunları YAZ.
+- Köprünün ilerisi YAZMA: İkitelli, Bağcılar, Esenyurt, Hadımköy,
+  Yenibosna, Avcılar, Beylikdüzü.
+- Mahalle adını bağlı ile yaz (Beypazarı=Ankara, Gerede=Bolu, Gebze=Kocaeli,
+  Pendik=İstanbul, Nilüfer=Bursa, Aliağa=İzmir).
 İller: ${iller.join(", ")}
 İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Tuzla→İstanbul,
-Yahşihan→Kırıkkale, Gölbaşı→Ankara).`;
+Yahşihan→Kırıkkale, Gölbaşı→Ankara, Beypazarı→Ankara, Gerede→Bolu).`;
 }
 
 /**
  * Kayda alınmayacak mı?
- * DISI elenir; TAM / VARIS / CIKIS (varış dışarıda veya belirsiz) geçer.
+ * Yalnızca iki uç da hattın içindeyse (TAM) kalır. Doğu ucu ve Avrupa yakası elenir.
  */
 function kapsamEleVeTip(
   ilan: CozulmusIlan,
@@ -761,8 +757,8 @@ function kapsamEleVeTip(
 ): { ele: "DISI" | null; tip: KoridorTipi } {
   const tip = koridorTipiBelirle(iller, ilan.cikisIl, ilan.varisIl);
   ilan.koridorTipi = tip;
-  if (tip === "DISI") return { ele: "DISI", tip };
-  // Avrupa semti kalır, diğer uç Türkiye'de bir ilse (İkitelli→Adana). Bakü elenir.
+  if (tip !== "TAM") return { ele: "DISI", tip };
+  // Köprünün Avrupa yakası elenir. Anadolu yakası kalır.
   if (
     kopruGecisliMi(
       {
