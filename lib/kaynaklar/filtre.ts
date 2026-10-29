@@ -1,6 +1,10 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
 import { aracKoduBul, aracMetniUyuyorMu } from "@/lib/arac";
-import { koridorIlKumesi, koridoraUyuyorMu } from "@/lib/koridor";
+import {
+  koridorIlKumesi,
+  koridorTipiBelirle,
+  koridoraUyuyorMu,
+} from "@/lib/koridor";
 import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
@@ -123,16 +127,50 @@ export function ilgilileriSuz(
  * Aynı tercihlerin veritabanı karşılığı. Liste sayfası binlerce satırı
  * belleğe çekmesin diye süzme sorguda yapılır.
  */
+/** Yük ekranı ve site ilanı bildirimi. Şüpheli eşiği (50) bundan ayrı. */
+export const LISTE_GUVEN = 40;
+
+/**
+ * Site ilanı (yuklegel) yük ekranına ve bildirime girer:
+ * çıkış koridorda, varış yazılı, skor liste eşiğinde.
+ */
+export function webIlanGorunurMu(
+  ilan: {
+    guvenSkoru: number;
+    cikisIl?: string | null;
+    varisIl?: string | null;
+    nereden?: string | null;
+    nereye?: string | null;
+  },
+  tercih: AiTercihleri
+): boolean {
+  if (ilan.guvenSkoru < LISTE_GUVEN) return false;
+  if (!ilan.varisIl) return false;
+  const tip = koridorTipiBelirle(tercih.koridorIller, ilan.cikisIl, ilan.varisIl);
+  if (tip !== "TAM" && tip !== "CIKIS") return false;
+  return yakaKaydaUygunMu(
+    {
+      cikisIl: ilan.cikisIl,
+      varisIl: ilan.varisIl,
+      nereden: ilan.nereden,
+      nereye: ilan.nereye,
+    },
+    tercih.koridorIller
+  );
+}
+
 /**
  * Liste sayfası filtresi.
  * Skor 40+ yeter (50 altı eskiden paneli boşaltıyordu; şüpheli sekmesi ayrı).
- * WEB kaynak (yuklegel vb.) sadece müşteri havuzunda — panelde yok.
+ * Site ilanları da çıkar: çıkış koridorda ve varış yazılıysa.
  */
 export function tercihKosulu(
   tercih: AiTercihleri,
   secenek: { webDahil?: boolean } = {}
 ) {
-  const kosullar: Record<string, unknown>[] = [{ guvenSkoru: { gte: 40 } }];
+  const kosullar: Record<string, unknown>[] = [
+    { guvenSkoru: { gte: LISTE_GUVEN } },
+  ];
   if (!secenek.webDahil) kosullar.push(webKaynakHaricKosulu());
 
   if (tercih.aracTipleri.length > 0) {

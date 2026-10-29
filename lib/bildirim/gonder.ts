@@ -2,7 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { htmlKacis, telegramGonder, telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { pushGonder, pushKullanilabilir } from "@/lib/bildirim/push";
-import { SUPHE_SINIRI, ilgiliMi, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
+import {
+  LISTE_GUVEN,
+  ilgiliMi,
+  webIlanGorunurMu,
+} from "@/lib/kaynaklar/filtre";
 import { tdmKartButonlari } from "@/lib/kaynaklar/telegramDm";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 import { karHesapla } from "@/lib/karHesap";
@@ -195,9 +199,8 @@ export async function bekleyenBildirimleriIsle(
         bildirildi: false,
         bildirimDeneme: { lt: BILDIRIM_MAX_DENEME },
         sonGorulme: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-        guvenSkoru: { gte: SUPHE_SINIRI },
+        guvenSkoru: { gte: LISTE_GUVEN },
         durum: { notIn: ["ARSIV", "ELENDI"] },
-        AND: [webKaynakHaricKosulu()],
       },
     });
     sonuc.ertelenen = bekleyen;
@@ -213,9 +216,8 @@ export async function bekleyenBildirimleriIsle(
       bildirildi: false,
       bildirimDeneme: { lt: BILDIRIM_MAX_DENEME },
       sonGorulme: { gte: sinir },
-      guvenSkoru: { gte: SUPHE_SINIRI },
+      guvenSkoru: { gte: LISTE_GUVEN },
       durum: { notIn: ["ARSIV", "ELENDI"] },
-      AND: [webKaynakHaricKosulu()],
     },
     orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: adayLimit,
@@ -225,7 +227,11 @@ export async function bekleyenBildirimleriIsle(
   const kuyruk: KuyrukSatir[] = [];
   for (const i of ham) {
     const kayit = kaydaDon(i);
-    if (!ilgiliMi(kayit, tercih)) {
+    const siteIlani = i.kaynak?.tur === "WEB";
+    const uygun = siteIlani
+      ? webIlanGorunurMu(kayit, tercih)
+      : ilgiliMi(kayit, tercih);
+    if (!uygun) {
       sonuc.atlanan += 1;
       continue;
     }
@@ -371,7 +377,7 @@ export async function bekleyenBildirimleriIsle(
 
 /**
  * Sessiz saatte biriken (bildirilmemiş) ilanların sabah özeti.
- * Cron: 07:05 Europe/Istanbul. WEB hariç.
+ * Cron: 07:05 Europe/Istanbul. Site ilanı da özetlenir.
  */
 export async function sabahOzetBildir(): Promise<{
   adet: number;
@@ -386,10 +392,9 @@ export async function sabahOzetBildir(): Promise<{
     where: {
       bildirildi: false,
       bildirimDeneme: { lt: BILDIRIM_MAX_DENEME },
-      guvenSkoru: { gte: SUPHE_SINIRI },
+      guvenSkoru: { gte: LISTE_GUVEN },
       sonGorulme: { gte: sinir },
       durum: { in: ["YENI", "ILGILENIYOR"] },
-      AND: [webKaynakHaricKosulu()],
     },
     orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: 25,
@@ -400,8 +405,13 @@ export async function sabahOzetBildir(): Promise<{
 
   const tercih = await aiTercihleriOku();
   const uygun = bekleyen
-    .map(kaydaDon)
-    .filter((i) => ilgiliMi(i, tercih));
+    .filter((i) => {
+      const kayit = kaydaDon(i);
+      return i.kaynak?.tur === "WEB"
+        ? webIlanGorunurMu(kayit, tercih)
+        : ilgiliMi(kayit, tercih);
+    })
+    .map(kaydaDon);
 
   if (uygun.length === 0) return { adet: 0, gonderildi: false };
 

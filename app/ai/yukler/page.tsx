@@ -161,7 +161,7 @@ export default async function AiYuklerSayfasi({
               ],
             }
           : sekme === "YENI"
-            ? { durum: "YENI", ...tercihKosulu(tercih) }
+            ? { durum: "YENI", ...tercihKosulu(tercih, { webDahil: true }) }
             : sekme === "ILGILENIYOR"
               ? {
                   durum: {
@@ -252,7 +252,6 @@ export default async function AiYuklerSayfasi({
       rotaKosul,
       tazelikKosul,
       numaraKosul,
-      ...(rotaFiltresiVar ? [] : [webKaynakHaricKosulu()]),
     ],
   };
   const tekSehirArama = Boolean(
@@ -281,7 +280,7 @@ export default async function AiYuklerSayfasi({
           AND: [
             { durum: "YENI" },
             sayacTazelik,
-            tercihKosulu(tercih),
+            tercihKosulu(tercih, { webDahil: true }),
           ],
         },
       }),
