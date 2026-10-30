@@ -884,3 +884,87 @@ a:active .ok-dugme,
     transition: none !important;
   }
 }
+
+/* --- Marka logosu (components/Logo.tsx) --- */
+.logo {
+  border-radius: 22.5%;
+  box-shadow: 0 4px 14px -4px rgba(255, 140, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.logo-hareketli .logo-rota {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: logo-ciz 0.9s cubic-bezier(0.65, 0, 0.35, 1) 0.15s forwards;
+}
+.logo-hareketli .logo-pin {
+  animation: logo-pin 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.75s both;
+}
+@keyframes logo-pin {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.logo-hareketli .logo-nabiz {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: logo-nabiz 3.2s cubic-bezier(0.2, 0.7, 0.3, 1) 1s infinite;
+  opacity: 0;
+}
+.logo .logo-isik {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  transform: rotate(20deg);
+}
+.logo-hareketli .logo-isik {
+  animation: logo-isik 7s ease-in-out 1.4s infinite;
+}
+.logo-hareketli:hover .logo-isik,
+a:active .logo-hareketli .logo-isik {
+  animation-duration: 1.4s;
+}
+@keyframes logo-ciz {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes logo-nabiz {
+  0%,
+  62% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+@keyframes logo-isik {
+  0%,
+  70% {
+    transform: rotate(20deg) translateX(0);
+  }
+  100% {
+    transform: rotate(20deg) translateX(220px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-hareketli .logo-rota {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .logo-hareketli .logo-pin {
+    animation: none;
+  }
+  .logo-hareketli .logo-nabiz,
+  .logo-hareketli .logo-isik,
+  .logo-hareketli .logo-yuk {
+    display: none;
+  }
+}

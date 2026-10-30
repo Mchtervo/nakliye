@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Logo from "@/components/Logo";
 import NavLink from "@/components/NavLink";
 
 const ikonSinif = "h-6 w-6";
@@ -237,20 +238,7 @@ const EKLE_OGELERI: NavOge[] = [
 ];
 
 function LogoIkon({ kucuk = false }: { kucuk?: boolean }) {
-  return (
-    <span
-      className={`flex shrink-0 items-center justify-center bg-gradient-to-b from-[#ffb340] to-[#ff8a00] text-black shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] ${
-        kucuk ? "h-8 w-8 rounded-[0.55rem]" : "h-10 w-10 rounded-[0.7rem]"
-      }`}
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" className={kucuk ? "h-4 w-4" : "h-5 w-5"}>
-        <path d="M1 9h12v7H1z" />
-        <path d="M13 12h4l3 3v1h-7z" />
-        <circle cx="6" cy="18.5" r="1.5" />
-        <circle cx="17" cy="18.5" r="1.5" />
-      </svg>
-    </span>
-  );
+  return <Logo boyut={kucuk ? 32 : 40} />;
 }
 
 function Chevron() {
