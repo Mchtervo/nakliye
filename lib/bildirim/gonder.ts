@@ -11,6 +11,7 @@ import { tdmKartButonlari } from "@/lib/kaynaklar/telegramDm";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 import { karHesapla } from "@/lib/karHesap";
 import { tlYaz } from "@/lib/para";
+import { donusBasligi, donusEslesmeleriniTara } from "@/lib/donus";
 
 export type BildirimSonucu = {
   telegram: number;
@@ -207,6 +208,11 @@ export async function bekleyenBildirimleriIsle(
     return sonuc;
   }
 
+  // Yolculuk eşleşmesi bildirimden hemen önce: ilan "Düzce'de yük" diye gitsin.
+  await donusEslesmeleriniTara().catch((e) =>
+    console.warn("[bildirim] donus eslesme", e instanceof Error ? e.message : e)
+  );
+
   const tercih = await aiTercihleriOku();
   const sinir = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const adayLimit = Math.max(1, Math.min(limit, 20)) * 4;
@@ -255,15 +261,31 @@ export async function bekleyenBildirimleriIsle(
     telegramKullanilabilir();
   const pushGerekli = tercih.pushAcik && pushKullanilabilir();
 
+  // Yolculuk hedefi: "Düzce'de yük bulundu" / "Düzce yakını (40 km): Bolu'da yük"
+  const talepIdler = [...new Set(kuyruk.map((s) => s.donusTalebiId).filter((x): x is number => Boolean(x)))];
+  const talepIl = new Map(
+    (
+      await prisma.donusTalebi.findMany({
+        where: { id: { in: talepIdler } },
+        select: { id: true, cikisIl: true },
+      })
+    ).map((t) => [t.id, t.cikisIl])
+  );
+
   for (const satir of kuyruk) {
     sonuc.islenen = (sonuc.islenen || 0) + 1;
     const deneme = satir.bildirimDeneme + 1;
     const ilan = satir.kayit;
 
     const donusMu = Boolean(satir.donusTalebiId);
-    const baslik = donusMu ? "Dönüş yükü bulundu" : "Yeni yük bulundu";
+    const hedefIl = satir.donusTalebiId ? talepIl.get(satir.donusTalebiId) : undefined;
+    const baslik = donusMu
+      ? hedefIl
+        ? donusBasligi(hedefIl, ilan.cikisIl)
+        : "Dönüş yükü bulundu"
+      : "Yeni yük bulundu";
     const metinHtml = donusMu
-      ? `<b>DÖNÜŞ YÜKÜ</b>\n` + yeniYukMetni(ilan, tercih.maliyet, true)
+      ? `<b>${htmlKacis(baslik)}</b>\n` + yeniYukMetni(ilan, tercih.maliyet, true)
       : yeniYukMetni(ilan, tercih.maliyet, true);
     const metinDuz = yeniYukMetni(ilan, tercih.maliyet, false);
 

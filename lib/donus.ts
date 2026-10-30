@@ -1,6 +1,46 @@
 import { prisma } from "@/lib/prisma";
-import { ilBul } from "@/lib/iller";
+import { ILLER, ilBul } from "@/lib/iller";
+import { ilMesafesiKm } from "@/lib/ilMesafe";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
+
+/** Boşaltılan ile bu kadar (il merkezi, kuş uçuşu) yakın çıkışlar da sayılır. */
+export const YAKIN_KM = 90;
+/** Yolculuk / dönüş araması bu süre sonra kendiliğinden kapanır. */
+const TALEP_OMUR_MS = 4 * 24 * 60 * 60 * 1000;
+
+/** İl + 90 km içindeki iller (Düzce → Bolu, Sakarya, Zonguldak). */
+export function yakinIller(il: string): string[] {
+  const yakin = ILLER.filter((x) => x !== il)
+    .map((x) => ({ x, km: ilMesafesiKm(il, x) }))
+    .filter((y): y is { x: (typeof ILLER)[number]; km: number } => y.km !== null && y.km <= YAKIN_KM)
+    .sort((a, b) => a.km - b.km)
+    .map((y) => y.x as string);
+  return [il, ...yakin];
+}
+
+/** "Düzce'de", "Bolu'da", "Kocaeli'nde" değil "Kocaeli'de" — bulunma eki. */
+export function ilde(il: string): string {
+  const unluler = il.toLocaleLowerCase("tr-TR").match(/[aıoueiöü]/g) || [];
+  const son = unluler[unluler.length - 1] || "e";
+  const kalin = "aıou".includes(son);
+  const sert = /[fstkçşhp]$/i.test(il);
+  return `${il}'${sert ? "t" : "d"}${kalin ? "a" : "e"}`;
+}
+
+/** Bildirim başlığı: "Düzce'de yük bulundu" / "Düzce'ye 40 km: Bolu'da yük". */
+export function donusBasligi(hedefIl: string, ilanCikisIl: string | null): string {
+  if (!ilanCikisIl || ilanCikisIl === hedefIl) return `${ilde(hedefIl)} yük bulundu`;
+  const km = ilMesafesiKm(hedefIl, ilanCikisIl);
+  return `${hedefIl} yakını${km ? ` (${km} km)` : ""}: ${ilde(ilanCikisIl)} yük`;
+}
+
+/** Yükleme → boşaltma yolculuğu: boşaltma ve çevresinden yük aranır. */
+export async function yolculukBaslat(
+  yukleme: string,
+  bosaltma: string
+): Promise<number | null> {
+  return donusTalebiOlustur(null, yukleme, bosaltma);
+}
 
 /**
  * Yük / ilan alındığında ters yönde dönüş yükü araması açar.
@@ -66,41 +106,61 @@ export async function donusTalebiIlanAlindi(ilanId: number): Promise<{
  * Talep açılmadan önce kaydedilmiş ilanları da eşleştirir.
  * Yeni eşleşen ilanları döndürür (bildirim için).
  */
+async function eskiTalepleriKapat(): Promise<void> {
+  // Eski sefer aramaları sonsuza açık kalıp her ilanı "dönüş" yapıyordu.
+  await prisma.donusTalebi.updateMany({
+    where: { aktif: true, createdAt: { lt: new Date(Date.now() - TALEP_OMUR_MS) } },
+    data: { aktif: false },
+  });
+}
+
+/** Ana sayfa "Yolculuğum": açık yolculuklar + eşleşen yükler (yenisi önce). */
+export async function aktifYolculuklar() {
+  await eskiTalepleriKapat();
+  return prisma.donusTalebi.findMany({
+    where: { aktif: true },
+    orderBy: { createdAt: "desc" },
+    take: 3,
+    include: {
+      ilanlar: {
+        where: { durum: { in: ["YENI", "ILGILENIYOR"] } },
+        orderBy: { createdAt: "desc" },
+        take: 4,
+        select: { id: true, nereden: true, nereye: true, cikisIl: true, ucret: true, fiyatTon: true, createdAt: true },
+      },
+    },
+  });
+}
+
 export async function donusEslesmeleriniTara(): Promise<KaydedilenIlan[]> {
+  await eskiTalepleriKapat();
+
   const talepler = await prisma.donusTalebi.findMany({
     where: { aktif: true },
     select: { id: true, cikisIl: true, varisIl: true },
   });
   if (talepler.length === 0) return [];
 
-  const birHaftaOnce = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const birGunOnce = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const eslesenler: KaydedilenIlan[] = [];
 
   for (const talep of talepler) {
-    let ilanlar = await prisma.yukIlani.findMany({
+    const cevre = yakinIller(talep.cikisIl);
+    const adaylar = await prisma.yukIlani.findMany({
       where: {
         donusTalebiId: null,
         durum: "YENI",
-        cikisIl: talep.cikisIl,
-        varisIl: talep.varisIl,
-        createdAt: { gte: birHaftaOnce },
+        cikisIl: { in: cevre },
+        createdAt: { gte: birGunOnce },
       },
-      take: 10,
+      orderBy: [{ guvenSkoru: "desc" }, { createdAt: "desc" }],
+      take: 30,
     });
-
-    // Tam rota yoksa: varıştan çıkan herhangi bir YENİ yük (boş dönme)
-    if (ilanlar.length === 0) {
-      ilanlar = await prisma.yukIlani.findMany({
-        where: {
-          donusTalebiId: null,
-          durum: "YENI",
-          cikisIl: talep.cikisIl,
-          createdAt: { gte: birHaftaOnce },
-        },
-        orderBy: [{ guvenSkoru: "desc" }, { createdAt: "desc" }],
-        take: 5,
-      });
-    }
+    // Önce boşaltılan ilin kendisi, sonra eve (yükleme iline) dönen, sonra yakınlık
+    const puan = (i: (typeof adaylar)[number]) =>
+      (i.cikisIl === talep.cikisIl ? 0 : 10 + cevre.indexOf(i.cikisIl || "")) -
+      (i.varisIl === talep.varisIl ? 5 : 0);
+    const ilanlar = adaylar.sort((a, b) => puan(a) - puan(b)).slice(0, 10);
 
     if (ilanlar.length === 0) continue;
 

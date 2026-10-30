@@ -95,6 +95,29 @@ export async function odemeHatirlat(): Promise<{ adet: number; atlandi?: string 
   return { adet: satirlar.length };
 }
 
+const YOLCULUK_ANAHTAR = "yolculuk_sor_son";
+const YOLCULUK_ARALIK_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Açık yolculuk yoksa 08–20 arası 3 saatte bir "Yolculuk nereye?".
+ * Boşaltma yeri girilince o il ve 90 km çevresindeki yükler bildirilir.
+ */
+export async function yolculukSor(): Promise<boolean> {
+  const { saat } = trSimdi();
+  if (saat < 8 || saat >= 20) return false;
+  const acik = await prisma.donusTalebi.count({ where: { aktif: true } });
+  if (acik > 0) return false;
+  const onceki = Number((await ayarAl(YOLCULUK_ANAHTAR)) || 0);
+  if (Date.now() - onceki < YOLCULUK_ARALIK_MS) return false;
+  await ayarKoy(YOLCULUK_ANAHTAR, String(Date.now()));
+  await bilgiBildir(
+    "Yolculuk nereye?",
+    "Nereden yükledin, nereye boşaltıyorsun? Yaz, vardığın yerde ve 90 km çevresinde dönüş yükü arayayım.",
+    "/#yolculuk"
+  );
+  return true;
+}
+
 /** Kopan okuyucu için 3 saatte bir hatırlatma; eşleme kodu da içinde gelir. */
 export async function okuyucuHatirlat(): Promise<number> {
   const sorunlar = await daemonSorunlari();

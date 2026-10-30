@@ -790,6 +790,30 @@ export async function donusTalebiKapat(id: number): Promise<void> {
     .update({ where: { id }, data: { aktif: false } })
     .catch(() => null);
   revalidatePath("/ai/donus");
+  revalidatePath("/");
+}
+
+/** Ana sayfa "Yolculuğum": yükleme → boşaltma; boşaltma çevresinde yük aranır. */
+export async function yolculukBaslatForm(
+  _onceki: { hata: string | null; tamam: boolean },
+  form: FormData
+): Promise<{ hata: string | null; tamam: boolean }> {
+  const { ilBul } = await import("@/lib/iller");
+  const yukleme = String(form.get("yukleme") || "").trim();
+  const bosaltma = String(form.get("bosaltma") || "").trim();
+  if (!ilBul(bosaltma)) {
+    return { hata: `"${bosaltma || "boş"}" tanınmadı — il ya da ilçe yaz (örn. Düzce, Gebze).`, tamam: false };
+  }
+  if (!ilBul(yukleme)) {
+    return { hata: `"${yukleme || "boş"}" tanınmadı — il ya da ilçe yaz (örn. Ankara, Ostim).`, tamam: false };
+  }
+  const { yolculukBaslat, donusEslesmeleriniTara } = await import("@/lib/donus");
+  const id = await yolculukBaslat(yukleme, bosaltma);
+  if (!id) return { hata: "Yükleme ve boşaltma aynı il olamaz.", tamam: false };
+  await donusEslesmeleriniTara().catch(() => null);
+  revalidatePath("/");
+  revalidatePath("/ai/donus");
+  return { hata: null, tamam: true };
 }
 
 /**

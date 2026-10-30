@@ -7,6 +7,7 @@ import { telefonGoster } from "@/lib/telefon";
 import AraButonu from "@/components/AraButonu";
 import WhatsAppButonu from "@/components/WhatsAppButonu";
 import TelefonTuslari from "@/components/TelefonTuslari";
+import YolculukKarti from "@/components/YolculukKarti";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
 import { ayParametresi } from "@/lib/kdv";
 import AylikGrafik, { type AyVerisi } from "@/components/panel/AylikGrafik";
@@ -305,6 +306,8 @@ export default async function PanelSayfasi() {
           </Link>
         </div>
       </header>
+
+      <YolculukKarti />
 
       <TelefonTuslari
         acikAnahtar={pushAcikAnahtar()}
