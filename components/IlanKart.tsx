@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ilanDurumGuncelle, ilanSil } from "@/app/ai-actions";
+import { ilanDurumGuncelle, ilanSil, ilanYanlisNumara } from "@/app/ai-actions";
 import BilgiSorButonu from "@/components/BilgiSorButonu";
 import { aracBelirsizMi } from "@/lib/arac";
 import { beklemeBuyuk } from "@/lib/ilanTazelik";
@@ -212,6 +212,28 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
                     className={`${menuOge} text-fog`}
                   >
                     Geç
+                  </button>
+                )}
+                {ilan.telefon && (
+                  <button
+                    type="button"
+                    disabled={bekliyor}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `${ilan.telefon} yanlış numara olarak işaretlensin mi? Bu numaralı ilanlar bir daha gelmez.`
+                        )
+                      ) {
+                        return;
+                      }
+                      setMenuAcik(false);
+                      baslat(async () => {
+                        await ilanYanlisNumara(ilan.id);
+                      });
+                    }}
+                    className={`${menuOge} text-fog`}
+                  >
+                    Yanlış numara
                   </button>
                 )}
                 <button

@@ -4,6 +4,7 @@ import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 import { ilBul, sadelestir } from "@/lib/iller";
 import { guvenliKirp } from "@/lib/metin";
 import { gorusmeKuyrugaAl } from "@/lib/kaynaklar/waGorusme";
+import { numaraAnahtari, yanlisNumaralar } from "@/lib/kaynaklar/yanlisNumara";
 
 /** Aynı rota tekrarında yeni kayıt açmama / hash kova penceresi. */
 export const DEDUP_PENCERE_MS = 48 * 60 * 60 * 1000;
@@ -281,6 +282,7 @@ export async function ilanlariKaydet(
   const batchRota = new Set<string>();
   const hedefDurum = opts?.durum || "YENI";
   const elendiMi = hedefDurum === "ELENDI";
+  const yanlislar = await yanlisNumaralar();
 
   for (const {
     ilan: hamIlan,
@@ -292,6 +294,10 @@ export async function ilanlariKaydet(
     const ilan = ilaniRotaNormalize(hamIlan);
     if ((ilan.telefon || "").replace(/\D/g, "").length < 10) {
       telefonYok += 1;
+      continue;
+    }
+    if (yanlislar.has(numaraAnahtari(ilan.telefon))) {
+      console.log(`[kaydet] yanlış numara listesinde: ${ilan.telefon}`);
       continue;
     }
     // Varışsız yükleme (CIKIS) serbest; tamamen rotasız değil

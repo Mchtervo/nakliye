@@ -264,6 +264,16 @@ export async function ilanIletisimeGecildi(id: number): Promise<void> {
   revalidatePath("/ai/donus");
 }
 
+/** Arayınca yanlış çıkan numara: kara listeye, o numaralı ilanlar elenir. */
+export async function ilanYanlisNumara(id: number): Promise<void> {
+  if (!Number.isInteger(id) || id <= 0) return;
+  const ilan = await prisma.yukIlani.findUnique({ where: { id }, select: { telefon: true } });
+  if (!ilan?.telefon) return;
+  const { yanlisNumaraIsaretle } = await import("@/lib/kaynaklar/yanlisNumara");
+  await yanlisNumaraIsaretle(ilan.telefon);
+  revalidatePath("/ai/yukler");
+}
+
 export async function ilanSil(id: number): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
   await prisma.yukIlani.delete({ where: { id } }).catch(() => null);

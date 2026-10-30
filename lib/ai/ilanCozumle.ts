@@ -26,7 +26,7 @@ import {
   yuklemeIfadesiVarMi,
 } from "@/lib/kaynaklar/onFiltre";
 import { rotaAyniSatirdaMi } from "@/lib/kaynaklar/rotaDogrula";
-import { irtibatTelefonuBul } from "@/lib/kaynaklar/onDedup";
+import { irtibatTelefonuBul, telefonlariCikar } from "@/lib/kaynaklar/onDedup";
 import { guvenliKirp } from "@/lib/metin";
 
 /** Bir parti çağrısına en fazla bu kadar mesaj dilimi. */
@@ -383,7 +383,12 @@ function ilaniNormalize(
 
   // İRT / irtibat satırı varsa paylaşanın değil onu kullan
   const irtibat = irtibatTelefonuBul(baglam.ham);
-  const telefon = irtibat || telefonTemizle(i.telefon);
+  // Model numarayı karıştırabilir/uydurabilir: metinde geçmeyen numara kullanılmaz.
+  const modelTel = telefonTemizle(i.telefon);
+  const metinRakam = baglam.ham.replace(/\D/g, "");
+  const modelTelMetinde = modelTel !== null && metinRakam.includes(modelTel.slice(-10));
+  const telefon =
+    irtibat || (modelTelMetinde ? modelTel : telefonTemizle(telefonlariCikar(baglam.ham)[0] ?? null));
 
   // Fiyat akıl kontrolü
   let ucret: number | null = turHam === "KOMPLE" ? fiyatHam : null;
