@@ -5,6 +5,7 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 import PwaKayit from "@/components/PwaKayit";
 import Guncelleme from "@/components/Guncelleme";
+import IkonUyari from "@/components/IkonUyari";
 import GezinmeIlerleme from "@/components/GezinmeIlerleme";
 
 /** IBM Plex Sans — net rakam, Türkçe, yuvarlak “dandik” değil */
@@ -60,7 +61,10 @@ export default function RootLayout({
         <div className="app-shell">
           <Nav />
           <main className="app-main">
-            <div className="app-main-inner mx-auto w-full">{children}</div>
+            <div className="app-main-inner mx-auto w-full">
+              <IkonUyari />
+              {children}
+            </div>
           </main>
         </div>
         <PwaKayit />

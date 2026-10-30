@@ -48,6 +48,8 @@ export type PushIcerik = {
   baslik: string;
   metin: string;
   url?: string;
+  /** Verilirse yalnız bu abonelere (ör. eski ikonlu iPhone). */
+  aboneIdler?: number[];
 };
 
 export type PushSonuc = {
@@ -65,7 +67,9 @@ export async function pushGonder(icerik: PushIcerik): Promise<PushSonuc> {
     };
   }
 
-  const aboneler = await prisma.pushAbone.findMany();
+  const aboneler = await prisma.pushAbone.findMany(
+    icerik.aboneIdler ? { where: { id: { in: icerik.aboneIdler } } } : undefined
+  );
   if (aboneler.length === 0) {
     return {
       gonderilen: 0,
