@@ -45,9 +45,9 @@ export default async function YolculukKarti() {
               </div>
               <AksiyonButonu
                 calistir={donusTalebiKapat.bind(null, y.id)}
-                etiket="Bitti"
-                bekleyenEtiket="…"
-                sinif="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-fog hover:bg-white/5 hover:text-paper"
+                etiket="Aramayı durdur"
+                bekleyenEtiket="Durduruluyor…"
+                sinif="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-xs font-semibold text-fog hover:bg-white/5 hover:text-ember"
               />
             </div>
             {y.ilanlar.length === 0 ? (
@@ -78,6 +78,13 @@ export default async function YolculukKarti() {
                 })}
               </ul>
             )}
+            <YolculukFormu
+              ilkAcik={false}
+              iller={ILLER}
+              acmaEtiketi={`Yük aldım → ${y.cikis} çıkışlı yeni yolculuk`}
+              varsayilanYukleme={y.cikis}
+              kapatId={y.id}
+            />
           </div>
         );
       })}

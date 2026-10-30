@@ -808,6 +808,11 @@ export async function yolculukBaslatForm(
     return { hata: `"${yukleme || "boş"}" tanınmadı — il ya da ilçe yaz (örn. Ankara, Ostim).`, tamam: false };
   }
   const { yolculukBaslat, donusEslesmeleriniTara } = await import("@/lib/donus");
+  // "Yük aldım": önceki yolculuğun araması kapanır, yenisi açılır.
+  const kapatId = Number(form.get("kapat"));
+  if (Number.isInteger(kapatId) && kapatId > 0) {
+    await prisma.donusTalebi.update({ where: { id: kapatId }, data: { aktif: false } }).catch(() => null);
+  }
   const id = await yolculukBaslat(yukleme, bosaltma);
   if (!id) return { hata: "Yükleme ve boşaltma aynı il olamaz.", tamam: false };
   await donusEslesmeleriniTara().catch(() => null);

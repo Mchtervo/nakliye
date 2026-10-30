@@ -7,46 +7,74 @@ import { yolculukBaslatForm } from "@/app/ai-actions";
 export default function YolculukFormu({
   ilkAcik,
   iller,
+  acmaEtiketi = "+ Yeni yolculuk",
+  varsayilanYukleme,
+  kapatId,
 }: {
   /** Açık yolculuk yoksa form direkt görünür. */
   ilkAcik: boolean;
   iller: readonly string[];
+  acmaEtiketi?: string;
+  /** "Yük aldım": yükleme yeri = şu an boşalttığın yer. */
+  varsayilanYukleme?: string;
+  /** Kaydedilince bu yolculuğun araması kapanır. */
+  kapatId?: number;
 }) {
   const [acik, setAcik] = useState(ilkAcik);
   const [durum, gonder, bekliyor] = useActionState(yolculukBaslatForm, { hata: null, tamam: false });
+  const liste = `yolculuk-iller-${kapatId ?? "yeni"}`;
 
   if (!acik) {
     return (
       <button type="button" onClick={() => setAcik(true)} className="text-sm font-semibold text-amber">
-        + Yeni yolculuk
+        {acmaEtiketi}
       </button>
     );
   }
 
   return (
     <form action={gonder} className="space-y-3">
+      {kapatId && <input type="hidden" name="kapat" value={kapatId} />}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label htmlFor="yukleme" className="etiket">
+          <label htmlFor={`yukleme-${liste}`} className="etiket">
             Yüklediğin yer
           </label>
-          <input id="yukleme" name="yukleme" list="yolculuk-iller" required placeholder="Ankara" className="alan" autoComplete="off" />
+          <input
+            id={`yukleme-${liste}`}
+            name="yukleme"
+            list={liste}
+            required
+            defaultValue={varsayilanYukleme}
+            placeholder="Ankara"
+            className="alan"
+            autoComplete="off"
+          />
         </div>
         <div>
-          <label htmlFor="bosaltma" className="etiket">
+          <label htmlFor={`bosaltma-${liste}`} className="etiket">
             Boşaltacağın yer
           </label>
-          <input id="bosaltma" name="bosaltma" list="yolculuk-iller" required placeholder="Düzce" className="alan" autoComplete="off" />
+          <input
+            id={`bosaltma-${liste}`}
+            name="bosaltma"
+            list={liste}
+            required
+            autoFocus={Boolean(varsayilanYukleme)}
+            placeholder="Düzce"
+            className="alan"
+            autoComplete="off"
+          />
         </div>
       </div>
-      <datalist id="yolculuk-iller">
+      <datalist id={liste}>
         {iller.map((il) => (
           <option key={il} value={il} />
         ))}
       </datalist>
       {durum.hata && <p className="text-sm font-semibold text-ember">{durum.hata}</p>}
       <button type="submit" disabled={bekliyor} className="btn btn-amber w-full disabled:opacity-60">
-        {bekliyor ? "Aranıyor…" : "Dönüş yükü aramaya başla"}
+        {bekliyor ? "Aranıyor…" : kapatId ? "Yeni yere aramaya başla" : "Dönüş yükü aramaya başla"}
       </button>
     </form>
   );

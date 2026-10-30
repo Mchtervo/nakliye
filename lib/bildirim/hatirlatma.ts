@@ -118,6 +118,35 @@ export async function yolculukSor(): Promise<boolean> {
   return true;
 }
 
+const KONTROL_ANAHTAR = "yolculuk_kontrol_son";
+const KONTROL_ARALIK_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Açık yolculuk varken 08–22 arası 2 saatte bir "Yük buldun mu?".
+ * Dokununca ana sayfadaki kart: Aramayı durdur / Yük aldım, yeni yere ara.
+ * İlk soru yolculuk açıldıktan 2 saat sonra gelir.
+ */
+export async function yolculukKontrol(): Promise<boolean> {
+  const { saat } = trSimdi();
+  if (saat < 8 || saat >= 22) return false;
+  const y = await prisma.donusTalebi.findFirst({
+    where: { aktif: true },
+    orderBy: { createdAt: "desc" },
+    select: { cikis: true, createdAt: true, eslesmeAdet: true },
+  });
+  if (!y || Date.now() - y.createdAt.getTime() < KONTROL_ARALIK_MS) return false;
+  const onceki = Number((await ayarAl(KONTROL_ANAHTAR)) || 0);
+  if (Date.now() - onceki < KONTROL_ARALIK_MS) return false;
+  await ayarKoy(KONTROL_ANAHTAR, String(Date.now()));
+  const bulunan = y.eslesmeAdet > 0 ? `${y.cikis} çevresinde ${y.eslesmeAdet} yük çıktı. ` : "";
+  await bilgiBildir(
+    "Yük buldun mu?",
+    `${bulunan}Yük aldıysan yeni yeri yaz, oraya arayayım. Gerek yoksa aramayı durdur.`,
+    "/#yolculuk"
+  );
+  return true;
+}
+
 /** Kopan okuyucu için 3 saatte bir hatırlatma; eşleme kodu da içinde gelir. */
 export async function okuyucuHatirlat(): Promise<number> {
   const sorunlar = await daemonSorunlari();
