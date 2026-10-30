@@ -17,6 +17,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/ai/tara") ||
     pathname.startsWith("/api/ai/kuyruk") ||
     pathname.startsWith("/api/ai/gunluk-analiz") ||
+    // Sadece commit kodu döner; giriş ekranında da güncelleme fark edilsin.
+    pathname === "/api/surum" ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname === "/icon.svg" ||

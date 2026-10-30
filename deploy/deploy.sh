@@ -291,6 +291,8 @@ trap - ERR
 # git reset --hard izinleri sıfırlayabilir — her deploy sonunda yenile
 chmod +x deploy/deploy.sh deploy/cron/*.sh deploy/nginx-body-size.sh 2>/dev/null || true
 
+npm run ts -- scripts/guncelleme-bildir.ts "$MSG" || echo "güncelleme push'u gönderilemedi"
+
 echo "==> DEPLOY OK $(date -Is) $(git rev-parse --short HEAD) daemon_restart=$DAEMON_RESTART"
 if [ "$DAEMON_RESTART" -eq 1 ]; then
   bildir "✅ Manuel deploy: $SHORT — $MSG"

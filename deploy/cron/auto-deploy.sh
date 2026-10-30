@@ -299,6 +299,8 @@ if git diff --name-only "$OLD_SHA" "HEAD" | grep -E \
   fi
 fi
 
+npm run ts -- scripts/guncelleme-bildir.ts "$MSG" >>"$LOG" 2>&1 || log "güncelleme push'u gönderilemedi"
+
 if [ "$DAEMON_RESTART" -eq 1 ]; then
   log "DEPLOY OK $SHORT (daemon restart)"
   bildir "✅ Deploy: $SHORT — $MSG"

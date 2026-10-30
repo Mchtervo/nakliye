@@ -4,6 +4,7 @@ import { IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import PwaKayit from "@/components/PwaKayit";
+import Guncelleme from "@/components/Guncelleme";
 import GezinmeIlerleme from "@/components/GezinmeIlerleme";
 
 /** IBM Plex Sans — net rakam, Türkçe, yuvarlak “dandik” değil */
@@ -63,6 +64,7 @@ export default function RootLayout({
           </main>
         </div>
         <PwaKayit />
+        <Guncelleme />
       </body>
     </html>
   );
