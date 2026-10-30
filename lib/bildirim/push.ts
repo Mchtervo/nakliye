@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
+import { gelenKutusunaEkle, type BildirimButonu } from "@/lib/bildirim/gelenKutusu";
 
 let ayarlandi = false;
 
@@ -50,6 +51,10 @@ export type PushIcerik = {
   url?: string;
   /** Verilirse yalnız bu abonelere (ör. eski ikonlu iPhone). */
   aboneIdler?: number[];
+  /** Uygulama içi kutuda görünecek uzun metin (push metni kısa kalır). */
+  detay?: string;
+  /** Kutudaki işlem düğmeleri; yoksa url'den türetilir. */
+  butonlar?: BildirimButonu[];
 };
 
 export type PushSonuc = {
@@ -59,6 +64,16 @@ export type PushSonuc = {
 };
 
 export async function pushGonder(icerik: PushIcerik): Promise<PushSonuc> {
+  // Tek cihaza özel olanlar (simge hatırlatması) kutuya girmez
+  if (!icerik.aboneIdler) {
+    await gelenKutusunaEkle({
+      baslik: icerik.baslik,
+      metin: icerik.detay ?? icerik.metin,
+      url: icerik.url,
+      butonlar: icerik.butonlar,
+    });
+  }
+
   if (!vapidAyarla()) {
     return {
       gonderilen: 0,

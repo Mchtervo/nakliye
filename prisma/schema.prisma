@@ -330,6 +330,21 @@ model Bildirim {
   @@index([createdAt])
 }
 
+/// Uygulama içi bildirim kutusu (üst bardaki zil). Push ile aynı anda yazılır.
+model UygulamaBildirimi {
+  id        Int       @id @default(autoincrement())
+  baslik    String
+  metin     String
+  url       String?
+  /// [{ etiket, url }] — önemli bildirimde işlem düğmeleri
+  butonlar  Json?
+  okundu    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([okundu])
+  @@index([createdAt])
+}
+
 /// Müşteri havuzu notları (telefon = son 10 hane)
 model MusteriNot {
   id        Int      @id @default(autoincrement())

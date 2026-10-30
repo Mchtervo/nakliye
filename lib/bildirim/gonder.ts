@@ -13,6 +13,7 @@ import { karHesapla } from "@/lib/karHesap";
 import { tlYaz } from "@/lib/para";
 import { donusBasligi, donusEslesmeleriniTara } from "@/lib/donus";
 import { aracKonumu, konumKosulu } from "@/lib/konum";
+import { whatsappMesajUrl } from "@/lib/whatsapp";
 
 export type BildirimSonucu = {
   telegram: number;
@@ -355,10 +356,19 @@ export async function bekleyenBildirimleriIsle(
 
     let pushOk = satir.bildirimPush || !pushGerekli;
     if (pushGerekli && !satir.bildirimPush) {
+      const ilanUrl = `/ai/yukler?sekme=HEPSI&id=${satir.id}`;
       const cevap = await pushGonder({
         baslik,
         metin: metinDuz.slice(0, 180),
-        url: `/ai/yukler?sekme=HEPSI&id=${satir.id}`,
+        url: ilanUrl,
+        detay: metinDuz,
+        butonlar: [
+          { etiket: "İlanı aç", url: ilanUrl },
+          ...(satir.telefon ? [{ etiket: "Ara", url: `tel:${satir.telefon}` }] : []),
+          ...(whatsappMesajUrl(satir.telefon, "")
+            ? [{ etiket: "WhatsApp", url: whatsappMesajUrl(satir.telefon, "")! }]
+            : []),
+        ],
       });
       if (cevap.gonderilen > 0) {
         pushOk = true;
@@ -560,6 +570,10 @@ export async function bilgiBildir(
   }
 
   if (tercih.pushAcik && pushKullanilabilir()) {
-    await pushGonder({ baslik, metin: metin.slice(0, 200), url: yol });
+    await pushGonder({ baslik, metin: metin.slice(0, 200), url: yol, detay: metin });
+  } else {
+    // Push kapalıyken de uygulama içi kutuda görünsün
+    const { gelenKutusunaEkle } = await import("@/lib/bildirim/gelenKutusu");
+    await gelenKutusunaEkle({ baslik, metin, url: yol });
   }
 }

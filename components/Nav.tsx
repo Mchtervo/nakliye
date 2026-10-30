@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import BildirimZili from "@/components/BildirimZili";
 import { GuncelleDugmesi } from "@/components/Guncelleme";
 import Logo from "@/components/Logo";
 import NavLink from "@/components/NavLink";
@@ -478,13 +479,16 @@ export default function Nav() {
     <div className="contents">
       {/* Masaüstü / iPad yan menü */}
       <aside className="fixed inset-y-3 left-3 z-30 hidden w-[16rem] flex-col rounded-[1.4rem] bg-[#1c1c1e]/90 px-3 py-4 backdrop-blur-2xl md:flex">
-        <Link href="/" className="mb-5 flex items-center gap-3 px-2">
-          <LogoIkon />
-          <span className="leading-tight">
-            <span className="block text-[17px] font-semibold">Nakliye Defteri</span>
-            <span className="block text-[13px] text-fog">{konumAdi}</span>
-          </span>
-        </Link>
+        <div className="mb-5 flex items-center justify-between gap-2 px-2">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <LogoIkon />
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-[17px] font-semibold">Nakliye Defteri</span>
+              <span className="block truncate text-[13px] text-fog">{konumAdi}</span>
+            </span>
+          </Link>
+          <BildirimZili />
+        </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
           {DOCK.map((l) => {
@@ -547,19 +551,22 @@ export default function Nav() {
           <Link href="/" className="dokun" aria-label="Ana sayfa">
             <LogoIkon kucuk />
           </Link>
-          <p className="ust-baslik pointer-events-none absolute inset-x-16 truncate text-center text-[17px] font-semibold">
+          <p className="ust-baslik pointer-events-none absolute inset-x-24 truncate text-center text-[17px] font-semibold">
             {konumAdi}
           </p>
-          <button
-            type="button"
-            onClick={() => ac("ekle")}
-            className="dokun flex h-8 w-8 items-center justify-center rounded-full bg-amber text-black"
-            aria-label="Yeni kayıt ekle"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" className="h-4 w-4">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <BildirimZili />
+            <button
+              type="button"
+              onClick={() => ac("ekle")}
+              className="dokun flex h-8 w-8 items-center justify-center rounded-full bg-amber text-black"
+              aria-label="Yeni kayıt ekle"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" className="h-4 w-4">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
 
