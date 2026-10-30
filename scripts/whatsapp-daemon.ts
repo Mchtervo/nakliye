@@ -38,6 +38,7 @@ import {
   whatsappGruplariniEsitle,
   whatsappKanaliKaydet,
   whatsappMetni,
+  whatsappTaramaIsaretle,
   yanlisKanalDavetleriniDuzelt,
   yukGrubuAdiMi,
 } from "@/lib/kaynaklar/whatsapp";
@@ -112,6 +113,7 @@ async function gruplariEsitle(sock: WASocket) {
     }));
     const yuk = await whatsappGruplariniEsitle(liste);
     gruplar = await aktifWhatsappGruplari();
+    await whatsappTaramaIsaretle([...gruplar.values()]);
     log(`Gruplar: katılınan=${liste.length} yükGrubu=${yuk} takipte=${gruplar.size}`);
   } catch (e) {
     uyari("Grup eşitleme hatası:", e instanceof Error ? e.message : e);
@@ -398,18 +400,39 @@ async function davetlereGir(sock: WASocket) {
   }
 }
 
+function sohbetKimlikleri(m: WAMessage): string[] {
+  const ids = [m.key.remoteJid, m.key.remoteJidAlt].filter(
+    (j): j is string => Boolean(j)
+  );
+  return [...new Set(ids)];
+}
+
+function grupSohbetiMi(ids: string[]): boolean {
+  return ids.some((j) => j.endsWith("@g.us"));
+}
+
+function kanalSohbetiMi(ids: string[]): boolean {
+  return ids.some((j) => j.endsWith("@newsletter"));
+}
+
+function kaynakIdBul(ids: string[]): number | null {
+  for (const j of ids) {
+    const id = gruplar.get(j);
+    if (id) return id;
+  }
+  return null;
+}
+
 async function mesajlariIsle(mesajlar: WAMessage[]) {
   const simdiSn = Math.floor(Date.now() / 1000);
   const grupBazli = new Map<number, GelenGrup["mesajlar"]>();
 
   for (const m of mesajlar) {
-    const jid = m.key.remoteJid;
-    const grupMu = Boolean(jid?.endsWith("@g.us"));
-    const kanalMu = Boolean(jid?.endsWith("@newsletter"));
+    const ids = sohbetKimlikleri(m);
+    const grupMu = grupSohbetiMi(ids);
+    const kanalMu = kanalSohbetiMi(ids);
     if (!grupMu && !kanalMu && !m.key.fromMe) {
-      const ozel =
-        [m.key.remoteJid, m.key.remoteJidAlt].find((j) => j?.endsWith("@s.whatsapp.net")) ||
-        null;
+      const ozel = ids.find((j) => j.endsWith("@s.whatsapp.net")) || null;
       const yazi = whatsappMetni(m.message);
       if (ozel && yazi) {
         await gelenOzelMesajiIsle(ozel, yazi).catch((e) => {
@@ -417,15 +440,17 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
         });
       }
     }
-    if ((!grupMu && !kanalMu) || m.key.fromMe || !jid) continue;
+    if ((!grupMu && !kanalMu) || m.key.fromMe || ids.length === 0) continue;
     const ham = whatsappMetni(m.message);
     if (ham) await whatsappDavetleriniHasatEt(ham, "WA mesaj").catch(() => null);
-    let kaynakId = gruplar.get(jid) ?? null;
+    let kaynakId = kaynakIdBul(ids);
     if (!kaynakId && kanalMu) {
-      kaynakId = await whatsappKanaliKaydet(jid);
-      gruplar.set(jid, kaynakId);
+      const kanalJid = ids.find((j) => j.endsWith("@newsletter"))!;
+      kaynakId = await whatsappKanaliKaydet(kanalJid);
+      for (const j of ids) gruplar.set(j, kaynakId);
     }
     if (!kaynakId) continue;
+    for (const j of ids) gruplar.set(j, kaynakId);
     const zaman = Number(m.messageTimestamp ?? 0);
     if (zaman > 0 && simdiSn - zaman > MAX_MESAJ_YASI_SN) continue;
     const metin = mesajMetni(m);
@@ -494,7 +519,7 @@ async function baglan(): Promise<void> {
     ...(version ? { version } : {}),
     browser: Browsers.ubuntu("Chrome"),
     logger: sessizLogger(),
-    markOnlineOnConnect: false,
+    markOnlineOnConnect: true,
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => true,
   });
@@ -577,11 +602,9 @@ async function baglan(): Promise<void> {
     }
   });
 
-  sock.ev.on("messages.upsert", ({ messages, type }) => {
-    // notify = canlı; append = kanal + kısa kopuklukta biriken grup mesajı
-    if (type === "notify" || type === "append") {
-      void mesajlariIsle(messages);
-    }
+  sock.ev.on("messages.upsert", ({ messages }) => {
+    // notify = canlı, append = bildirim, prepend = geçmiş senkronu
+    void mesajlariIsle(messages);
   });
 
   const sohbetKanallari = (chats: { id?: string | null; name?: string | null }[]) => {
@@ -594,8 +617,7 @@ async function baglan(): Promise<void> {
   sock.ev.on("chats.update", sohbetKanallari);
   sock.ev.on("messaging-history.set", ({ chats, messages }) => {
     sohbetKanallari(chats);
-    const kanalMesaj = messages.filter((m) => kanalJidMi(m.key.remoteJid));
-    if (kanalMesaj.length) void mesajlariIsle(kanalMesaj);
+    if (messages.length) void mesajlariIsle(messages);
   });
 
   sock.ev.on("groups.upsert", () => void gruplariEsitle(sock));

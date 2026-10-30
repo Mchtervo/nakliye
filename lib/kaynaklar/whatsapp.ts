@@ -357,6 +357,16 @@ export async function aktifWhatsappGruplari(): Promise<Map<string, number>> {
   return new Map(satirlar.map((s) => [s.hedef, s.id]));
 }
 
+/** Bağlantı açık: tarama nabzı. Mesaj gelmese de sonTarama dolar. */
+export async function whatsappTaramaIsaretle(ids: number[]): Promise<void> {
+  const temiz = [...new Set(ids.filter((id) => id > 0))];
+  if (temiz.length === 0) return;
+  await prisma.ilanKaynagi.updateMany({
+    where: { id: { in: temiz } },
+    data: { sonTarama: new Date() },
+  });
+}
+
 type MesajIcerik = {
   conversation?: string | null;
   extendedTextMessage?: { text?: string | null } | null;
