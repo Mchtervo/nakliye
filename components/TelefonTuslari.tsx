@@ -25,13 +25,28 @@ function iosMu() {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
+/** Bu cihazda bildirim izni + push aboneliği var mı? */
+async function bildirimAcikMi(): Promise<boolean> {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted") return false;
+    const kayit = await navigator.serviceWorker?.getRegistration("/");
+    return Boolean(await kayit?.pushManager.getSubscription());
+  } catch {
+    return false;
+  }
+}
+
 export default function TelefonTuslari({
   acikAnahtar,
   excelHref,
+  ayarlarda = false,
 }: {
   acikAnahtar: string | null;
-  excelHref: string;
+  excelHref?: string;
+  /** Ayarlar'da hep görünür; ana sayfada iş bitince (kurulu + bildirim açık) gizlenir. */
+  ayarlarda?: boolean;
 }) {
+  const [bildirimAcik, setBildirimAcik] = useState<boolean | null>(null);
   const [kurulu, setKurulu] = useState(false);
   const [yardim, setYardim] = useState(false);
   const [mesaj, setMesaj] = useState<string | null>(null);
@@ -46,7 +61,12 @@ export default function TelefonTuslari({
       setMesaj("Eklendi. Ana ekrandaki Nakliye ikonuna bas.");
     };
     window.addEventListener("appinstalled", bitti);
-    return () => window.removeEventListener("appinstalled", bitti);
+    let iptal = false;
+    void bildirimAcikMi().then((a) => !iptal && setBildirimAcik(a));
+    return () => {
+      iptal = true;
+      window.removeEventListener("appinstalled", bitti);
+    };
   }, []);
 
   async function ekle() {
@@ -65,17 +85,22 @@ export default function TelefonTuslari({
 
   const eklendi = standalone || kurulu;
 
+  // Ana sayfa: kontrol bitmeden gösterme (yanıp sönmesin); iş bittiyse hiç gösterme.
+  if (!ayarlarda && (bildirimAcik === null || (eklendi && bildirimAcik))) return null;
+
   return (
-    <section id="telefon-tuslari" className="kart space-y-3 p-4 sm:p-5">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber">
-          Telefon / tablet
-        </p>
-        <h2 className="font-display text-xl font-bold">Ana ekran ve bildirim</h2>
-        <p className="mt-1 text-sm text-fog">
-          Tuşa bas, ikon ana ekrana gelsin. Bildirimi aç, yeni yük telefona düşsün.
-        </p>
-      </div>
+    <section id="telefon-tuslari" className={ayarlarda ? "space-y-3" : "kart space-y-3 p-4 sm:p-5"}>
+      {!ayarlarda && (
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber">
+            Telefon / tablet
+          </p>
+          <h2 className="font-display text-xl font-bold">Ana ekran ve bildirim</h2>
+          <p className="mt-1 text-sm text-fog">
+            Tuşa bas, ikon ana ekrana gelsin. Bildirimi aç, yeni yük telefona düşsün.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {eklendi ? (
@@ -87,12 +112,16 @@ export default function TelefonTuslari({
             Ana ekrana ekle
           </button>
         )}
-        <a href={excelHref} className="btn btn-teal text-center">
-          Bu ayı Excel indir
-        </a>
-        <a href="/raporlar" className="btn btn-ghost text-center">
-          Raporlar
-        </a>
+        {!ayarlarda && excelHref && (
+          <>
+            <a href={excelHref} className="btn btn-teal text-center">
+              Bu ayı Excel indir
+            </a>
+            <a href="/raporlar" className="btn btn-ghost text-center">
+              Raporlar
+            </a>
+          </>
+        )}
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">

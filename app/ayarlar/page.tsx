@@ -7,7 +7,7 @@ import YenidenIsleButonu from "@/components/YenidenIsleButonu";
 import TestBildirimButonu from "@/components/TestBildirimButonu";
 import KaynakForm from "@/components/KaynakForm";
 import WaDavetForm from "@/components/WaDavetForm";
-import PushIzinButonu from "@/components/PushIzinButonu";
+import TelefonTuslari from "@/components/TelefonTuslari";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import { prisma } from "@/lib/prisma";
 import { aiTercihleriOku, autoDeployEnvAcikMi, sayacBaslangicGaranti } from "@/lib/ayarlar";
@@ -197,7 +197,7 @@ export default async function AyarlarSayfasi() {
 
         <div className="border-t border-white/8 pt-3">
           <h3 className="font-display text-base font-bold text-paper">
-            Telefon bildirimi
+            Ana ekran ve bildirim
           </h3>
           <p className="mb-2 text-sm text-fog">
             Uygulama kapalıyken de yeni yük bildirimi gelsin.
@@ -205,7 +205,7 @@ export default async function AyarlarSayfasi() {
               ? ` · ${pushAboneSayisi} cihaz kayıtlı`
               : " · henüz cihaz yok"}
           </p>
-          <PushIzinButonu acikAnahtar={pushAcikAnahtar()} />
+          <TelefonTuslari acikAnahtar={pushAcikAnahtar()} ayarlarda />
         </div>
       </section>
 
