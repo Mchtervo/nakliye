@@ -27,6 +27,26 @@ function bugunTr(): string {
   return new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/** 402 (ödeme gerekli) görülen gün: arama yapılmaz, bir kez haber verilir. */
+const KREDI_BITTI_ANAHTAR = "search1_kredi_bitti";
+
+async function krediBittiIsaretle(): Promise<void> {
+  const gun = bugunTr();
+  const onceki = await prisma.ayar.findUnique({ where: { anahtar: KREDI_BITTI_ANAHTAR } });
+  await prisma.ayar.upsert({
+    where: { anahtar: KREDI_BITTI_ANAHTAR },
+    update: { deger: gun },
+    create: { anahtar: KREDI_BITTI_ANAHTAR, deger: gun },
+  });
+  if (onceki?.deger === gun) return;
+  const { bilgiBildir } = await import("@/lib/bildirim/gonder");
+  await bilgiBildir(
+    "Arama kredisi bitti",
+    "Search1API ödeme istiyor (402). Facebook/Google ilan araması durdu; kredi yüklenince ertesi gün kendiliğinden devam eder.",
+    "/ayarlar"
+  ).catch(() => null);
+}
+
 /** Her arama 1 kredi; günlük limit dolduysa false döner ve sayacı artırmaz. */
 async function krediAyir(): Promise<boolean> {
   const gun = bugunTr();
@@ -58,6 +78,9 @@ export async function search1Ara(
   sorgu: string,
   secenek: { maxSonuc?: number; zaman?: "day" | "week" } = {}
 ): Promise<Search1Sonuc[]> {
+  if ((await prisma.ayar.findUnique({ where: { anahtar: KREDI_BITTI_ANAHTAR } }))?.deger === bugunTr()) {
+    throw new Error("Search1API kredisi bitti (402) — yarın tekrar denenecek.");
+  }
   if (!(await krediAyir())) {
     throw new Error(`Search1API günlük limit (${gunlukLimit()}) doldu.`);
   }
@@ -77,6 +100,7 @@ export async function search1Ara(
     signal: AbortSignal.timeout(ZAMAN_ASIMI_MS),
     cache: "no-store",
   });
+  if (cevap.status === 402) await krediBittiIsaretle();
   if (!cevap.ok) {
     throw new Error(`Search1API ${cevap.status}`);
   }

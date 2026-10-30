@@ -288,6 +288,22 @@ const KATILIM_DISI_IL_KELIMELER = [
 
 const YUK_SADE = YUK_TERIMLERI.map((t) => sadelestir(t));
 
+/**
+ * Kelime BAŞINDA nakliye terimi ("yukleri", "nakliyeci" ekli hâl dahil).
+ * Kelime içi arama "yüksek lisans", "batırma", "filozof" yakalıyordu.
+ */
+const YUK_KELIME = new RegExp(
+  `(^|\\s)(${[...new Set(YUK_SADE)]
+    .map((t) =>
+      t === "yuk" ? "yuk(?!s)" : t === "filo" ? "filo(?!zof)" : t.replace(/ /g, "\\s")
+    )
+    .join("|")})`
+);
+
+function yukTerimiVarMi(sade: string): boolean {
+  return YUK_KELIME.test(sade);
+}
+
 /** Kiril harfi var mı? */
 function kirilVarMi(metin: string): boolean {
   return /[\u0400-\u04FF]/.test(metin);
@@ -363,7 +379,7 @@ export function yukBasligiMi(baslik: string): boolean {
   const harf = sade.replace(/[^a-z0-9]+/g, "");
   if (harf.length < 3) return false;
   if (!sade) return false;
-  return YUK_SADE.some((terim) => sade.includes(terim));
+  return yukTerimiVarMi(sade);
 }
 
 /**
@@ -563,7 +579,7 @@ export function grubuDegerlendir(
   }
 
   // Nakliye terimleri ek alabildiği için ("yükleri", "nakliyeci") parça arama.
-  const yukVar = YUK_SADE.some((terim) => sade.includes(terim));
+  const yukVar = yukTerimiVarMi(sade);
   if (!yukVar) {
     return { uygun: false, sebep: "Nakliye terimi yok", bolge: null };
   }
