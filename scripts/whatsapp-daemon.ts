@@ -65,6 +65,8 @@ const WA_SUNUCU = "s.whatsapp.net";
 const KANAL_LISTE_SORGUSU = "6388546374527196";
 /** Çevrimdışıyken biriken eski mesajlar alınmaz. */
 const MAX_MESAJ_YASI_SN = 6 * 60 * 60;
+/** Kanal günde birkaç kez paylaşır; 6 saatte önceki ilanlar kaçıyordu. */
+const MAX_KANAL_YASI_SN = 24 * 60 * 60;
 const MIN_METIN = 15;
 /** Kullanılmayan eşleme kodu sınırı; aşılınca bir saat beklenir (bildirim seli olmasın). */
 const MAX_ESLEME_KODU = 5;
@@ -365,7 +367,7 @@ async function kanallariTaraTur(sock: WASocket): Promise<void> {
 
 /** Hasattan gelen kanal linkine günde az sayıda kendini ekler. */
 async function kanallaraGir(sock: WASocket): Promise<void> {
-  if (!(await katilimHakkiVarMi())) return;
+  if (!(await katilimHakkiVarMi("kanal"))) return;
   const aday = await siradakiKanalDavet();
   if (!aday) return;
   try {
@@ -381,7 +383,7 @@ async function kanallaraGir(sock: WASocket): Promise<void> {
       return;
     }
     await sock.newsletterFollow(meta.id);
-    await katilimHakkiKullan();
+    await katilimHakkiKullan("kanal");
     await kanalKaydet(meta.id, ad || meta.id);
     await sock.subscribeNewsletterUpdates(meta.id).catch(() => null);
     await davetKapat(aday.id, ad || "WA kanal", "Takip edildi");
@@ -486,7 +488,8 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     if (!kaynakId) continue;
     for (const j of ids) gruplar.set(j, kaynakId);
     const zaman = Number(m.messageTimestamp ?? 0);
-    if (zaman > 0 && simdiSn - zaman > MAX_MESAJ_YASI_SN) continue;
+    const maxYas = kanalMu ? MAX_KANAL_YASI_SN : MAX_MESAJ_YASI_SN;
+    if (zaman > 0 && simdiSn - zaman > maxYas) continue;
     const metin = mesajMetni(m);
     if (!metin) continue;
     const liste = grupBazli.get(kaynakId) ?? [];

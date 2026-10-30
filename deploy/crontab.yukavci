@@ -19,6 +19,8 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 
 # Sessiz saat birikimi — sabah 07:05 özet
 5 7 * * * /bin/bash $GUVENLI sabah-ozet.sh
+# Ödeme alınmadı (günde bir, 09:00 sonrası) + WhatsApp/Telegram koptu uyarısı
+*/30 * * * * /bin/bash $GUVENLI hatirlatma.sh
 
 # 6 saati geçen ilanlar silinir — asıl temizlik AI kuyrukta 5 dk'da bir; bu yedek 06:00
 0 6 * * * /bin/bash $GUVENLI arsiv.sh

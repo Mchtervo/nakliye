@@ -125,27 +125,34 @@ export async function bilinenDavetleriYaz(): Promise<void> {
   }
 }
 
-const KATILIM_ANAHTAR = "whatsapp_katilim_sayac";
-const KATILIM_GUNLUK = 4;
+/**
+ * Sanal numara bir günde en fazla 4 gruba girer; fazlası yasak yer.
+ * Kanal takibi gruba girmek kadar riskli değil, ayrı ve daha geniş kota.
+ */
+const KATILIM = {
+  grup: { anahtar: "whatsapp_katilim_sayac", gunluk: 4 },
+  kanal: { anahtar: "whatsapp_kanal_takip_sayac", gunluk: 10 },
+} as const;
 
 function bugunTr(): string {
   return new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-/** Sanal numara bir günde en fazla 4 gruba girer; fazlası yasak yer. */
-export async function katilimHakkiVarMi(): Promise<boolean> {
-  const kayit = await prisma.ayar.findUnique({ where: { anahtar: KATILIM_ANAHTAR } });
+export async function katilimHakkiVarMi(tip: WhatsappLinkTip = "grup"): Promise<boolean> {
+  const { anahtar, gunluk } = KATILIM[tip];
+  const kayit = await prisma.ayar.findUnique({ where: { anahtar } });
   if (!kayit) return true;
   try {
     const j = JSON.parse(kayit.deger) as { gun?: string; adet?: number };
     if (j.gun !== bugunTr()) return true;
-    return (j.adet ?? 0) < KATILIM_GUNLUK;
+    return (j.adet ?? 0) < gunluk;
   } catch {
     return true;
   }
 }
 
-export async function katilimHakkiKullan(): Promise<void> {
+export async function katilimHakkiKullan(tip: WhatsappLinkTip = "grup"): Promise<void> {
+  const KATILIM_ANAHTAR = KATILIM[tip].anahtar;
   const gun = bugunTr();
   const kayit = await prisma.ayar.findUnique({ where: { anahtar: KATILIM_ANAHTAR } });
   let adet = 0;
