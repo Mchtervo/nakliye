@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { donusTalebiKapat } from "@/app/ai-actions";
+import { donusTalebiKapat, eveDondum, konumuKaldir } from "@/app/ai-actions";
+import { aiTercihleriOku } from "@/lib/ayarlar";
+import { aracKonumu } from "@/lib/konum";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import YolculukFormu from "@/components/YolculukFormu";
 import { aktifYolculuklar, ilde, yakinIller } from "@/lib/donus";
@@ -12,7 +14,13 @@ import { tlYazKisa } from "@/lib/para";
  * çevresindeki yükler burada ve bildirimde ("Düzce'de yük bulundu").
  */
 export default async function YolculukKarti() {
-  const yolculuklar = await aktifYolculuklar().catch(() => []);
+  const [yolculuklar, konum, tercih] = await Promise.all([
+    aktifYolculuklar().catch(() => []),
+    aracKonumu().catch(() => null),
+    aiTercihleriOku(),
+  ]);
+  const ev = tercih.anaUs || "Ankara";
+  const evde = konum === ev && yolculuklar.length === 0;
 
   return (
     <section id="yolculuk" className="kart space-y-3 p-4 sm:p-5 reveal">
@@ -26,6 +34,34 @@ export default async function YolculukKarti() {
             Nereden yükleyip nereye gittiğini yaz; vardığın yerde ve 90 km çevresinde dönüş yükü
             çıkınca telefona bildirim gelsin.
           </p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2">
+        <p className="min-w-0 text-sm text-paper">
+          📍 {konum ? (
+            <>
+              Araç: <b>{konum}</b>
+              <span className="text-fog"> · sadece {konum} ve çevresi yükleri geliyor</span>
+            </>
+          ) : (
+            <span className="text-fog">Konum yok · tüm bölgenin yükleri geliyor</span>
+          )}
+        </p>
+        {evde ? (
+          <AksiyonButonu
+            calistir={konumuKaldir}
+            etiket="Kaldır"
+            bekleyenEtiket="…"
+            sinif="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-fog hover:bg-white/5 hover:text-paper"
+          />
+        ) : (
+          <AksiyonButonu
+            calistir={eveDondum}
+            etiket="🏠 Eve döndüm"
+            bekleyenEtiket="…"
+            sinif="btn btn-teal shrink-0 !min-h-9 !px-3 text-sm"
+          />
         )}
       </div>
 

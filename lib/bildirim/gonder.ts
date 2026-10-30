@@ -12,6 +12,7 @@ import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 import { karHesapla } from "@/lib/karHesap";
 import { tlYaz } from "@/lib/para";
 import { donusBasligi, donusEslesmeleriniTara } from "@/lib/donus";
+import { aracKonumu, konumKosulu } from "@/lib/konum";
 
 export type BildirimSonucu = {
   telegram: number;
@@ -214,6 +215,8 @@ export async function bekleyenBildirimleriIsle(
   );
 
   const tercih = await aiTercihleriOku();
+  // Araç konumu: yalnız bulunduğu il + 90 km çevresinden çıkan yükler
+  const konum = await aracKonumu();
   const sinir = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const adayLimit = Math.max(1, Math.min(limit, 20)) * 4;
 
@@ -224,6 +227,7 @@ export async function bekleyenBildirimleriIsle(
       sonGorulme: { gte: sinir },
       guvenSkoru: { gte: LISTE_GUVEN },
       durum: { notIn: ["ARSIV", "ELENDI"] },
+      ...konumKosulu(konum),
     },
     orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: adayLimit,
@@ -417,6 +421,7 @@ export async function sabahOzetBildir(): Promise<{
       guvenSkoru: { gte: LISTE_GUVEN },
       sonGorulme: { gte: sinir },
       durum: { in: ["YENI", "ILGILENIYOR"] },
+      ...konumKosulu(await aracKonumu()),
     },
     orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: 25,

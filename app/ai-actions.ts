@@ -793,6 +793,26 @@ export async function donusTalebiKapat(id: number): Promise<void> {
   revalidatePath("/");
 }
 
+/** Eve döndüm: tüm yolculuk aramaları kapanır, araç konumu ana üs olur. */
+export async function eveDondum(): Promise<void> {
+  const { aracKonumuYaz } = await import("@/lib/konum");
+  const { aiTercihleriOku } = await import("@/lib/ayarlar");
+  const tercih = await aiTercihleriOku();
+  await prisma.donusTalebi.updateMany({ where: { aktif: true }, data: { aktif: false } });
+  await aracKonumuYaz(tercih.anaUs || "Ankara");
+  revalidatePath("/");
+  revalidatePath("/ai/yukler");
+  revalidatePath("/ai/donus");
+}
+
+/** Konum filtresini kaldır: yük ekranı ve bildirimler tüm bölge. */
+export async function konumuKaldir(): Promise<void> {
+  const { aracKonumuYaz } = await import("@/lib/konum");
+  await aracKonumuYaz(null);
+  revalidatePath("/");
+  revalidatePath("/ai/yukler");
+}
+
 /** Ana sayfa "Yolculuğum": yükleme → boşaltma; boşaltma çevresinde yük aranır. */
 export async function yolculukBaslatForm(
   _onceki: { hata: string | null; tamam: boolean },
@@ -815,6 +835,9 @@ export async function yolculukBaslatForm(
   }
   const id = await yolculukBaslat(yukleme, bosaltma);
   if (!id) return { hata: "Yükleme ve boşaltma aynı il olamaz.", tamam: false };
+  const { aracKonumuYaz } = await import("@/lib/konum");
+  await aracKonumuYaz(bosaltma);
+  revalidatePath("/ai/yukler");
   await donusEslesmeleriniTara().catch(() => null);
   revalidatePath("/");
   revalidatePath("/ai/donus");

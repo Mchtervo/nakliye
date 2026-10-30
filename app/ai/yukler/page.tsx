@@ -24,6 +24,7 @@ import { panelTazeSinir, solukMu } from "@/lib/ilanTazelik";
 import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
 import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import type { Prisma } from "@prisma/client";
+import { aracKonumu, konumKosulu } from "@/lib/konum";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,8 @@ export default async function AiYuklerSayfasi({
     nereden?: string;
     nereye?: string;
     arsiv?: string;
+    /** 1: araç konumu filtresi olmadan tüm koridor */
+    her?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -247,12 +250,16 @@ export default async function AiYuklerSayfasi({
   const numaraKosul: Prisma.YukIlaniWhereInput = {
     AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
   };
+  // Araç konumu (Yolculuk / Eve döndüm): Yeni sekmesi yalnız o çevreden çıkanlar.
+  const konum = await aracKonumu();
+  const konumFiltresi = Boolean(konum && sekme === "YENI" && !rotaFiltresiVar && sp.her !== "1");
   const filtre: Prisma.YukIlaniWhereInput = {
     AND: [
       tabanFiltre,
       rotaKosul,
       tazelikKosul,
       numaraKosul,
+      konumFiltresi ? konumKosulu(konum) : {},
     ],
   };
   const tekSehirArama = Boolean(
@@ -490,6 +497,17 @@ export default async function AiYuklerSayfasi({
           sinif="btn btn-amber shrink-0 !px-4 !py-2 text-sm"
         />
       </div>
+
+      {konum && sekme === "YENI" && !rotaFiltresiVar && (
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-amber/10 px-3 py-2 text-sm">
+          <span className="min-w-0 truncate text-paper">
+            📍 {konumFiltresi ? `${konum} ve 90 km çevresi` : "Tüm bölge"}
+          </span>
+          <Link href={konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler"} className="shrink-0 font-semibold text-amber">
+            {konumFiltresi ? "Tümünü göster" : `Sadece ${konum}`}
+          </Link>
+        </div>
+      )}
 
       {okuyucuSorunlari.map((s) => (
         <div
