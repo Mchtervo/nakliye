@@ -12,6 +12,7 @@ import { NewMessage, type NewMessageEvent } from "telegram/events/index.js";
 import { prisma } from "@/lib/prisma";
 import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { telegramGonder } from "@/lib/bildirim/telegram";
+import { nabizYaz } from "@/lib/kaynaklar/daemonNabiz";
 import {
   ILK_OKUMA_ADEDI,
   TELEGRAM_UYE,
@@ -512,6 +513,11 @@ async function main() {
     } catch (e) {
       uyari("heartbeat", e instanceof Error ? e.message : e);
     }
+    await nabizYaz(
+      "telegram",
+      istemci?.connected ? "BAGLI" : "KOPTU",
+      istemci?.connected ? `${kaynaklar.size} grup` : "Telegram hesabı bağlı değil, yeniden bağlanıyor"
+    );
 
     const sessiz = Date.now() - sonAktivite;
     if (sessiz >= SAGLIK_ESIK_MS) {

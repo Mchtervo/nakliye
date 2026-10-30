@@ -22,8 +22,10 @@ import makeWASocket, {
   type WAMessage,
   type WASocket,
 } from "baileys";
+import { rm } from "node:fs/promises";
 import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { telegramGonder } from "@/lib/bildirim/telegram";
+import { nabizYaz, type NabizDurum } from "@/lib/kaynaklar/daemonNabiz";
 import { telefonlariCikar } from "@/lib/kaynaklar/onDedup";
 import { mesajlariKuyrugaAl, type GelenGrup } from "@/lib/kaynaklar/telegramUye";
 import {
@@ -55,6 +57,9 @@ const GRUP_ESITLEME_MS = 30 * 60 * 1000;
 const KANAL_TARAMA_MS = 10 * 60 * 1000;
 const KANAL_CEK_ADET = 20;
 const KANAL_TARAMA_TAVAN = 25;
+/** Cevapsız kanal sorgusu 60 sn beklemesin; tur 10 dk'yı aşmasın. */
+const KANAL_SORGU_MS = 15_000;
+const KANAL_PARALEL = 4;
 const WA_SUNUCU = "s.whatsapp.net";
 /** whatsmeow: hesabın katıldığı kanallar. Chrome/web sorgusu. */
 const KANAL_LISTE_SORGUSU = "6388546374527196";
@@ -100,6 +105,15 @@ let gruplar = new Map<string, number>();
 /** Kanal adı. İlanda numara yoksa başlıktaki irtibat kullanılır. */
 const kanalAdlari = new Map<string, string>();
 let eslemeKoduSayisi = 0;
+/** Panelde görünen bağlantı durumu; dakikada bir DB'ye yazılır. */
+let durum: NabizDurum = "KOPTU";
+let durumNot = "Başlıyor";
+
+function durumAyarla(yeni: NabizDurum, not: string) {
+  durum = yeni;
+  durumNot = not;
+  void nabizYaz("whatsapp", durum, durumNot);
+}
 let alinan = 0;
 let kuyruga = 0;
 
@@ -250,16 +264,19 @@ async function kanalIq(
   to: string,
   messagesAttrs: Record<string, string>
 ): Promise<BinaryNode> {
-  return (await sock.query({
-    tag: "iq",
-    attrs: {
-      id: sock.generateMessageTag(),
-      type: "get",
-      xmlns: "newsletter",
-      to,
+  return (await sock.query(
+    {
+      tag: "iq",
+      attrs: {
+        id: sock.generateMessageTag(),
+        type: "get",
+        xmlns: "newsletter",
+        to,
+      },
+      content: [{ tag: "messages", attrs: messagesAttrs }],
     },
-    content: [{ tag: "messages", attrs: messagesAttrs }],
-  })) as BinaryNode;
+    KANAL_SORGU_MS
+  )) as BinaryNode;
 }
 
 async function kanalMesajlariniCek(
@@ -283,7 +300,20 @@ async function kanalMesajlariniCek(
   return kanalDugumleriniOku(sunucu, jid);
 }
 
+let kanalTaramasiSuruyor = false;
+
+/** Önceki tur bitmeden yenisi başlamaz (yavaş kanalda turlar üst üste binmesin). */
 async function kanallariTara(sock: WASocket): Promise<void> {
+  if (kanalTaramasiSuruyor) return;
+  kanalTaramasiSuruyor = true;
+  try {
+    await kanallariTaraTur(sock);
+  } finally {
+    kanalTaramasiSuruyor = false;
+  }
+}
+
+async function kanallariTaraTur(sock: WASocket): Promise<void> {
   let bulunan = 0;
   let yukKanali = 0;
   try {
@@ -315,17 +345,21 @@ async function kanallariTara(sock: WASocket): Promise<void> {
     return;
   }
   let cekilen = 0;
-  for (const jid of jidler) {
+  const kanalCek = async (jid: string) => {
     try {
       await sock.subscribeNewsletterUpdates(jid).catch(() => null);
       const mesajlar = await kanalMesajlariniCek(sock, jid, KANAL_CEK_ADET);
-      if (mesajlar.length === 0) continue;
+      if (mesajlar.length === 0) return;
       cekilen += mesajlar.length;
       await mesajlariIsle(mesajlar);
     } catch (e) {
-      uyari("Kanal çekilemedi:", jid, e instanceof Error ? e.message : e);
+      uyari("Kanal çekilemedi:", kanalAdlari.get(jid) || jid, e instanceof Error ? e.message : e);
     }
+  };
+  for (let i = 0; i < jidler.length; i += KANAL_PARALEL) {
+    await Promise.all(jidler.slice(i, i + KANAL_PARALEL).map(kanalCek));
   }
+  await whatsappTaramaIsaretle(jidler.map((j) => gruplar.get(j) ?? 0)).catch(() => null);
   log(`Kanal taraması: hesapta=${bulunan} yük=${yukKanali} mesaj=${cekilen}`);
 }
 
@@ -538,6 +572,10 @@ async function baglan(): Promise<void> {
       try {
         const kod = await sock.requestPairingCode(TELEFON);
         log(`EŞLEME KODU: ${kod} — WhatsApp > Bağlı cihazlar > Telefon numarasıyla bağla`);
+        durumAyarla(
+          "ESLEME_BEKLIYOR",
+          `Kod: ${kod} — WhatsApp → Bağlı cihazlar → Cihaz bağla → Telefon numarasıyla bağla`
+        );
         await bildir(
           `<b>Yük Avcısı — WhatsApp eşleme kodu</b>\n<code>${kod}</code>\n` +
             `WhatsApp → Bağlı cihazlar → Cihaz bağla → "Telefon numarasıyla bağla"`
@@ -550,6 +588,7 @@ async function baglan(): Promise<void> {
     if (u.connection === "open") {
       eslemeKoduSayisi = 0;
       log("Bağlandı.");
+      durumAyarla("BAGLI", "Bağlı");
       const duzelen = await yanlisKanalDavetleriniDuzelt().catch(() => 0);
       if (duzelen) log(`Kanal davet düzeltildi: ${duzelen}`);
       await gruplariEsitle(sock);
@@ -579,11 +618,14 @@ async function baglan(): Promise<void> {
       const kod = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
         ?.output?.statusCode;
       if (kod === DisconnectReason.loggedOut) {
-        uyari("Oturum kapatıldı (telefondan çıkış veya engel). Yeniden eşleme gerekiyor.");
+        // Kapanan oturum işe yaramaz; silinip yeni eşleme kodu istenir (kod panelde görünür).
+        uyari("Oturum kapatıldı (telefondan çıkış veya engel). Yeni eşleme kodu isteniyor.");
+        durumAyarla("OTURUM_KAPANDI", "Oturum kapandı — birazdan yeni eşleme kodu burada çıkar");
         await bildir(
-          `<b>Yük Avcısı — WhatsApp okuyucu durdu</b>\nOturum kapatıldı; ` +
-            `sunucuda ${AUTH_DIR} klasörünü silip servisi yeniden başlatınca yeni eşleme kodu gelir.`
+          `<b>Yük Avcısı — WhatsApp oturumu kapandı</b>\nYeni eşleme kodu yük ekranında çıkacak.`
         );
+        await rm(AUTH_DIR, { recursive: true, force: true }).catch(() => null);
+        setTimeout(() => void baglan(), 10_000);
         return;
       }
       const bekle =
@@ -595,8 +637,15 @@ async function baglan(): Promise<void> {
       if (bekle > 5000) {
         eslemeKoduSayisi = 0;
         uyari("Eşleme kodları kullanılmadı; 1 saat sonra tekrar denenecek.");
+        durumAyarla(
+          "ESLEME_BEKLIYOR",
+          "Kodlar kullanılmadı; 1 saat içinde yeni kod gelir (hemen için: sudo systemctl restart yukavci-whatsapp)"
+        );
       } else {
         log(`Bağlantı kapandı (kod=${kod ?? "-"}); yeniden bağlanılıyor.`);
+        if (state.creds.registered && kod !== DisconnectReason.restartRequired) {
+          durumAyarla("KOPTU", `Bağlantı koptu (kod=${kod ?? "-"}), yeniden bağlanıyor`);
+        }
       }
       setTimeout(() => void baglan(), bekle);
     }
@@ -630,6 +679,7 @@ async function main() {
     alinan = 0;
     kuyruga = 0;
   }, 60 * 60 * 1000);
+  setInterval(() => void nabizYaz("whatsapp", durum, durumNot), 60 * 1000);
   process.on("SIGTERM", () => process.exit(0));
   process.on("SIGINT", () => process.exit(0));
   await baglan();

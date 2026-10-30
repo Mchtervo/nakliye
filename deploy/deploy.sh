@@ -206,7 +206,7 @@ pm2 save
 daemon_etkilendi() {
   local eski="$1" yeni="$2"
   git diff --name-only "$eski" "$yeni" | grep -E \
-    '^(scripts/telegram-daemon\.ts|scripts/ts-kayit\.mjs|scripts/ts-cozucu\.mjs|scripts/cron-katil\.ts|scripts/cron-grup-cik\.ts|lib/kaynaklar/(telegram|tdm|eleme|grupOkuma|filtre|kaydet)|lib/ayarlar\.ts|lib/prisma\.ts|lib/bildirim/|lib/ai/|package(-lock)?\.json|prisma/|deploy/yukavci-telegram\.service)' \
+    '^(scripts/telegram-daemon\.ts|scripts/ts-kayit\.mjs|scripts/ts-cozucu\.mjs|scripts/cron-katil\.ts|scripts/cron-grup-cik\.ts|lib/kaynaklar/(telegram|tdm|eleme|grupOkuma|filtre|kaydet|daemonNabiz)|lib/ayarlar\.ts|lib/prisma\.ts|lib/bildirim/|lib/ai/|package(-lock)?\.json|prisma/|deploy/yukavci-telegram\.service)' \
     >/dev/null
 }
 
@@ -229,7 +229,7 @@ fi
 # WhatsApp okuyucu ayrı servis; restart edilmezse yeni kod hiç devreye girmez.
 wa_etkilendi() {
   git diff --name-only "$1" "$2" | grep -E \
-    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup)|deploy/yukavci-whatsapp\.service)' \
+    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup|daemonNabiz)|deploy/yukavci-whatsapp\.service)' \
     >/dev/null
 }
 

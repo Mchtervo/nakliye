@@ -22,6 +22,7 @@ import {
 } from "@/lib/karHesap";
 import { panelTazeSinir, solukMu } from "@/lib/ilanTazelik";
 import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
+import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -341,6 +342,7 @@ export default async function AiYuklerSayfasi({
   }
 
   const aiAcik = aiKullanilabilir();
+  const okuyucuSorunlari = await daemonSorunlari().catch(() => []);
   const killSwitch = aiKapaliMi();
   const anahtarVar = Boolean(process.env.OPENAI_API_KEY);
   const cipler = rotaCipleri(tercih.rotalar);
@@ -488,6 +490,15 @@ export default async function AiYuklerSayfasi({
           sinif="btn btn-amber shrink-0 !px-4 !py-2 text-sm"
         />
       </div>
+
+      {okuyucuSorunlari.map((s) => (
+        <div
+          key={s.ad}
+          className="rounded-xl border border-ember/30 bg-ember/10 px-3 py-2.5 text-sm text-paper"
+        >
+          <strong>{s.baslik}.</strong> <span className="select-all">{s.detay}</span>
+        </div>
+      ))}
 
       {killSwitch && (
         <div className="rounded-xl border border-amber/30 bg-amber/10 px-3 py-2.5 text-sm text-paper">
