@@ -85,8 +85,9 @@ export default function TelefonTuslari({
 
   const eklendi = standalone || kurulu;
 
-  // Ana sayfa: kontrol bitmeden gösterme (yanıp sönmesin); iş bittiyse hiç gösterme.
-  if (!ayarlarda && (bildirimAcik === null || (eklendi && bildirimAcik))) return null;
+  // Ana sayfa: kontrol bitmeden gösterme (yanıp sönmesin); bu cihazda bildirim
+  // açıksa hiç gösterme — her cihazda. Ayarlar'da hep durur.
+  if (!ayarlarda && (bildirimAcik === null || bildirimAcik)) return null;
 
   return (
     <section id="telefon-tuslari" className={ayarlarda ? "space-y-3" : "kart space-y-3 p-4 sm:p-5"}>
@@ -126,7 +127,10 @@ export default function TelefonTuslari({
 
       <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
         <p className="mb-2 text-sm font-semibold">Bildirim</p>
-        <PushIzinButonu acikAnahtar={acikAnahtar} />
+        <PushIzinButonu
+          acikAnahtar={acikAnahtar}
+          onAcildi={ayarlarda ? undefined : () => setTimeout(() => setBildirimAcik(true), 1200)}
+        />
         <div className="mt-3">
           <TestBildirimButonu />
         </div>

@@ -31,8 +31,11 @@ async function swHazir(): Promise<ServiceWorkerRegistration> {
 
 export default function PushIzinButonu({
   acikAnahtar,
+  onAcildi,
 }: {
   acikAnahtar: string | null;
+  /** Bu cihazda bildirim başarıyla açılınca. */
+  onAcildi?: () => void;
 }) {
   const [hal, setHal] = useState<Hal>("kontrol");
   const [mesaj, setMesaj] = useState("");
@@ -110,6 +113,7 @@ export default function PushIzinButonu({
       }
 
       setHal("acik");
+      onAcildi?.();
     } catch (hata) {
       setHal("hata");
       setMesaj(hata instanceof Error ? hata.message : "Bildirim açılamadı.");
