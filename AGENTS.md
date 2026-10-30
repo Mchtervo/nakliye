@@ -20,4 +20,6 @@ Kullanıcı ölçmeden kabul etmiyorsa varsayılanı geri al veya onay bekle.
 ## Koridor filtresi
 
 İlan kaydı ve AI prompt: `ai_koridor_iller` (Ayarlar). HEM çıkış HEM varış listede.
-Varsayılan: Ankara, Kırıkkale, Çankırı, Bolu, Düzce, Sakarya, Kocaeli, İstanbul.
+Varsayılan (43 il, `lib/koridor.ts`): İç Anadolu, Batı Karadeniz (Bolu–Düzce–Zonguldak–Karabük–
+Bartın–Kastamonu–Çorum), Marmara (Trakya hariç), Ege, Mersin–Adana–Osmaniye–Hatay–Antalya–
+Isparta–Burdur. Doğu, Güneydoğu, Doğu Karadeniz, Trakya yok; İstanbul Avrupa yakası elenir.

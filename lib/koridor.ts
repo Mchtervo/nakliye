@@ -5,25 +5,23 @@
 import { ilBul } from "@/lib/iller";
 
 /**
- * Çalışılan hat. Beypazarı Ankara'ya, Gerede ve mahalleler Bolu'ya bağlıdır.
- * Gebze Kocaeli'dedir. İstanbul'un Avrupa yakası bu listeye rağmen ayrıca elenir.
+ * Çalışılan bölge: Ankara'dan ~500 km (Ege ve Hatay biraz öte, bilerek dahil).
+ * İç Anadolu + Batı Karadeniz + Marmara'nın Anadolu tarafı + Ege + Mersin–Hatay hattı.
+ * Doğu, Güneydoğu, Doğu Karadeniz ve Trakya yok. İstanbul'un Avrupa yakası
+ * bu listeye rağmen ayrıca elenir (istanbulYaka).
  */
 export const VARSAYILAN_KORIDOR_ILLER: readonly string[] = [
-  "Ankara",
-  "Kırıkkale",
-  "Çankırı",
-  "Eskişehir",
-  "Yozgat",
-  "Mersin",
-  "Adana",
-  "Bolu",
-  "Düzce",
-  "Sakarya",
-  "Kocaeli",
-  "İstanbul",
-  "Bursa",
-  "İzmir",
-  "Edirne",
+  // İç Anadolu
+  "Ankara", "Kırıkkale", "Çankırı", "Kırşehir", "Yozgat", "Aksaray", "Eskişehir",
+  "Konya", "Nevşehir", "Kayseri", "Niğde", "Karaman", "Sivas",
+  // Batı Karadeniz (Ankara–İstanbul yolu ve yakını)
+  "Bolu", "Düzce", "Zonguldak", "Karabük", "Bartın", "Kastamonu", "Çorum",
+  // Marmara (Trakya hariç)
+  "İstanbul", "Kocaeli", "Sakarya", "Bilecik", "Bursa", "Yalova", "Balıkesir", "Çanakkale",
+  // Ege
+  "Afyonkarahisar", "Kütahya", "Uşak", "Denizli", "Manisa", "İzmir", "Aydın", "Muğla",
+  // Akdeniz
+  "Mersin", "Adana", "Osmaniye", "Hatay", "Antalya", "Isparta", "Burdur",
 ] as const;
 
 /** Virgüllü / satırlı ham metinden geçerli il listesi. */

@@ -732,16 +732,20 @@ function kapsamTalimati(iller: string[]): string {
   return `
 
 KAPSAM (KORİDOR):
-- İki uç da listedeyse YAZ (Ankara→İzmir, Mersin→Adana, Bolu→Bursa, Gebze→Eskişehir).
-- Bir uç listede değilse YAZMA. Doğu ve güneydoğu varış/çıkış YAZMA
-  (Van, Erzurum, Elazığ, Malatya, Diyarbakır, Urfa, Antep, Hatay, Samsun).
+- İki uç da listedeyse YAZ (Ankara→İzmir, Konya→Kocaeli, Denizli→Gebze,
+  Kayseri→Mersin, Zonguldak→Bursa, Hatay→Ankara).
+- Bir uç listede değilse YAZMA. Doğu, güneydoğu, doğu Karadeniz ve Trakya
+  varış/çıkış YAZMA (Van, Erzurum, Malatya, Diyarbakır, Urfa, Antep, Maraş,
+  Samsun, Trabzon, Tekirdağ, Edirne).
 - "ANKARA YÜKLEME" ve hiçbir varış yazmıyorsa nereye=null, YAZMA.
 - İstanbul'da yalnız köprünün bu tarafı (Anadolu): Pendik, Tuzla, Kartal,
   Kurtköy, Ataşehir, Ümraniye, Gebze. Bunları YAZ.
 - Köprünün ilerisi YAZMA: İkitelli, Bağcılar, Esenyurt, Hadımköy,
   Yenibosna, Avcılar, Beylikdüzü.
-- Mahalle adını bağlı ile yaz (Beypazarı=Ankara, Gerede=Bolu, Gebze=Kocaeli,
-  Pendik=İstanbul, Nilüfer=Bursa, Aliağa=İzmir).
+- İlçe/mahalle/OSB adını bağlı ile yaz; il adı yazmasa da bil (Beypazarı=Ankara,
+  Gerede=Bolu, Gebze=Kocaeli, Pendik=İstanbul, Nilüfer=Bursa, Aliağa=İzmir,
+  Tosçelik=Osmaniye, Hendek=Sakarya, Kemalpaşa=İzmir, Turgutlu=Manisa,
+  Ereğli tek başına belirsiz: Kdz. Ereğli=Zonguldak, Konya Ereğli=Konya).
 İller: ${iller.join(", ")}
 İlçe/semt → bağlı il (Ostim→Ankara, Gebze→Kocaeli, Tuzla→İstanbul,
 Yahşihan→Kırıkkale, Gölbaşı→Ankara, Beypazarı→Ankara, Gerede→Bolu).`;

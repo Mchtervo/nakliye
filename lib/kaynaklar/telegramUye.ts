@@ -1784,7 +1784,7 @@ export async function adaylariDegerlendir(
       continue;
     }
 
-    const karar = grubuDegerlendir(baslik, tercih.bolgeler);
+    const karar = grubuDegerlendir(baslik, tercih.bolgeler, tercih.koridorIller);
     if (!karar.uygun) {
       rapor.elenen += 1;
       continue;

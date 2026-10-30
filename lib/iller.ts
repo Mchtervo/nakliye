@@ -1,3 +1,5 @@
+import { EK_ILCELER } from "@/lib/ilceler";
+
 export const ILLER = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksaray", "Amasya", "Ankara",
   "Antalya", "Ardahan", "Artvin", "Aydın", "Balıkesir", "Bartın", "Batman",
@@ -354,6 +356,7 @@ function yerEkle(ad: string, il: string): void {
 
 for (const il of ILLER) yerEkle(il, il);
 for (const [takma, il] of Object.entries(TAKMA_ADLAR)) yerEkle(takma, il);
+for (const [ilce, il] of Object.entries(EK_ILCELER)) yerEkle(ilce, il);
 COK_KELIME.sort((a, b) => b.kalip.length - a.kalip.length);
 
 /**

@@ -550,7 +550,9 @@ export type GrupDegerlendirme = {
  */
 export function grubuDegerlendir(
   baslik: string,
-  kodlar: BolgeKodu[]
+  kodlar: BolgeKodu[],
+  /** Koridor illeri: bölge seçili olmasa da kapsamda (Zonguldak, Çorum…). */
+  ekIller: readonly string[] = []
 ): GrupDegerlendirme {
   const sade = sadelestir(baslik);
   if (!sade) return { uygun: false, sebep: "Başlık boş", bolge: null };
@@ -588,8 +590,14 @@ export function grubuDegerlendir(
     }
   }
 
+  for (const il of ekIller) {
+    if (yerGeciyorMu(il)) {
+      return { uygun: true, sebep: `${il} grubu`, bolge: ilinBolgesi(il) };
+    }
+  }
+
   // Kapsam dışı bir il adı geçiyorsa o bölgenin grubudur, alma.
-  const kapsam = new Set(bolgeIlleri(secili));
+  const kapsam = new Set([...bolgeIlleri(secili), ...ekIller]);
   const baskaIl = ILLER.some((il) => !kapsam.has(il) && yerGeciyorMu(il));
   if (baskaIl) {
     return { uygun: false, sebep: "Kapsam dışı bölge", bolge: null };
