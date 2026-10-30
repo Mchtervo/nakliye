@@ -226,6 +226,27 @@ if [ "$DAEMON_RESTART" -eq 1 ]; then
   sudo /bin/systemctl restart yukavci-telegram
 fi
 
+# WhatsApp okuyucu ayrı servis; restart edilmezse yeni kod hiç devreye girmez.
+wa_etkilendi() {
+  git diff --name-only "$1" "$2" | grep -E \
+    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup)|deploy/yukavci-whatsapp\.service)' \
+    >/dev/null
+}
+
+WA_DURUM="kurulu değil"
+if systemctl cat yukavci-whatsapp >/dev/null 2>&1; then
+  if [ "$DAEMON_RESTART" -eq 1 ] || wa_etkilendi "$OLD_SHA" "HEAD"; then
+    echo "==> systemctl restart yukavci-whatsapp"
+    sudo /bin/systemctl restart yukavci-whatsapp || true
+  fi
+  sleep 2
+  WA_DURUM="$(systemctl is-active yukavci-whatsapp || true)"
+  echo "yukavci-whatsapp: $WA_DURUM"
+  if [ "$WA_DURUM" != "active" ]; then
+    bildir "⚠️ yukavci-whatsapp $WA_DURUM — ~/logs/whatsapp-daemon.log bak"
+  fi
+fi
+
 echo "==> doğrulama"
 HATA=0
 PID="$(pm2 pid yukavci 2>/dev/null | head -1 | tr '\n' ' ' | awk '{print $1}' | tr -d '[:space:]')"
