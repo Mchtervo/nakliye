@@ -293,7 +293,8 @@ function kisiAdiMi(ad: string | null): boolean {
 function ilaniNormalize(
   i: HamIlan,
   baglam: MetinBaglami,
-  anaUs: string | null = null
+  anaUs: string | null = null,
+  koridor: Set<string> | null = null
 ): CozulmusIlan {
   let nereden = i.nereden?.trim() || null;
   let nereye = i.nereye?.trim() || null;
@@ -372,7 +373,8 @@ function ilaniNormalize(
   }
 
   // Ana üsse uzak varış → düşük skor (Şüpheli); kayıt katmanı da eleyebilir.
-  if (anaUs && varisIl) {
+  // Koridordaki varış (İzmir, Muğla, Hatay…) bilerek seçildi; cezalanmaz.
+  if (anaUs && varisIl && !koridor?.has(varisIl)) {
     const km = yaklasikKarayoluKm(anaUs, varisIl);
     if (km !== null && km > VARIS_UZA_KM) {
       skor = Math.min(skor, 40);
@@ -548,7 +550,7 @@ async function tekParcaCozumle(
   const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
   const sonuc: CozulmusIlan[] = [];
   for (const ham of hamListe) {
-    let ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null);
+    let ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null, filtreSet);
     if (!ilan.telefon) ilan.telefon = irtibatTelefonuBul(parca);
 
     let sebep = kullanilamazSebebi(ilan);
@@ -861,7 +863,7 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     const kaynakMesaj = paket[sira];
     if (!kaynakMesaj) continue;
 
-    let ilan = ilaniNormalize(ham, baglamlar[sira], filtre.anaUs ?? null);
+    let ilan = ilaniNormalize(ham, baglamlar[sira], filtre.anaUs ?? null, filtreSet);
     if (!ilan.telefon) ilan.telefon = irtibatTelefonuBul(kaynakMesaj.metin);
 
     let sebep = kullanilamazSebebi(ilan);

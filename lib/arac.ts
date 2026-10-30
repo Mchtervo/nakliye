@@ -144,10 +144,13 @@ export function aracMetniUyuyorMu(
     return true;
   }
 
-  if (kod && !kabulKodlari.includes(kod)) return false;
-
   let kabulSkor = 0;
   for (const k of kabulKodlari) kabulSkor += tipKelimeSkoru(sade, k);
+
+  // "Kapalı, Kamyonet, Kamyon" — ilan uygun araçları sayıyor; bizimki listede.
+  if (kabulSkor > 0) return true;
+
+  if (kod && !kabulKodlari.includes(kod)) return false;
 
   let redSkor = 0;
   for (const tip of ARAC_TIPLERI) {

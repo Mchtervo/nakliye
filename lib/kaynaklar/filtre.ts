@@ -1,5 +1,5 @@
 import type { AiTercihleri } from "@/lib/ayarlar";
-import { aracKoduBul, aracMetniUyuyorMu } from "@/lib/arac";
+import { aracKoduBul, aracMetniUyuyorMu, tirUzunlukMetre } from "@/lib/arac";
 import {
   koridorIlKumesi,
   koridorTipiBelirle,
@@ -41,13 +41,21 @@ export function araciUyuyorMu(
     hamMetin && ilan.nereden && ilan.nereye
       ? rotaSatiriniBul(ilan.nereden, ilan.nereye, hamMetin)
       : null;
-  const birlesik = [ilan.aracTipi, satir].filter(Boolean).join(" ");
+  // Tek ilanlık kısa mesajda araç satırı rota satırından ayrı ("📦 Kapalı, Tır").
+  const kisaTekIlan = hamMetin && hamMetin.length < 400 ? hamMetin : null;
+  // Metinde araç hiç yazmıyorsa modelin tahmini ("kamyonet") eleme sebebi olmaz.
+  const aracYazmiyor =
+    kisaTekIlan !== null && !aracKoduBul(kisaTekIlan) && !tirUzunlukMetre(kisaTekIlan);
+  const birlesik = [ilan.aracTipi, satir, kisaTekIlan].filter(Boolean).join(" ");
   const kod =
     ilan.aracTipiKod ||
     aracKoduBul(ilan.aracTipi) ||
     (satir ? aracKoduBul(satir) : null);
 
-  if (!aracMetniUyuyorMu(birlesik || ilan.aracTipi, kod, tercih.aracTipleri)) {
+  if (
+    !aracYazmiyor &&
+    !aracMetniUyuyorMu(birlesik || ilan.aracTipi, kod, tercih.aracTipleri)
+  ) {
     return false;
   }
   if (tercih.maxTonaj && ilan.tonaj && ilan.tonaj > tercih.maxTonaj) {
