@@ -8,8 +8,8 @@ import {
   GRUP_CIKIS_GUNLUK_ANAHTAR,
   cikisGunlukOku,
 } from "@/lib/kaynaklar/grupTemizlik";
-import { bugunHarcamaMikro } from "@/lib/ai/butce";
-import { gunlukButceUsd, mikrodolarYaz } from "@/lib/ai/maliyet";
+import { bugunHarcamaMikro, gunlukLimitUsd } from "@/lib/ai/butce";
+import { mikrodolarYaz } from "@/lib/ai/maliyet";
 import { tlYaz } from "@/lib/para";
 import {
   planAdaylariniGetir,
@@ -348,7 +348,7 @@ export async function muhasebeOzet(ay?: string | null) {
 /** AI bugünkü harcama. */
 export async function aiHarcama() {
   const mikro = await bugunHarcamaMikro();
-  const limit = gunlukButceUsd();
+  const limit = await gunlukLimitUsd();
   return {
     bugun: mikrodolarYaz(mikro),
     limitUsd: `$${limit.toFixed(2)}`,

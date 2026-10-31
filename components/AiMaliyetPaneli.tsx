@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   aiButceKesiminiAc,
+  aiGunlukLimitKaydet,
   aiTestIzniVer,
   type AiSonuc,
 } from "@/app/ai-actions";
@@ -116,6 +117,28 @@ export default function AiMaliyetPaneli({ ozet }: { ozet: AiMaliyetOzeti }) {
             limit {ozet.limitYazi} · kalan {ozet.kalanYazi}
           </div>
         </div>
+        <form
+          className="col-span-2 flex items-end gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const deger = String(new FormData(e.currentTarget).get("limit") || "");
+            baslat(async () => setSonuc(await aiGunlukLimitKaydet(deger)));
+          }}
+        >
+          <label className="min-w-0 flex-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-fog">Günlük AI limiti ($)</span>
+            <input
+              name="limit"
+              inputMode="decimal"
+              defaultValue={ozet.limitUsd}
+              className="alan mt-1 !py-2"
+              aria-label="Günlük AI limiti, dolar"
+            />
+          </label>
+          <button type="submit" disabled={bekliyor} className="btn btn-amber !min-h-10 shrink-0 text-sm disabled:opacity-60">
+            Kaydet
+          </button>
+        </form>
         <div className="rounded-xl border border-white/10 bg-white/4 px-3 py-2">
           <div className="text-[11px] font-bold uppercase tracking-wider text-fog">
             Çağrı (bugün)

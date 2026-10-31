@@ -7,6 +7,16 @@ import { aiTercihleriOku } from "@/lib/ayarlar";
 export const BUTCE_KESIM_ANAHTAR = "ai_butce_kesildi";
 /** Günde bir hatırlatma için TR gün anahtarı (YYYY-MM-DD). */
 export const BUTCE_HATIRLAT_ANAHTAR = "ai_butce_hatirlat_gun";
+/** Ayarlar ekranından değiştirilen günlük limit (USD); yoksa env, en az 2 $. */
+export const GUNLUK_LIMIT_ANAHTAR = "ai_gunluk_limit_usd";
+const VARSAYILAN_LIMIT_USD = 2;
+
+export async function gunlukLimitUsd(): Promise<number> {
+  const k = await prisma.ayar.findUnique({ where: { anahtar: GUNLUK_LIMIT_ANAHTAR } }).catch(() => null);
+  const db = Number(k?.deger);
+  if (Number.isFinite(db) && db > 0) return db;
+  return Math.max(gunlukButceUsd(), VARSAYILAN_LIMIT_USD);
+}
 
 async function bayrakOku(): Promise<string | null> {
   const k = await prisma.ayar.findUnique({
@@ -53,7 +63,7 @@ export async function butceBayraginiSenkronizeEt(): Promise<boolean> {
   if ((await bayrakOku()) !== "1") return false;
 
   const harcama = await bugunHarcamaMikro();
-  const limitMikro = Math.round(gunlukButceUsd() * 1_000_000);
+  const limitMikro = Math.round((await gunlukLimitUsd()) * 1_000_000);
   if (harcama < limitMikro) {
     await bayrakYaz("0");
     return false;
@@ -74,7 +84,7 @@ export async function butceyiKes(harcamaMikro: number): Promise<void> {
   await bayrakYaz("1");
   if (onceki) return;
 
-  const limit = gunlukButceUsd();
+  const limit = await gunlukLimitUsd();
   const metin =
     `⛔ <b>AI bütçe kesildi</b>\n` +
     `Günlük limit: $${limit.toFixed(2)}\n` +
@@ -98,7 +108,7 @@ export async function butceMusaitMi(tahminiEkMikro = 0): Promise<boolean> {
   if (await butceKesildiMi()) return false;
 
   const harcama = await bugunHarcamaMikro();
-  const limitMikro = Math.round(gunlukButceUsd() * 1_000_000);
+  const limitMikro = Math.round((await gunlukLimitUsd()) * 1_000_000);
   const proje = harcama + Math.max(0, tahminiEkMikro);
   if (proje >= limitMikro) {
     await butceyiKes(harcama);
@@ -129,7 +139,7 @@ export async function butceKesikHatirlat(kalanMesaj: number): Promise<boolean> {
     update: { deger: gun },
   });
 
-  const limit = gunlukButceUsd();
+  const limit = await gunlukLimitUsd();
   const harcama = await bugunHarcamaMikro();
   const metin =
     `⏸ <b>AI bütçe kesik</b>\n` +

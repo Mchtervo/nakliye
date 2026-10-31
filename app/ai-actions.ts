@@ -9,7 +9,7 @@ import { ilBul } from "@/lib/iller";
 import { VARSAYILAN_KORIDOR_ILLER } from "@/lib/koridor";
 import { tlKurusaCevir } from "@/lib/para";
 import { kaynaklariTara } from "@/lib/kaynaklar/tarama";
-import { butceKesiminiAc } from "@/lib/ai/butce";
+import { butceKesiminiAc, GUNLUK_LIMIT_ANAHTAR } from "@/lib/ai/butce";
 import { adayFirmalariBul } from "@/lib/ai/firmaBul";
 import { gunlukAnaliziUret } from "@/lib/ai/gunlukAnaliz";
 import { testIzniDurum, testIzniVer } from "@/lib/ai/testIzin";
@@ -895,4 +895,17 @@ export async function aiButceKesiminiAc(): Promise<AiSonuc> {
   await butceKesiminiAc();
   revalidatePath("/ayarlar");
   return { bilgi: "Bütçe kesmesi kaldırıldı. Günlük limit hâlâ geçerli." };
+}
+
+/** Günlük AI limitini (USD) Ayarlar ekranından değiştir; kesik bütçe limit altındaysa kendiliğinden açılır. */
+export async function aiGunlukLimitKaydet(usdYazi: string): Promise<AiSonuc> {
+  const usd = Number(usdYazi.replace(",", ".").replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(usd) || usd < 0.1 || usd > 50) return { hata: "Limit 0,1 ile 50 $ arasında olmalı." };
+  await prisma.ayar.upsert({
+    where: { anahtar: GUNLUK_LIMIT_ANAHTAR },
+    create: { anahtar: GUNLUK_LIMIT_ANAHTAR, deger: String(usd) },
+    update: { deger: String(usd) },
+  });
+  revalidatePath("/ayarlar");
+  return { bilgi: `Günlük AI limiti $${usd.toFixed(2)} oldu. Bütçe dolduysa okuma kendiliğinden yeniden başlar.` };
 }

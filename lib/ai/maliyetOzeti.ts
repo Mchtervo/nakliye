@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { butceKesildiMi, bugunHarcamaMikro, trGunBaslangici } from "@/lib/ai/butce";
-import { gunlukButceUsd, mikrodolarYaz } from "@/lib/ai/maliyet";
+import { butceKesildiMi, bugunHarcamaMikro, gunlukLimitUsd, trGunBaslangici } from "@/lib/ai/butce";
+import { mikrodolarYaz } from "@/lib/ai/maliyet";
 import { aiKapaliMi } from "@/lib/ai/istemci";
 import { AI_MAX_CIKTI, AI_ZAMAN_ASIMI_MS } from "@/lib/ai/modeller";
 
@@ -111,7 +111,7 @@ export async function aiMaliyetOzeti(): Promise<AiMaliyetOzeti> {
       }),
     ]);
 
-  const limitUsd = gunlukButceUsd();
+  const limitUsd = await gunlukLimitUsd();
   const limitMikro = Math.round(limitUsd * 1_000_000);
   const kalanMikro = Math.max(0, limitMikro - bugunMikro);
 
