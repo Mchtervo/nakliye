@@ -16,6 +16,7 @@ export function varsayilanButonlar(url: string | null | undefined): BildirimButo
   if (url.includes("#yolculuk")) return [{ etiket: "Yolculuğa git", url }];
   if (url.includes("#km")) return [{ etiket: "Kilometreye git", url }];
   if (url.includes("#belgeler")) return [{ etiket: "Belgelere git", url }];
+  if (url.includes("#kartlar")) return [{ etiket: "Ödeme yap", url }];
   if (url.startsWith("/ai/yukler")) return [{ etiket: "İlanı aç", url }];
   if (url.startsWith("/ayarlar")) return [{ etiket: "Ayarlara git", url }];
   if (url.startsWith("/yukler")) return [{ etiket: "Seferlere git", url }];

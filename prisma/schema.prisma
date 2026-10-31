@@ -70,6 +70,32 @@ model Belge {
   @@index([bitis])
 }
 
+/// Kredi kartı: ekstre borcu, son ödeme günü, ödemeler. Kalan = borç − borç girildikten sonraki ödemeler.
+model KrediKarti {
+  id           Int         @id @default(autoincrement())
+  ad           String
+  /// Ayın kaçı (1–31); kısa ayda ayın son günü
+  sonOdemeGunu Int
+  /// Ekstre borcu (kuruş) ve girildiği an
+  borc         Int         @default(0)
+  borcTarih    DateTime    @default(now())
+  /// Gönderilen son uyarı: "YYYY-MM:seviye"
+  uyari        String?
+  odemeler     KartOdeme[]
+  createdAt    DateTime    @default(now())
+}
+
+model KartOdeme {
+  id     Int        @id @default(autoincrement())
+  kartId Int
+  kart   KrediKarti @relation(fields: [kartId], references: [id], onDelete: Cascade)
+  tarih  DateTime   @default(now())
+  /// kuruş
+  tutar  Int
+
+  @@index([kartId, tarih])
+}
+
 model Odeme {
   id    Int      @id @default(autoincrement())
   yukId Int

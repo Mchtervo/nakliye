@@ -196,6 +196,38 @@ export async function belgeHatirlat(): Promise<number> {
   return gonderilen;
 }
 
+/**
+ * Kredi kartı: borç varken son ödemeye 3 gün, 1 gün kala, son gün ve
+ * geçince birer kez (09–21). Anahtar "YYYY-MM-GG:seviye" — her ekstre dönemi ayrı.
+ */
+export async function kartHatirlat(): Promise<number> {
+  const { saat } = trSimdi();
+  if (saat < 9 || saat >= 21) return 0;
+  const { kartlarDurumu } = await import("@/lib/krediKarti");
+  let gonderilen = 0;
+  for (const k of await kartlarDurumu()) {
+    if (k.kalan <= 0) continue;
+    const seviye = k.kalanGun < 0 ? 4 : k.kalanGun === 0 ? 3 : k.kalanGun <= 1 ? 2 : k.kalanGun <= 3 ? 1 : 0;
+    if (seviye === 0) continue;
+    const donem = trGun(k.sonOdeme);
+    const [oncekiDonem, oncekiSeviye] = (k.uyari || "").split(":");
+    if (oncekiDonem === donem && Number(oncekiSeviye) >= seviye) continue;
+    await prisma.krediKarti.update({ where: { id: k.id }, data: { uyari: `${donem}:${seviye}` } });
+    const borc = tlYaz(k.kalan);
+    await bilgiBildir(
+      seviye === 4
+        ? `${k.ad}: son ödeme geçti`
+        : seviye === 3
+          ? `${k.ad}: son ödeme bugün`
+          : `${k.ad}: son ödemeye ${k.kalanGun} gün`,
+      `Kalan borç ${borc}. Son ödeme ${tarihYaz(k.sonOdeme)}. Ödediysen ana sayfada "Ödeme yap"tan kaydet.`,
+      "/#kartlar"
+    );
+    gonderilen += 1;
+  }
+  return gonderilen;
+}
+
 const YAKIT_UYARI_ANAHTAR = "yakit_uyari_dolum";
 
 /** Son dolum ortalamadan %15 fazla yaktıysa o dolum için bir kez. */

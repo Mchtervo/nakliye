@@ -613,3 +613,45 @@ export async function belgeSil(id: number): Promise<void> {
   await prisma.belge.delete({ where: { id } }).catch(() => null);
   revalidatePath("/");
 }
+
+export type KartSonuc = { hata: string | null; tamam: boolean };
+
+/** Kart ekle / güncelle. Borç değişince yeni ekstre sayılır: ödemeler ondan düşer. */
+export async function kartKaydet(_onceki: KartSonuc, formData: FormData): Promise<KartSonuc> {
+  const id = Number(metinOku(formData.get("kartId")));
+  const ad = metinOku(formData.get("ad"));
+  const gun = Number(metinOku(formData.get("sonOdemeGunu")));
+  const borc = tlKurusaCevir(metinOku(formData.get("borc")) || "0");
+  if (!ad) return { hata: "Kartın adını yaz (örn. Garanti Bonus).", tamam: false };
+  if (!Number.isInteger(gun) || gun < 1 || gun > 31) return { hata: "Son ödeme günü 1–31 arası olmalı.", tamam: false };
+  if (borc === null || borc < 0) return { hata: "Borç tutarı geçersiz.", tamam: false };
+  if (Number.isInteger(id) && id > 0) {
+    const mevcut = await prisma.krediKarti.findUnique({ where: { id } });
+    if (!mevcut) return { hata: "Kart bulunamadı.", tamam: false };
+    const yeniEkstre = borc !== mevcut.borc;
+    await prisma.krediKarti.update({
+      where: { id },
+      data: { ad, sonOdemeGunu: gun, borc, ...(yeniEkstre ? { borcTarih: new Date(), uyari: null } : {}) },
+    });
+  } else {
+    await prisma.krediKarti.create({ data: { ad, sonOdemeGunu: gun, borc } });
+  }
+  revalidatePath("/");
+  return { hata: null, tamam: true };
+}
+
+/** Kart ödemesi: kalan borçtan düşer, ay sonu net kalanda gider sayılır. */
+export async function kartOdemeYap(kartId: number, tutarYazi: string): Promise<KartSonuc> {
+  const tutar = tlKurusaCevir(tutarYazi);
+  if (!Number.isInteger(kartId) || kartId <= 0) return { hata: "Kart bulunamadı.", tamam: false };
+  if (tutar === null || tutar <= 0) return { hata: "Ödeme tutarını yaz (örn. 5.000).", tamam: false };
+  await prisma.kartOdeme.create({ data: { kartId, tutar } });
+  revalidatePath("/");
+  return { hata: null, tamam: true };
+}
+
+export async function kartSil(id: number): Promise<void> {
+  if (!Number.isInteger(id) || id <= 0) return;
+  await prisma.krediKarti.delete({ where: { id } }).catch(() => null);
+  revalidatePath("/");
+}

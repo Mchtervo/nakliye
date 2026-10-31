@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import {
   bakimHatirlat,
   belgeHatirlat,
+  kartHatirlat,
   odemeHatirlat,
   okuyucuHatirlat,
   yakitHatirlat,
@@ -22,8 +23,9 @@ async function main() {
   const bakim = await bakimHatirlat();
   const belge = await belgeHatirlat();
   const yakit = await yakitHatirlat();
+  const kart = await kartHatirlat();
   console.log(
-    `[cron-hatirlatma] okuyucu=${okuyucu} odeme=${odeme.adet}${odeme.atlandi ? ` (${odeme.atlandi})` : ""} ikon=${ikon} yolculuk=${yolculuk} bakim=${bakim} belge=${belge} yakit=${yakit}`
+    `[cron-hatirlatma] okuyucu=${okuyucu} odeme=${odeme.adet}${odeme.atlandi ? ` (${odeme.atlandi})` : ""} ikon=${ikon} yolculuk=${yolculuk} bakim=${bakim} belge=${belge} yakit=${yakit} kart=${kart}`
   );
 }
 

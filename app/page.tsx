@@ -8,6 +8,7 @@ import AraButonu from "@/components/AraButonu";
 import WhatsAppButonu from "@/components/WhatsAppButonu";
 import TelefonTuslari from "@/components/TelefonTuslari";
 import YolculukKarti from "@/components/YolculukKarti";
+import FinansKartlari from "@/components/finans/FinansKartlari";
 import AracKmKarti from "@/components/AracKmKarti";
 import BelgeKarti from "@/components/BelgeKarti";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
@@ -308,6 +309,8 @@ export default async function PanelSayfasi() {
           </Link>
         </div>
       </header>
+
+      <FinansKartlari />
 
       <YolculukKarti />
 

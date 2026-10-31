@@ -987,3 +987,90 @@ a:active .logo-hareketli .logo-isik {
     display: none;
   }
 }
+
+/* --- Kredi kartı / ay sonu (components/finans) --- */
+.pencere-perde {
+  animation: perde-ac 0.3s ease both;
+}
+.pencere-gir {
+  animation: sayfa-yukari 0.5s var(--yay) both;
+}
+@media (min-width: 640px) {
+  .pencere-gir {
+    animation: rise-in 0.4s var(--yay) both;
+  }
+}
+/* Kart: hafif 3B eğim, dokununca içeri bastırılır */
+.cuzdan-kart {
+  transition: transform 0.5s var(--yay), box-shadow 0.5s var(--yay);
+  animation: kart-gir 0.7s var(--yay) both;
+}
+.cuzdan-kart:active {
+  transform: scale(0.98);
+}
+@keyframes kart-gir {
+  from {
+    opacity: 0;
+    transform: translateY(18px) rotateX(12deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Kartın üstünden geçen ışık */
+.cuzdan-isik {
+  animation: cuzdan-isik 6s ease-in-out 1s infinite;
+}
+@keyframes cuzdan-isik {
+  0%,
+  75% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+/* Yumuşak genişleyen çubuk (genişlik değişince de akar) */
+.akan-cubuk {
+  transition: width 1s var(--yay);
+}
+.satir-akar {
+  animation: rise-in 0.55s var(--yay) both;
+}
+.onay-cizgi {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: onay-ciz 0.5s var(--yay) 0.1s forwards;
+}
+@keyframes onay-ciz {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pencere-perde,
+  .pencere-gir,
+  .cuzdan-kart,
+  .satir-akar {
+    animation: none;
+  }
+  .cuzdan-isik {
+    display: none;
+  }
+  .akan-cubuk {
+    transition: none;
+  }
+  .onay-cizgi {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes grafik-cubuk {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
