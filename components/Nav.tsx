@@ -559,7 +559,7 @@ export default function Nav() {
                 .map((l) => {
                   const aktif = aktifMi(l.href);
                   return (
-                    <NavLink key={l.href} href={l.href} className={yanMenuSinifi(aktif)}>
+                    <NavLink key={l.href} href={l.href} prefetch={null} className={yanMenuSinifi(aktif)}>
                       <span className={`[&_svg]:h-5 [&_svg]:w-5 ${aktif ? "text-amber" : "text-white/50"}`}>{l.ikon}</span>
                       {l.ad}
                     </NavLink>

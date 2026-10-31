@@ -25,7 +25,8 @@ export default function NavLink({
   href: string;
   className?: string;
   children: ReactNode;
-  prefetch?: boolean;
+  /** null: Next varsayılanı (yalnız loading iskeletine kadar, veritabanına gitmez) */
+  prefetch?: boolean | null;
 }) {
   return (
     <Link href={href} prefetch={prefetch} className={`relative ${className || ""}`}>

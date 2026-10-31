@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { tlYazKisa, tarihYaz } from "@/lib/para";
 import { kategoriAdi } from "@/lib/sabitler";
@@ -9,6 +10,7 @@ import YolculukKarti from "@/components/YolculukKarti";
 import FinansKartlari from "@/components/finans/FinansKartlari";
 import Yaklasanlar from "@/components/Yaklasanlar";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
+import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +103,8 @@ export default async function PanelSayfasi() {
     prisma.yukIlani.count({
       where: {
         durum: "YENI",
-        sonGorulme: { gte: new Date(simdi.getTime() - 2 * 24 * 60 * 60 * 1000) },
+        // Yük bul sayfasıyla aynı: son 2 saatte paylaşılan
+        sonGorulme: { gte: new Date(simdi.getTime() - YENI_ILAN_MS) },
       },
     }),
   ]);
@@ -178,11 +181,18 @@ export default async function PanelSayfasi() {
         ))}
       </section>
 
-      <Yaklasanlar />
+      {/* Yavaş kartlar akışla gelir: sayfa beklemeden açılır */}
+      <Suspense fallback={null}>
+        <Yaklasanlar />
+      </Suspense>
 
-      <YolculukKarti />
+      <Suspense fallback={<div className="iskelet h-48 !rounded-[1.4rem]" />}>
+        <YolculukKarti />
+      </Suspense>
 
-      <FinansKartlari />
+      <Suspense fallback={<div className="iskelet h-72 !rounded-[1.4rem]" />}>
+        <FinansKartlari />
+      </Suspense>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
         <section className="kart p-4 reveal reveal-d5 sm:p-5">
