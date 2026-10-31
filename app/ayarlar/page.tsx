@@ -30,6 +30,7 @@ import {
 import { elemeSayaclariOku } from "@/lib/kaynaklar/elemeSayac";
 import { aiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
 import AiMaliyetPaneli from "@/components/AiMaliyetPaneli";
+import SessizGruplar from "@/components/SessizGruplar";
 import {
   WEB_SITELER,
   siteKaynaginiGarantiEt,
@@ -194,6 +195,8 @@ export default async function AyarlarSayfasi() {
         <YenidenIsleButonu />
 
         <AiMaliyetPaneli ozet={maliyet} />
+
+        <SessizGruplar />
 
         <div className="border-t border-white/8 pt-3">
           <h3 className="font-display text-base font-bold text-paper">

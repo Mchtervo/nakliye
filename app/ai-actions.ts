@@ -909,3 +909,10 @@ export async function aiGunlukLimitKaydet(usdYazi: string): Promise<AiSonuc> {
   revalidatePath("/ayarlar");
   return { bilgi: `Günlük AI limiti $${usd.toFixed(2)} oldu. Bütçe dolduysa okuma kendiliğinden yeniden başlar.` };
 }
+
+/** Ayarlar: susturulan grubu geri aç (bir daha otomatik susturulmaz). */
+export async function sessizKaynagiAc(id: number): Promise<void> {
+  const { sessizligiKaldir } = await import("@/lib/kaynaklar/verimsizKaynak");
+  await sessizligiKaldir(id);
+  revalidatePath("/ayarlar");
+}

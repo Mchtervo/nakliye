@@ -32,6 +32,18 @@ async function main() {
     console.warn("[cron-ai-kuyruk] arsiv", e);
   }
 
+  // İlan getirmeyen grupların mesajı AI'ye gitmesin (günde bir değerlendirilir)
+  try {
+    const { verimsizKaynaklariGuncelle, sessizMesajlariKapat } = await import(
+      "@/lib/kaynaklar/verimsizKaynak"
+    );
+    await verimsizKaynaklariGuncelle();
+    const kapanan = await sessizMesajlariKapat();
+    if (kapanan > 0) console.log(`[cron-ai-kuyruk] sessiz kaynak: ${kapanan} mesaj AI'siz kapandı`);
+  } catch (e) {
+    console.warn("[cron-ai-kuyruk] sessiz kaynak", e);
+  }
+
   const rapor = await kuyrugunuCoz(22);
   console.log(
     JSON.stringify({
