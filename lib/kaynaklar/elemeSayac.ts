@@ -51,10 +51,13 @@ export async function elemeArtir(
 }
 
 /**
- * Türkiye saatiyle 23:00–06:00 arası mı?
- * Bu pencerede Telegram okuması devam eder, AI işlemesi ertelenir.
+ * Türkiye saatiyle 23:00–06:00 arası AI duraklatılsın mı?
+ * Varsayılan KAPALI: gece yola çıkan da ilan bulabilsin; gece mesajı az
+ * (31.10 ölçüm: 3 gecede ~50 mesaj), duraklatınca sabah 2 saat kuralına
+ * takılıp hepsi kayboluyordu. Açmak için AI_GECE_DURAKLAT=true.
  */
 export function aiGeceMi(tarih = new Date()): boolean {
+  if (process.env.AI_GECE_DURAKLAT !== "true") return false;
   const saat = new Date(tarih.getTime() + 3 * 60 * 60 * 1000).getUTCHours();
   return saat >= 23 || saat < 6;
 }
