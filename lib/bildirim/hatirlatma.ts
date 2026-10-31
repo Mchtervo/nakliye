@@ -155,7 +155,9 @@ export async function bakimHatirlat(): Promise<number> {
   const { saat } = trSimdi();
   if (saat < 8 || saat >= 21) return 0;
   const { kmOzeti } = await import("@/lib/seferKm");
-  const o = await kmOzeti();
+  const { aiTercihleriOku } = await import("@/lib/ayarlar");
+  const tercih = await aiTercihleriOku().catch(() => null);
+  const o = await kmOzeti(new Date(), tercih?.anaUs || "Ankara");
   if (!o.arac || o.bakimaKalan === null || o.sonrakiBakimKm === null) return 0;
   const seviye = o.bakimaKalan <= 0 ? 3 : o.bakimaKalan <= 500 ? 2 : o.bakimaKalan <= 1000 ? 1 : 0;
   if (seviye <= o.arac.bakimUyari) return 0;
@@ -164,8 +166,8 @@ export async function bakimHatirlat(): Promise<number> {
   await bilgiBildir(
     seviye === 3 ? "Bakım zamanı geçti" : `Bakıma ${km(o.bakimaKalan)} kaldı`,
     seviye === 3
-      ? `Bakım ${km(o.sonrakiBakimKm)}'de yapılacaktı, tahmini gösterge ${km(o.tahminiSayac ?? 0)}. Bakımı yaptıysan ana sayfada "Bakım yapıldı"ya bas.`
-      : `Tahmini gösterge ${km(o.tahminiSayac ?? 0)}, sonraki bakım ${km(o.sonrakiBakimKm)}. Göstergeyi ana sayfadan güncellersen hesap netleşir.`,
+      ? `Bakım ${km(o.sonrakiBakimKm)}'de yapılacaktı, tahmini gösterge ${km(o.tahminiSayac ?? 0)}. Bakımı yaptıysan Araç sayfasında "Bakım yapıldı"ya bas.`
+      : `Tahmini gösterge ${km(o.tahminiSayac ?? 0)}, sonraki bakım ${km(o.sonrakiBakimKm)}. Göstergeyi Araç sayfasından güncellersen hesap netleşir.`,
     "/arac#km"
   );
   return seviye;
@@ -188,7 +190,7 @@ export async function belgeHatirlat(): Promise<number> {
     const ad = belgeAdi(b.tur, b.ad);
     await bilgiBildir(
       kalan < 0 ? `${ad} süresi geçti` : kalan <= 1 ? `${ad} ${kalan === 0 ? "bugün" : "yarın"} bitiyor` : `${ad}: ${kalan} gün kaldı`,
-      `Bitiş: ${tarihYaz(b.bitis)}. Yeniledikten sonra ana sayfada "Yenilendi"ye basıp yeni tarihi gir.`,
+      `Bitiş: ${tarihYaz(b.bitis)}. Yeniledikten sonra Araç sayfasında "Yenilendi"ye basıp yeni tarihi gir.`,
       "/arac#belgeler"
     );
     gonderilen += 1;
@@ -220,7 +222,7 @@ export async function kartHatirlat(): Promise<number> {
         : seviye === 3
           ? `${k.ad}: son ödeme bugün`
           : `${k.ad}: son ödemeye ${k.kalanGun} gün`,
-      `Kalan borç ${borc}. Son ödeme ${tarihYaz(k.sonOdeme)}. Ödediysen ana sayfada "Ödeme yap"tan kaydet.`,
+      `Kalan borç ${borc}. Son ödeme ${tarihYaz(k.sonOdeme)}. Ödediysen Kredi kartları sayfasında "Ödeme yap"tan kaydet.`,
       "/kartlar"
     );
     gonderilen += 1;

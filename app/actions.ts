@@ -263,7 +263,7 @@ export async function yukOdemeEkle(
 /** Gider formu: peşin mi veresiye mi; veresiyede yer (istasyon) zorunlu. */
 function odemeOku(formData: FormData): { odeme: string; veresiyeYer: string | null } | { hata: string } {
   if (formData.get("odeme") !== "VERESIYE") return { odeme: "PESIN", veresiyeYer: null };
-  const yer = metinOku(formData.get("veresiyeYer")).replace(/s+/g, " ");
+  const yer = metinOku(formData.get("veresiyeYer")).replace(/\s+/g, " ");
   if (!yer) return { hata: "Veresiye nereden alındı? İstasyon / dükkân adını yaz." };
   return { odeme: "VERESIYE", veresiyeYer: yer.slice(0, 80) };
 }
@@ -648,7 +648,8 @@ export async function kartKaydet(_onceki: KartSonuc, formData: FormData): Promis
   if (Number.isInteger(id) && id > 0) {
     const mevcut = await prisma.krediKarti.findUnique({ where: { id } });
     if (!mevcut) return { hata: "Kart bulunamadı.", tamam: false };
-    const yeniEkstre = borc !== mevcut.borc;
+    // Aynı tutarda yeni ekstre de olabilir: formda ayrıca işaretlenir
+    const yeniEkstre = borc !== mevcut.borc || formData.get("yeniEkstre") === "1";
     await prisma.krediKarti.update({
       where: { id },
       data: { ad, sonOdemeGunu: gun, borc, ...(yeniEkstre ? { borcTarih: new Date(), uyari: null } : {}) },
@@ -666,6 +667,9 @@ export async function kartOdemeYap(kartId: number, tutarYazi: string): Promise<K
   const tutar = tlKurusaCevir(tutarYazi);
   if (!Number.isInteger(kartId) || kartId <= 0) return { hata: "Kart bulunamadı.", tamam: false };
   if (tutar === null || tutar <= 0) return { hata: "Ödeme tutarını yaz (örn. 5.000).", tamam: false };
+  if (!(await prisma.krediKarti.findUnique({ where: { id: kartId }, select: { id: true } }))) {
+    return { hata: "Kart bulunamadı (silinmiş olabilir).", tamam: false };
+  }
   await prisma.kartOdeme.create({ data: { kartId, tutar } });
   revalidatePath("/");
   revalidatePath("/kartlar");

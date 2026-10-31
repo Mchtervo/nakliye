@@ -21,12 +21,9 @@ type FisSonucu = {
 /** AI fişten okuduklarını alanlara basar; sayac artınca ilgili alanlar yeniden kurulur. */
 type Doldurulan = {
   sayac: number;
-  tarih?: string;
   tutar?: string;
   kdvli?: boolean;
   kdvDahilMi?: boolean;
-  litre?: string;
-  aciklama?: string;
   yer?: string;
 };
 
@@ -66,6 +63,7 @@ export default function GiderForm({
   const [d, setD] = useState<Doldurulan>({ sayac: 0 });
   const [okuma, setOkuma] = useState<{ durum: "okuyor" | "tamam" | "hata"; mesaj: string } | null>(null);
   const okumaNo = useRef(0);
+  const formRef = useRef<HTMLFormElement>(null);
 
   async function fisiOku(dosya: File | null) {
     const no = ++okumaNo.current;
@@ -82,24 +80,43 @@ export default function GiderForm({
       if (!r.okunabildi || !r.toplamTutarTl) {
         return setOkuma({ durum: "hata", mesaj: "Fiş net okunamadı — tutarı elle yaz, fotoğraf yine kaydolur." });
       }
-      if (!duzenle && gecerliKategoriMi(r.kategori) && r.kategori !== "DIGER") setKategori(r.kategori);
-      setD((o) => ({
-        sayac: o.sayac + 1,
-        tarih: r.tarih && /^d{4}-d{2}-d{2}$/.test(r.tarih) ? r.tarih : undefined,
-        tutar: kurustanGiris(Math.round(r.toplamTutarTl! * 100)),
-        kdvli: r.kdvTutarTl ? true : undefined,
-        kdvDahilMi: r.kdvDahilMi,
-        litre: r.litre ? String(r.litre).replace(".", ",") : undefined,
-        aciklama: r.firmaAdi || undefined,
-        yer: r.firmaAdi || undefined,
-      }));
-      const parca = [
-        "tutar",
-        r.litre ? "litre" : null,
-        r.tarih ? "tarih" : null,
-        r.firmaAdi ? "istasyon" : null,
-      ].filter(Boolean);
-      setOkuma({ durum: "tamam", mesaj: `Fişten ${parca.join(", ")} dolduruldu — kontrol et.` });
+      // Yalnız boş / dokunulmamış alanları doldur; kullanıcının yazdığı kalır
+      const alan = (ad: string) => formRef.current?.elements.namedItem(ad) as HTMLInputElement | null;
+      const bos = (ad: string) => !alan(ad)?.value.trim();
+      const yaz = (ad: string, deger: string) => {
+        const el = alan(ad);
+        if (el) el.value = deger;
+      };
+      const parca: string[] = [];
+      if (bos("tutar")) {
+        if (!duzenle && gecerliKategoriMi(r.kategori) && r.kategori !== "DIGER") setKategori(r.kategori);
+        setD((o) => ({
+          sayac: o.sayac + 1,
+          tutar: kurustanGiris(Math.round(r.toplamTutarTl! * 100)),
+          kdvli: r.kdvTutarTl ? true : undefined,
+          kdvDahilMi: r.kdvDahilMi,
+          yer: r.firmaAdi || undefined,
+        }));
+        parca.push("tutar");
+      } else if (r.firmaAdi) {
+        setD((o) => ({ ...o, yer: r.firmaAdi || undefined }));
+      }
+      if (r.tarih && /^\d{4}-\d{2}-\d{2}$/.test(r.tarih) && alan("tarih")?.value === (baslangic?.tarih || bugunTarih)) {
+        yaz("tarih", r.tarih);
+        parca.push("tarih");
+      }
+      if (r.litre && bos("litre")) {
+        // Litre alanı yakıt dışında yok; kategori yakıta dönecekse bir tik sonra yaz
+        const litre = String(r.litre).replace(".", ",");
+        setTimeout(() => bos("litre") && yaz("litre", litre), 0);
+        parca.push("litre");
+      }
+      if (r.firmaAdi && bos("aciklama")) yaz("aciklama", r.firmaAdi);
+      if (r.firmaAdi && alan("veresiyeYer") && bos("veresiyeYer")) yaz("veresiyeYer", r.firmaAdi);
+      setOkuma({
+        durum: "tamam",
+        mesaj: parca.length ? `Fişten ${parca.join(", ")} dolduruldu — kontrol et.` : "Fiş okundu; yazdıkların korunuyor.",
+      });
     } catch {
       if (no === okumaNo.current) setOkuma({ durum: "hata", mesaj: "Bağlantı yok — tutarı elle yaz." });
     }
@@ -111,7 +128,7 @@ export default function GiderForm({
     baslangic?.kdvli !== undefined ? baslangic.kdvli : !kredi;
 
   return (
-    <form action={aksiyon} className="space-y-4" encType="multipart/form-data">
+    <form ref={formRef} action={aksiyon} className="space-y-4" encType="multipart/form-data">
       {baslangic && <input type="hidden" name="giderId" value={baslangic.id} />}
       {fisSil && <input type="hidden" name="fisSil" value="1" />}
 
@@ -124,8 +141,7 @@ export default function GiderForm({
           name="tarih"
           type="date"
           required
-          key={`tarih-${d.sayac}`}
-          defaultValue={d.tarih || baslangic?.tarih || bugunTarih}
+          defaultValue={baslangic?.tarih || bugunTarih}
           className="alan"
         />
       </div>
@@ -193,8 +209,7 @@ export default function GiderForm({
               type="text"
               inputMode="decimal"
               placeholder="Örnek: 350"
-              key={`litre-${d.sayac}`}
-              defaultValue={d.litre || baslangic?.litre || ""}
+              defaultValue={baslangic?.litre || ""}
               className="alan"
             />
           </div>
@@ -235,7 +250,6 @@ export default function GiderForm({
               <input
                 id="veresiyeYer"
                 name="veresiyeYer"
-                key={`yer-${d.sayac}`}
                 required
                 list="veresiye-yerleri"
                 autoComplete="off"
@@ -269,8 +283,7 @@ export default function GiderForm({
                 ? "Örnek: Garanti — tır kredisi 3. taksit"
                 : "Örnek: Opet - E5 üzeri"
           }
-          key={`aciklama-${d.sayac}`}
-          defaultValue={d.aciklama || baslangic?.aciklama || ""}
+          defaultValue={baslangic?.aciklama || ""}
           className="alan"
         />
       </div>

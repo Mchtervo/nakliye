@@ -74,8 +74,9 @@ export default function Guncelleme() {
   useEffect(() => {
     // Bildirimden gelindiyse (/?guncelle=1) hemen güncelle
     if (new URLSearchParams(window.location.search).has("guncelle")) {
-      guncelle();
-      return;
+      // Efekt içinde senkron setState yerine bir sonraki tikte
+      const t = setTimeout(guncelle, 0);
+      return () => clearTimeout(t);
     }
     let iptal = false;
     const kontrol = async () => {

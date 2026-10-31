@@ -43,11 +43,11 @@ export async function kartlarDurumu(simdi = new Date()): Promise<KartDurumu[]> {
   return kartlar.map((k) => {
     const odenen = k.odemeler.filter((o) => o.tarih >= k.borcTarih).reduce((t, o) => t + o.tutar, 0);
     const kalan = Math.max(0, k.borc - odenen);
-    // Bu ayın son ödeme günü geçti, borç ondan önce girilmiş ve ödenmemiş →
-    // gecikme (gelecek ayın tarihine kaydırıp "29 gün kaldı" demesin)
-    const buAyinki = sonrakiSonOdeme(k.sonOdemeGunu, new Date(simdi.getFullYear(), simdi.getMonth(), 1));
-    const gecikti = kalan > 0 && gunFarki(buAyinki, simdi) < 0 && k.borcTarih < buAyinki;
-    const sonOdeme = gecikti ? buAyinki : sonrakiSonOdeme(k.sonOdemeGunu, simdi);
+    // Borç kalmışsa son ödeme, ekstrenin girildiği günden sonraki ilk son ödeme
+    // günüdür; geçtiyse gecikme olarak kalır (ay dönünce "24 gün kaldı" demez).
+    // Borç bittiyse bir sonraki ayın son ödeme günü gösterilir.
+    const sonOdeme =
+      kalan > 0 ? sonrakiSonOdeme(k.sonOdemeGunu, k.borcTarih) : sonrakiSonOdeme(k.sonOdemeGunu, simdi);
     return {
       id: k.id,
       ad: k.ad,

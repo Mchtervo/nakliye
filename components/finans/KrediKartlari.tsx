@@ -166,7 +166,13 @@ function KartFormPenceresi({ kart, kapat }: { kart: KartGorunum | null; kapat: (
           </div>
         </div>
         {kart && (
-          <p className="text-xs text-fog">Yeni ekstre geldiyse borcu değiştir: önceki ödemeler sıfırlanır, kalan yeni borçtan hesaplanır.</p>
+          <label className="flex items-start gap-2.5 rounded-xl bg-white/[0.05] p-3 text-sm text-paper/90">
+            <input type="checkbox" name="yeniEkstre" value="1" defaultChecked className="mt-0.5 h-4 w-4 accent-amber" />
+            <span>
+              Bu yeni ayın ekstresi
+              <span className="block text-xs text-fog">Önceki ödemeler sıfırlanır, kalan yeni borçtan hesaplanır. Sadece adı / günü düzeltiyorsan kaldır.</span>
+            </span>
+          </label>
         )}
         {durum.hata && <p className="text-sm font-semibold text-ember">{durum.hata}</p>}
         <button type="submit" disabled={bekliyor} className="btn btn-amber w-full disabled:opacity-60">
