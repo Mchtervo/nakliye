@@ -120,9 +120,19 @@ const BILINEN_DAVETLER = [
 ];
 
 export async function bilinenDavetleriYaz(): Promise<void> {
+  // Ayarlar her açılışta ~26 davet × birkaç sorgu yapıyordu: liste değişmedikçe bir kez.
+  const IMZA_ANAHTAR = "bilinen_davetler_imza";
+  const imza = BILINEN_DAVETLER.join(",");
+  const onceki = await prisma.ayar.findUnique({ where: { anahtar: IMZA_ANAHTAR } });
+  if (onceki?.deger === imza) return;
   for (const kod of BILINEN_DAVETLER) {
     await whatsappDavetiniKaydet(kod, "Açık davet").catch(() => null);
   }
+  await prisma.ayar.upsert({
+    where: { anahtar: IMZA_ANAHTAR },
+    update: { deger: imza },
+    create: { anahtar: IMZA_ANAHTAR, deger: imza },
+  });
 }
 
 /**

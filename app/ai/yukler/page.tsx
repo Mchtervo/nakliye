@@ -20,7 +20,7 @@ import {
   karHesapla,
   karOzetYazi,
 } from "@/lib/karHesap";
-import { YENI_ILAN_MS, panelTazeSinir, solukMu } from "@/lib/ilanTazelik";
+import { panelTazeSinir, solukMu, yeniIlanSinir } from "@/lib/ilanTazelik";
 import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
 import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import type { Prisma } from "@prisma/client";
@@ -213,7 +213,7 @@ export default async function AiYuklerSayfasi({
   // Yeni sekmesi: son 2 saatte paylaşılan (eskisi "iş verildi" çıkıyor).
   // Takipteki işler (İlgileniyor vb.) 6 saat kalır.
   const tazeSinir =
-    sekme === "YENI" && !arsivGoster ? new Date(Date.now() - YENI_ILAN_MS) : panelTazeSinir();
+    sekme === "YENI" && !arsivGoster ? yeniIlanSinir() : panelTazeSinir();
   const tazelikKosul: Prisma.YukIlaniWhereInput = arsivGoster
     ? {
         // Arşiv filtresi açık: ARSIV dahil, 60 güne kadar (havuz gibi)
@@ -462,7 +462,7 @@ export default async function AiYuklerSayfasi({
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-3">
+    <div className="mx-auto max-w-lg space-y-3 xl:max-w-5xl">
       {/* Başlık: tek satır durum + 2 tuş. Arşiv alta taşındı. */}
       <div className="flex items-start justify-between gap-3 reveal">
         <div className="min-w-0">
@@ -607,7 +607,7 @@ export default async function AiYuklerSayfasi({
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 xl:grid xl:grid-cols-2 xl:items-start xl:gap-3 xl:space-y-0">
           {sirali.map((ilan) => {
             return (
               <IlanKart

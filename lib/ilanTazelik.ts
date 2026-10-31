@@ -42,6 +42,11 @@ export function arsivlikMi(tarih: Date | string): boolean {
   return beklemeDakika(tarih) >= ARSIV_DK;
 }
 
+/** "Yeni" sayılan en eski paylaşım anı (şimdi − 2 saat). */
+export function yeniIlanSinir(tarih = new Date()): Date {
+  return new Date(tarih.getTime() - YENI_ILAN_MS);
+}
+
 export function panelTazeSinir(tarih = new Date()): Date {
   return new Date(tarih.getTime() - PANEL_TAZELIK_MS);
 }

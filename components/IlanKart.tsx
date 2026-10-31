@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ilanDurumGuncelle, ilanSil, ilanYanlisNumara } from "@/app/ai-actions";
 import BilgiSorButonu from "@/components/BilgiSorButonu";
-import { aracBelirsizMi } from "@/lib/arac";
+import { aracBelirsizMi, aracTipiAdi } from "@/lib/arac";
 import { beklemeBuyuk } from "@/lib/ilanTazelik";
 import { fiyatGorunumu, gecenSure } from "@/lib/ilanGorunum";
 import { whatsappMesajUrl } from "@/lib/whatsapp";
@@ -118,7 +118,8 @@ export default function IlanKart({ ilan }: { ilan: IlanKartVeri }) {
 
   const bilgiParcalar = [
     ilan.tonaj ? `${ilan.tonaj} ton` : null,
-    ilan.aracTipi || null,
+    // Model bazen kodu yazıyor ("KAPALI_KASA") → okunur ad
+    ilan.aracTipi ? (aracTipiAdi(ilan.aracTipi) ?? ilan.aracTipi) : null,
     ilan.aracUzunluk != null
       ? `${ilan.aracUzunluk.toLocaleString("tr-TR", {
           maximumFractionDigits: 2,
