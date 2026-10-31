@@ -44,6 +44,13 @@ export default function YonSecici({
     kaydet([...liste, y], y);
   }
 
+  // Yazdıkça eşleşen iller (Türkçe harf duyarsız), en fazla 6
+  const kucuk = (s: string) => s.toLocaleLowerCase("tr-TR");
+  const aranan = kucuk(yazi.trim());
+  const oneriler = aranan
+    ? iller.filter((il) => kucuk(il).startsWith(aranan) && !liste.includes(il) && kucuk(il) !== aranan).slice(0, 6)
+    : [];
+
   const cevre = liste.flatMap((il) => cevreler[il] ?? []).filter((x) => !liste.includes(x));
 
   return (
@@ -74,24 +81,38 @@ export default function YonSecici({
         }}
         className="flex gap-2"
       >
+        {/* datalist yok: iPad Safari'de klavye yerine liste açıyordu */}
         <input
           value={yazi}
           onChange={(e) => setYazi(e.target.value)}
-          list="yon-iller"
+          type="text"
+          inputMode="text"
           placeholder={liste.length ? "Bir şehir daha ekle" : "Bolu, Gerede, İstanbul…"}
           className="alan min-w-0 flex-1"
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="words"
           enterKeyHint="done"
         />
         <button type="submit" disabled={bekliyor || !yazi.trim()} className="btn btn-amber shrink-0 !px-4 disabled:opacity-50">
           Ekle
         </button>
       </form>
-      <datalist id="yon-iller">
-        {iller.map((il) => (
-          <option key={il} value={il} />
-        ))}
-      </datalist>
+      {oneriler.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {oneriler.map((il) => (
+            <button
+              key={il}
+              type="button"
+              disabled={bekliyor}
+              onClick={() => kaydet([...liste, il], il)}
+              className="rounded-full border border-white/12 px-3 py-1 text-sm text-paper active:scale-95"
+            >
+              + {il}
+            </button>
+          ))}
+        </div>
+      )}
       {hata && <p className="text-sm font-semibold text-ember">{hata}</p>}
       <p className="text-xs text-fog">
         {liste.length === 0

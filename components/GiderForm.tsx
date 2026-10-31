@@ -251,17 +251,28 @@ export default function GiderForm({
                 id="veresiyeYer"
                 name="veresiyeYer"
                 required
-                list="veresiye-yerleri"
                 autoComplete="off"
                 defaultValue={baslangic?.veresiyeYer || d.yer || ""}
                 placeholder="Örnek: Opet Gerede"
                 className="alan"
               />
-              <datalist id="veresiye-yerleri">
-                {veresiyeYerleri.map((y) => (
-                  <option key={y} value={y} />
-                ))}
-              </datalist>
+              {veresiyeYerleri.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {veresiyeYerleri.slice(0, 6).map((y) => (
+                    <button
+                      key={y}
+                      type="button"
+                      onClick={() => {
+                        const el = formRef.current?.elements.namedItem("veresiyeYer") as HTMLInputElement | null;
+                        if (el) el.value = y;
+                      }}
+                      className="rounded-full border border-white/12 px-3 py-1 text-sm text-paper active:scale-95"
+                    >
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              )}
               <p className="mt-1.5 text-xs text-fog">Veresiye defterine yazılır; ödedikçe oradan düşersin.</p>
             </div>
           )}
