@@ -282,7 +282,7 @@ export default async function AiYuklerSayfasi({
     AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
   };
 
-  const [ilanlar, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
+  const [ilanlarHam, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
     await Promise.all([
       prisma.yukIlani.findMany({
         where: filtre,
@@ -297,6 +297,8 @@ export default async function AiYuklerSayfasi({
             { durum: "YENI" },
             sayacTazelik,
             tercihKosulu(tercih, { webDahil: true }),
+            // Liste konuma göre süzülüyorsa sayaç da aynı ilanları saysın
+            konumFiltresi ? konumKosulu(konum, yonler) : {},
           ],
         },
       }),
@@ -337,6 +339,16 @@ export default async function AiYuklerSayfasi({
       hatOrtalamalariYukle(),
     ]);
 
+  // Bildirimden gelinen ilan (id=) listenin filtresine takılsa da en üstte görünsün
+  const odakEk =
+    odak && !ilanlarHam.some((i) => i.id === odak)
+      ? await prisma.yukIlani.findUnique({
+          where: { id: odak },
+          include: { kaynak: { select: { ad: true, tur: true } } },
+        })
+      : null;
+  const ilanlar = odakEk ? [odakEk, ...ilanlarHam] : ilanlarHam;
+
   const gorusmeMap = new Map<number, string>();
   if (ilanlar.length > 0) {
     const gorusmeler = await prisma.whatsAppGorusme.findMany({
@@ -363,7 +375,7 @@ export default async function AiYuklerSayfasi({
   const cipler = rotaCipleri(tercih.rotalar);
 
   let sirali = ilanlar
-    .filter((i) => (i.telefon || "").replace(/\D/g, "").length >= 10)
+    .filter((i) => i.id === odak || (i.telefon || "").replace(/\D/g, "").length >= 10)
     .sort((a, b) => {
     // İki şehir: tam rota üstte, sonra aynı çıkış/varış, havza en sonda
     if (cikisIl && varisIl) {
