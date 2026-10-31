@@ -111,7 +111,11 @@ export default function BildirimZili() {
     <>
       <button
         type="button"
-        onClick={() => setAcik(true)}
+        onClick={() => {
+          // Pencere açılınca hepsi görüldü: sayı sıfırlanır, noktalar kalkar
+          setAcik(true);
+          if (okunmamis > 0) hepsiOkundu();
+        }}
         className="dokun relative flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-paper"
         aria-label={okunmamis > 0 ? `${okunmamis} okunmamış bildirim` : "Bildirimler"}
       >
@@ -143,11 +147,6 @@ export default function BildirimZili() {
                 <p className="text-[17px] font-semibold text-paper">Bildirimler</p>
               )}
               <div className="flex items-center gap-3">
-                {!secili && okunmamis > 0 && (
-                  <button type="button" onClick={hepsiOkundu} className="text-sm font-semibold text-fog hover:text-paper">
-                    Tümü okundu
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={kapat}

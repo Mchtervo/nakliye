@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { donusTalebiKapat, eveDondum, konumuKaldir } from "@/app/ai-actions";
 import { aiTercihleriOku } from "@/lib/ayarlar";
-import { aracKonumu } from "@/lib/konum";
+import { aracKonumu, aracYonleri } from "@/lib/konum";
+import YonSecici from "@/components/YonSecici";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import YolculukFormu from "@/components/YolculukFormu";
 import { aktifYolculuklar, ilde, yakinIller } from "@/lib/donus";
@@ -14,11 +15,13 @@ import { tlYazKisa } from "@/lib/para";
  * çevresindeki yükler burada ve bildirimde ("Düzce'de yük bulundu").
  */
 export default async function YolculukKarti() {
-  const [yolculuklar, konum, tercih] = await Promise.all([
+  const [yolculuklar, konum, tercih, yonler] = await Promise.all([
     aktifYolculuklar().catch(() => []),
     aracKonumu().catch(() => null),
     aiTercihleriOku(),
+    aracYonleri().catch(() => []),
   ]);
+  const yonCevreleri = Object.fromEntries(yonler.map((il) => [il, yakinIller(il).slice(1)]));
   const ev = tercih.anaUs || "Ankara";
   const evde = konum === ev && yolculuklar.length === 0;
 
@@ -124,6 +127,10 @@ export default async function YolculukKarti() {
           </div>
         );
       })}
+
+      <div className="rounded-xl bg-white/[0.04] p-3">
+        <YonSecici yonler={yonler} iller={ILLER} cevreler={yonCevreleri} />
+      </div>
 
       <YolculukFormu ilkAcik={yolculuklar.length === 0} iller={ILLER} />
     </section>

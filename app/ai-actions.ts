@@ -805,6 +805,15 @@ export async function eveDondum(): Promise<void> {
   revalidatePath("/ai/donus");
 }
 
+/** "Ne tarafa yük arıyoruz": varış illeri (ilçe de yazılabilir). Dönüş: kaydedilen iller. */
+export async function yonleriKaydet(yerler: string[]): Promise<string[]> {
+  const { aracYonleriYaz } = await import("@/lib/konum");
+  const iller = await aracYonleriYaz(Array.isArray(yerler) ? yerler.map(String).slice(0, 30) : []);
+  revalidatePath("/");
+  revalidatePath("/ai/yukler");
+  return iller;
+}
+
 /** Konum filtresini kaldır: yük ekranı ve bildirimler tüm bölge. */
 export async function konumuKaldir(): Promise<void> {
   const { aracKonumuYaz } = await import("@/lib/konum");

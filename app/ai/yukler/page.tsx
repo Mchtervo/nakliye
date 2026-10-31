@@ -4,7 +4,7 @@ import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
-import { ilBul, sehirHavzasi } from "@/lib/iller";
+import { ILLER, ilBul, sehirHavzasi } from "@/lib/iller";
 import { SUPHE_SINIRI, tercihKosulu, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
 import {
   eskiIlanlariTemizle,
@@ -24,7 +24,9 @@ import { panelTazeSinir, solukMu, yeniIlanSinir } from "@/lib/ilanTazelik";
 import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
 import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import type { Prisma } from "@prisma/client";
-import { aracKonumu, konumKosulu } from "@/lib/konum";
+import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
+import { yakinIller } from "@/lib/donus";
+import YonSecici from "@/components/YonSecici";
 
 export const dynamic = "force-dynamic";
 
@@ -254,15 +256,18 @@ export default async function AiYuklerSayfasi({
     AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
   };
   // Araç konumu (Yolculuk / Eve döndüm): Yeni sekmesi yalnız o çevreden çıkanlar.
-  const konum = await aracKonumu();
-  const konumFiltresi = Boolean(konum && sekme === "YENI" && !rotaFiltresiVar && sp.her !== "1");
+  const [konum, yonler] = await Promise.all([aracKonumu(), aracYonleri()]);
+  const yonCevreleri = Object.fromEntries(yonler.map((il) => [il, yakinIller(il).slice(1)]));
+  const konumFiltresi = Boolean(
+    (konum || yonler.length > 0) && sekme === "YENI" && !rotaFiltresiVar && sp.her !== "1"
+  );
   const filtre: Prisma.YukIlaniWhereInput = {
     AND: [
       tabanFiltre,
       rotaKosul,
       tazelikKosul,
       numaraKosul,
-      konumFiltresi ? konumKosulu(konum) : {},
+      konumFiltresi ? konumKosulu(konum, yonler) : {},
     ],
   };
   const tekSehirArama = Boolean(
@@ -501,14 +506,21 @@ export default async function AiYuklerSayfasi({
         />
       </div>
 
-      {konum && sekme === "YENI" && !rotaFiltresiVar && (
-        <div className="flex items-center justify-between gap-2 rounded-xl bg-amber/10 px-3 py-2 text-sm">
-          <span className="min-w-0 truncate text-paper">
-            📍 {konumFiltresi ? `${konum} ve 60 km çevresi` : "Tüm bölge"}
-          </span>
-          <Link href={konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler"} className="shrink-0 font-semibold text-amber">
-            {konumFiltresi ? "Tümünü göster" : `Sadece ${konum}`}
-          </Link>
+      {sekme === "YENI" && !rotaFiltresiVar && (
+        <div className="space-y-3 rounded-2xl bg-white/[0.04] p-3">
+          {(konum || yonler.length > 0) && (
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 truncate text-paper">
+                {konumFiltresi
+                  ? `📍 ${konum ? `${konum} çevresinden` : "Her yerden"}${yonler.length ? ` → ${yonler.join(", ")}` : ""}`
+                  : "📍 Tüm bölge, tüm yönler"}
+              </span>
+              <Link href={konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler"} className="shrink-0 font-semibold text-amber">
+                {konumFiltresi ? "Tümünü göster" : "Filtreyi aç"}
+              </Link>
+            </div>
+          )}
+          <YonSecici yonler={yonler} iller={ILLER} cevreler={yonCevreleri} />
         </div>
       )}
 

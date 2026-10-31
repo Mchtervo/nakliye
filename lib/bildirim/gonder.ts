@@ -12,7 +12,7 @@ import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 import { karHesapla } from "@/lib/karHesap";
 import { tlYaz } from "@/lib/para";
 import { donusBasligi, donusEslesmeleriniTara } from "@/lib/donus";
-import { aracKonumu, konumKosulu } from "@/lib/konum";
+import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
 import { whatsappMesajUrl } from "@/lib/whatsapp";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 
@@ -219,6 +219,7 @@ export async function bekleyenBildirimleriIsle(
   const tercih = await aiTercihleriOku();
   // Araç konumu: yalnız bulunduğu il + 60 km çevresinden çıkan yükler
   const konum = await aracKonumu();
+  const yonler = await aracYonleri();
   // 2 saatten eski paylaşım bildirilmez (iş verilmiş oluyor)
   const sinir = new Date(Date.now() - YENI_ILAN_MS);
   const adayLimit = Math.max(1, Math.min(limit, 20)) * 4;
@@ -230,7 +231,7 @@ export async function bekleyenBildirimleriIsle(
       sonGorulme: { gte: sinir },
       guvenSkoru: { gte: LISTE_GUVEN },
       durum: { notIn: ["ARSIV", "ELENDI"] },
-      ...konumKosulu(konum),
+      ...konumKosulu(konum, yonler),
     },
     orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: adayLimit,
@@ -433,7 +434,7 @@ export async function sabahOzetBildir(): Promise<{
       guvenSkoru: { gte: LISTE_GUVEN },
       sonGorulme: { gte: sinir },
       durum: { in: ["YENI", "ILGILENIYOR"] },
-      ...konumKosulu(await aracKonumu()),
+      ...konumKosulu(await aracKonumu(), await aracYonleri()),
     },
     orderBy: [{ guvenSkoru: "desc" }, { sonGorulme: "desc" }],
     take: 25,
