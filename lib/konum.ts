@@ -1,6 +1,6 @@
 /**
  * Aracın şu an bulunduğu (ya da vardığı) il. Doluysa yük ekranı ve
- * bildirimler yalnız bu il + 90 km çevresinden çıkan yükleri getirir.
+ * bildirimler yalnız bu il + 60 km çevresinden çıkan yükleri getirir.
  * Yolculuk açılınca → boşaltma ili; "Eve döndüm" → ana üs.
  */
 import type { Prisma } from "@prisma/client";

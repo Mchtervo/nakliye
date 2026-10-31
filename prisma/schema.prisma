@@ -124,6 +124,8 @@ model HamMesaj {
   onek           String? // aynı listenin tekrarını yakalamak için başlangıç
   islendi        Boolean      @default(false)
   denemeSayisi   Int          @default(0) // AI denemesi; 2'yi geçince kalıcı HATA
+  /** Mesajın grupta paylaşıldığı an (WhatsApp/Telegram). Boşsa createdAt. */
+  mesajZamani    DateTime?
   hata           String?
   createdAt      DateTime     @default(now())
 

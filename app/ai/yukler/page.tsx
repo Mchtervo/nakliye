@@ -20,7 +20,7 @@ import {
   karHesapla,
   karOzetYazi,
 } from "@/lib/karHesap";
-import { panelTazeSinir, solukMu } from "@/lib/ilanTazelik";
+import { YENI_ILAN_MS, panelTazeSinir, solukMu } from "@/lib/ilanTazelik";
 import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
 import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import type { Prisma } from "@prisma/client";
@@ -210,7 +210,10 @@ export default async function AiYuklerSayfasi({
     rotaKosul = { varisIl };
   }
 
-  const tazeSinir = panelTazeSinir();
+  // Yeni sekmesi: son 2 saatte paylaşılan (eskisi "iş verildi" çıkıyor).
+  // Takipteki işler (İlgileniyor vb.) 6 saat kalır.
+  const tazeSinir =
+    sekme === "YENI" && !arsivGoster ? new Date(Date.now() - YENI_ILAN_MS) : panelTazeSinir();
   const tazelikKosul: Prisma.YukIlaniWhereInput = arsivGoster
     ? {
         // Arşiv filtresi açık: ARSIV dahil, 60 güne kadar (havuz gibi)
@@ -501,7 +504,7 @@ export default async function AiYuklerSayfasi({
       {konum && sekme === "YENI" && !rotaFiltresiVar && (
         <div className="flex items-center justify-between gap-2 rounded-xl bg-amber/10 px-3 py-2 text-sm">
           <span className="min-w-0 truncate text-paper">
-            📍 {konumFiltresi ? `${konum} ve 90 km çevresi` : "Tüm bölge"}
+            📍 {konumFiltresi ? `${konum} ve 60 km çevresi` : "Tüm bölge"}
           </span>
           <Link href={konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler"} className="shrink-0 font-semibold text-amber">
             {konumFiltresi ? "Tümünü göster" : `Sadece ${konum}`}

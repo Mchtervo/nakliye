@@ -229,13 +229,15 @@ fi
 # WhatsApp okuyucu ayrı servis; restart edilmezse yeni kod hiç devreye girmez.
 wa_etkilendi() {
   git diff --name-only "$1" "$2" | grep -E \
-    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup|daemonNabiz)|deploy/yukavci-whatsapp\.service)' \
+    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup|daemonNabiz|telegramUye)|prisma/|package-lock\.json|deploy/yukavci-whatsapp\.service)' \
     >/dev/null
 }
 
 WA_DURUM="kurulu değil"
 if systemctl cat yukavci-whatsapp >/dev/null 2>&1; then
-  if [ "$DAEMON_RESTART" -eq 1 ] || wa_etkilendi "$OLD_SHA" "HEAD"; then
+  # Her yeniden bağlanış telefonda "senkronizasyon tamamlandı" bildirimi çıkarır:
+  # yalnız okuyucunun kendi kodu / kuyruk yazımı / şema / paket değişince.
+  if wa_etkilendi "$OLD_SHA" "HEAD"; then
     echo "==> systemctl restart yukavci-whatsapp"
     sudo /bin/systemctl restart yukavci-whatsapp || true
   fi

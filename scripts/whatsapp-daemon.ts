@@ -64,9 +64,9 @@ const WA_SUNUCU = "s.whatsapp.net";
 /** whatsmeow: hesabın katıldığı kanallar. Chrome/web sorgusu. */
 const KANAL_LISTE_SORGUSU = "6388546374527196";
 /** Çevrimdışıyken biriken eski mesajlar alınmaz. */
-const MAX_MESAJ_YASI_SN = 6 * 60 * 60;
+const MAX_MESAJ_YASI_SN = 2 * 60 * 60;
 /** Kanal günde birkaç kez paylaşır; 6 saatte önceki ilanlar kaçıyordu. */
-const MAX_KANAL_YASI_SN = 24 * 60 * 60;
+const MAX_KANAL_YASI_SN = 2 * 60 * 60;
 const MIN_METIN = 15;
 /** Kullanılmayan eşleme kodu sınırı; aşılınca bir saat beklenir (bildirim seli olmasın). */
 const MAX_ESLEME_KODU = 5;
@@ -493,7 +493,7 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     const metin = mesajMetni(m);
     if (!metin) continue;
     const liste = grupBazli.get(kaynakId) ?? [];
-    liste.push({ mesajId: null, metin, gonderenUserId: null });
+    liste.push({ mesajId: null, metin, gonderenUserId: null, zaman: zaman > 0 ? new Date(zaman * 1000) : null });
     grupBazli.set(kaynakId, liste);
   }
   if (grupBazli.size === 0) return;
@@ -556,9 +556,12 @@ async function baglan(): Promise<void> {
     ...(version ? { version } : {}),
     browser: Browsers.ubuntu("Chrome"),
     logger: sessizLogger(),
-    markOnlineOnConnect: true,
+    // true iken telefon WhatsApp bildirimlerini susturuyordu
+    markOnlineOnConnect: false,
     syncFullHistory: false,
-    shouldSyncHistoryMessage: () => true,
+    // 2 saatten eski mesaj zaten işlenmiyor: yalnız "son mesajlar" senkronu
+    shouldSyncHistoryMessage: ({ syncType }) =>
+      syncType === proto.HistorySync.HistorySyncType.RECENT,
   });
 
   sock.ev.on("creds.update", saveCreds);

@@ -100,7 +100,7 @@ const YOLCULUK_ARALIK_MS = 3 * 60 * 60 * 1000;
 
 /**
  * Açık yolculuk yoksa 08–20 arası 3 saatte bir "Yolculuk nereye?".
- * Boşaltma yeri girilince o il ve 90 km çevresindeki yükler bildirilir.
+ * Boşaltma yeri girilince o il ve 60 km çevresindeki yükler bildirilir.
  */
 export async function yolculukSor(): Promise<boolean> {
   const { saat } = trSimdi();
@@ -112,7 +112,7 @@ export async function yolculukSor(): Promise<boolean> {
   await ayarKoy(YOLCULUK_ANAHTAR, String(Date.now()));
   await bilgiBildir(
     "Yolculuk nereye?",
-    "Nereden yükledin, nereye boşaltıyorsun? Yaz, vardığın yerde ve 90 km çevresinde dönüş yükü arayayım.",
+    "Nereden yükledin, nereye boşaltıyorsun? Yaz, vardığın yerde ve 60 km çevresinde dönüş yükü arayayım.",
     "/#yolculuk"
   );
   return true;

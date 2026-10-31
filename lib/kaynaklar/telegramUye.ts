@@ -37,6 +37,7 @@ import {
 } from "@/lib/koridor";
 import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
+import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 import { ilBul } from "@/lib/iller";
 import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
 import { araciUyuyorMu, ilgilileriSuz } from "@/lib/kaynaklar/filtre";
@@ -120,6 +121,8 @@ export type GelenGrup = {
     mesajId?: number | null;
     metin: string;
     gonderenUserId?: string | null;
+    /** Grupta paylaşıldığı an; 2 saatten eskisi kuyrukta atılır. */
+    zaman?: Date | null;
   }[];
   hata?: string | null;
 };
@@ -200,6 +203,7 @@ export async function mesajlariKuyrugaAl(
       metin: string;
       hash: string;
       gonderenUserId: string | null;
+      zaman: Date | null;
     }[] = [];
 
     for (const m of grup.mesajlar.slice(0, 200)) {
@@ -256,6 +260,7 @@ export async function mesajlariKuyrugaAl(
         metin: guvenliKirp(kuyrukMetin, 2000),
         hash,
         gonderenUserId: m.gonderenUserId || null,
+        zaman: m.zaman ?? null,
       });
 
       for (const h of secim.yeniHashler) {
@@ -302,6 +307,7 @@ export async function mesajlariKuyrugaAl(
           metin: a.metin,
           metinHash: a.hash,
           gonderenUserId: a.gonderenUserId,
+          mesajZamani: a.zaman,
         })),
         skipDuplicates: true,
       });
@@ -760,6 +766,20 @@ export async function kuyrugunuCoz(
     rapor.hata = "OPENAI_API_KEY tanımlı değil veya AI kapalı.";
     return rapor;
   }
+
+  // 2 saatten önce paylaşılmış mesaj: iş büyük ihtimalle verildi; AI'ye gitmez.
+  const eskiSinir = new Date(Date.now() - YENI_ILAN_MS);
+  const eskiAtilan = await prisma.hamMesaj.updateMany({
+    where: {
+      islendi: false,
+      OR: [
+        { mesajZamani: { lt: eskiSinir } },
+        { mesajZamani: null, createdAt: { lt: eskiSinir } },
+      ],
+    },
+    data: { islendi: true, hata: "2 saatten eski paylaşım — işlenmedi" },
+  });
+  if (eskiAtilan.count > 0) console.log(`[kuyruk] eski mesaj atıldı: ${eskiAtilan.count}`);
 
   const hedefLimit = Math.max(1, Math.min(limit, 25));
   const secilen =

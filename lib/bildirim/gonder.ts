@@ -14,6 +14,7 @@ import { tlYaz } from "@/lib/para";
 import { donusBasligi, donusEslesmeleriniTara } from "@/lib/donus";
 import { aracKonumu, konumKosulu } from "@/lib/konum";
 import { whatsappMesajUrl } from "@/lib/whatsapp";
+import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 
 export type BildirimSonucu = {
   telegram: number;
@@ -201,7 +202,7 @@ export async function bekleyenBildirimleriIsle(
       where: {
         bildirildi: false,
         bildirimDeneme: { lt: BILDIRIM_MAX_DENEME },
-        sonGorulme: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        sonGorulme: { gte: new Date(Date.now() - YENI_ILAN_MS) },
         guvenSkoru: { gte: LISTE_GUVEN },
         durum: { notIn: ["ARSIV", "ELENDI"] },
       },
@@ -216,9 +217,10 @@ export async function bekleyenBildirimleriIsle(
   );
 
   const tercih = await aiTercihleriOku();
-  // Araç konumu: yalnız bulunduğu il + 90 km çevresinden çıkan yükler
+  // Araç konumu: yalnız bulunduğu il + 60 km çevresinden çıkan yükler
   const konum = await aracKonumu();
-  const sinir = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // 2 saatten eski paylaşım bildirilmez (iş verilmiş oluyor)
+  const sinir = new Date(Date.now() - YENI_ILAN_MS);
   const adayLimit = Math.max(1, Math.min(limit, 20)) * 4;
 
   const ham = await prisma.yukIlani.findMany({
@@ -423,7 +425,7 @@ export async function sabahOzetBildir(): Promise<{
     return { adet: 0, gonderildi: false };
   }
 
-  const sinir = new Date(Date.now() - 14 * 60 * 60 * 1000);
+  const sinir = new Date(Date.now() - YENI_ILAN_MS);
   const bekleyen = await prisma.yukIlani.findMany({
     where: {
       bildirildi: false,

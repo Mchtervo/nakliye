@@ -4,18 +4,28 @@ import { ilMesafesiKm } from "@/lib/ilMesafe";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
 
 /** Boşaltılan ile bu kadar (il merkezi, kuş uçuşu) yakın çıkışlar da sayılır. */
-export const YAKIN_KM = 90;
+export const YAKIN_KM = 65;
+
+/**
+ * İl merkezi mesafesi yanıltan bitişik çiftler: İstanbul merkezi Avrupa
+ * yakasında; Gebze (Kocaeli) Tuzla'nın yanı. Avrupa yakası kayıtta zaten elenir.
+ */
+const BITISIK: Record<string, string[]> = {
+  İstanbul: ["Kocaeli"],
+  Kocaeli: ["İstanbul"],
+};
 /** Yolculuk / dönüş araması bu süre sonra kendiliğinden kapanır. */
 const TALEP_OMUR_MS = 4 * 24 * 60 * 60 * 1000;
 
-/** İl + 90 km içindeki iller (Düzce → Bolu, Sakarya, Zonguldak). */
+/** İl + 65 km içindeki iller (Düzce → Bolu, Sakarya; İstanbul → Kocaeli). */
 export function yakinIller(il: string): string[] {
   const yakin = ILLER.filter((x) => x !== il)
     .map((x) => ({ x, km: ilMesafesiKm(il, x) }))
     .filter((y): y is { x: (typeof ILLER)[number]; km: number } => y.km !== null && y.km <= YAKIN_KM)
     .sort((a, b) => a.km - b.km)
     .map((y) => y.x as string);
-  return [il, ...yakin];
+  const bitisik = (BITISIK[il] ?? []).filter((x) => !yakin.includes(x));
+  return [il, ...bitisik, ...yakin];
 }
 
 /** "Düzce'de", "Bolu'da", "Kocaeli'nde" değil "Kocaeli'de" — bulunma eki. */

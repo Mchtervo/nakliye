@@ -197,6 +197,7 @@ async function kacanlariYakala(client: TelegramClient) {
           .map((m) => ({
             mesajId: m.id,
             metin: m.message as string,
+            zaman: m.date ? new Date(m.date * 1000) : null,
             entities: m.entities ?? null,
             gonderenUserId: gonderenUserIdBul(m),
           }));
@@ -228,10 +229,11 @@ async function kacanlariYakala(client: TelegramClient) {
           {
             id: k.id,
             sonMesajId: enBuyuk > 0 ? enBuyuk : k.sonMesajId,
-            mesajlar: metinler.map(({ mesajId, metin, gonderenUserId }) => ({
+            mesajlar: metinler.map(({ mesajId, metin, gonderenUserId, zaman }) => ({
               mesajId,
               metin,
               gonderenUserId,
+              zaman,
             })),
           },
         ]);
@@ -253,6 +255,7 @@ async function kacanlariYakala(client: TelegramClient) {
             .map((m) => ({
               mesajId: m.id,
               metin: m.message as string,
+              zaman: m.date ? new Date(m.date * 1000) : null,
               entities: m.entities ?? null,
               gonderenUserId: gonderenUserIdBul(m),
             }));
@@ -284,10 +287,11 @@ async function kacanlariYakala(client: TelegramClient) {
             {
               id: k.id,
               sonMesajId: enBuyuk > 0 ? enBuyuk : cursor,
-              mesajlar: metinler.map(({ mesajId, metin, gonderenUserId }) => ({
+              mesajlar: metinler.map(({ mesajId, metin, gonderenUserId, zaman }) => ({
                 mesajId,
                 metin,
                 gonderenUserId,
+                zaman,
               })),
             },
           ]);

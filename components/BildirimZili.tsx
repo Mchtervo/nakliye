@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Buton = { etiket: string; url: string };
 type Bildirim = {
@@ -125,11 +126,12 @@ export default function BildirimZili() {
         )}
       </button>
 
-      {acik && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Bildirimler">
+      {acik &&
+        createPortal(
+        <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="Bildirimler">
           <button type="button" aria-label="Kapat" onClick={kapat} className="absolute inset-0 bg-black/55 backdrop-blur-sm" />
           <div
-            className="relative flex max-h-[82vh] w-full max-w-md flex-col rounded-t-[1.6rem] bg-[#1c1c1e] shadow-2xl sm:rounded-[1.6rem]"
+            className="relative flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-[1.6rem] bg-[#1c1c1e] shadow-2xl sm:rounded-[1.6rem]"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             <div className="flex items-center justify-between gap-2 border-b border-white/[0.07] px-4 py-3">
@@ -209,8 +211,9 @@ export default function BildirimZili() {
               )}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </>
   );
 }

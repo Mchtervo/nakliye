@@ -9,6 +9,11 @@ export const SOLUK_DK = 30;
 /** Panelde kalma süresi. 6 saati geçen ilan silinir. */
 export const ARSIV_DK = 6 * 60;
 export const PANEL_TAZELIK_MS = ARSIV_DK * 60 * 1000;
+/**
+ * "Yeni" ilan sayılma sınırı: 2 saatten eski paylaşımın işi çoğu zaman
+ * verilmiş oluyor (arayınca "iş verildi"). Kuyruk, Yeni sekmesi ve bildirim.
+ */
+export const YENI_ILAN_MS = 2 * 60 * 60 * 1000;
 
 export function beklemeDakika(tarih: Date | string): number {
   const t = typeof tarih === "string" ? new Date(tarih) : tarih;

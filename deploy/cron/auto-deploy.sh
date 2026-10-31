@@ -238,8 +238,10 @@ if [ "$DAEMON_RESTART" -eq 1 ]; then
 fi
 # WhatsApp okuyucu kuruluysa: aynı kuyruk kodu veya kendi dosyaları değişince
 if systemctl is-enabled yukavci-whatsapp >/dev/null 2>&1; then
-  if [ "$DAEMON_RESTART" -eq 1 ] || git diff --name-only "$OLD_SHA" HEAD | grep -E \
-    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup|daemonNabiz)|deploy/yukavci-whatsapp\.service)' >/dev/null; then
+  # Her yeniden bağlanış telefonda "senkronizasyon tamamlandı" bildirimi çıkarır:
+  # yalnız okuyucunun kendi kodu / kuyruk yazımı / şema / paket değişince.
+  if git diff --name-only "$OLD_SHA" HEAD | grep -E \
+    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup|daemonNabiz|telegramUye)|prisma/|package-lock\.json|deploy/yukavci-whatsapp\.service)' >/dev/null; then
     log "whatsapp daemon kodu değişti → yukavci-whatsapp restart"
     sudo -n /bin/systemctl restart yukavci-whatsapp >>"$LOG" 2>&1 || log "yukavci-whatsapp restart yetkisi yok (sudoers)"
   fi

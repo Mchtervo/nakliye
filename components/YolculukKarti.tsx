@@ -10,7 +10,7 @@ import { ILLER } from "@/lib/iller";
 import { tlYazKisa } from "@/lib/para";
 
 /**
- * Ana sayfa "Yolculuğum": yükleme → boşaltma. Boşaltılan il ve 90 km
+ * Ana sayfa "Yolculuğum": yükleme → boşaltma. Boşaltılan il ve 60 km
  * çevresindeki yükler burada ve bildirimde ("Düzce'de yük bulundu").
  */
 export default async function YolculukKarti() {
@@ -31,7 +31,7 @@ export default async function YolculukKarti() {
         </h2>
         {yolculuklar.length === 0 && (
           <p className="mt-1 text-sm text-fog">
-            Nereden yükleyip nereye gittiğini yaz; vardığın yerde ve 90 km çevresinde dönüş yükü
+            Nereden yükleyip nereye gittiğini yaz; vardığın yerde ve 60 km çevresinde dönüş yükü
             çıkınca telefona bildirim gelsin.
           </p>
         )}
