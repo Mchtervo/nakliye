@@ -32,7 +32,10 @@ async function swHazir(): Promise<ServiceWorkerRegistration> {
 export default function PushIzinButonu({
   acikAnahtar,
   onAcildi,
+  tema = "koyu",
 }: {
+  /** "acik": ana sayfanın küçük hap düğmesi */
+  tema?: "koyu" | "acik";
   acikAnahtar: string | null;
   /** Bu cihazda bildirim başarıyla açılınca. */
   onAcildi?: () => void;
@@ -137,6 +140,29 @@ export default function PushIzinButonu({
       setHal("hata");
       setMesaj("Bildirim kapatılamadı.");
     }
+  }
+
+  if (tema === "acik") {
+    if (hal === "desteklenmiyor" || hal === "reddedildi") {
+      return <p className="text-[12px] text-[var(--a-ikincil)]">{hal === "reddedildi" ? "Bildirim izni engelli — tarayıcı ayarından aç." : mesaj}</p>;
+    }
+    return (
+      <span className="contents">
+        <button
+          type="button"
+          disabled={hal === "kontrol" || hal === "acik"}
+          onClick={ac}
+          className="ana-hap disabled:opacity-60"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-[var(--a-indigo)]" aria-hidden>
+            <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
+          </svg>
+          {hal === "kontrol" ? "Kontrol…" : hal === "acik" ? "Bildirim açık" : "Bildirimi aç"}
+        </button>
+        {hal === "hata" && <p role="alert" className="basis-full text-[12px] font-semibold text-[#dc2626]">{mesaj}</p>}
+      </span>
+    );
   }
 
   if (hal === "desteklenmiyor") {

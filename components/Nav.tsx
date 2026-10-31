@@ -463,6 +463,8 @@ export default function Nav() {
   }
 
   const aktifMi = (href: string) => sayfaAktifMi(pathname, href);
+  // Ana sayfa açık tasarımda: kendi başlığı var, alt menü açık renk
+  const ana = pathname === "/" || pathname === "/ana-onizleme";
   const dahaAktif = DAHA_DUZ.some((l) => aktifMi(l.href));
   const dockIndeks = DOCK.findIndex((d) => aktifMi(d.href));
   const gostergeIndeks = sheet === "daha" || (dockIndeks < 0 && dahaAktif) ? 4 : dockIndeks;
@@ -594,7 +596,7 @@ export default function Nav() {
 
       {/* Mobil üst bar — kaydırınca buzlu cam + başlık belirir */}
       <header
-        className={`ust-bar sticky top-0 z-30 md:hidden ${kaydi ? "kaydi" : ""}`}
+        className={`ust-bar sticky top-0 z-30 md:hidden ${kaydi ? "kaydi" : ""} ${ana ? "!hidden" : ""}`}
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="relative flex h-12 items-center justify-between px-4">
@@ -648,11 +650,11 @@ export default function Nav() {
         style={{ bottom: "max(0.6rem, env(safe-area-inset-bottom))" }}
         aria-label="Ana menü"
       >
-        <div className="sivi-cam relative grid grid-cols-5 rounded-full p-1">
+        <div className={`${ana ? "ana-dock" : "sivi-cam"} relative grid grid-cols-5 rounded-full p-1`}>
           {gostergeIndeks >= 0 && (
             <span
               aria-hidden
-              className="tab-gosterge pointer-events-none absolute inset-y-1 left-1 rounded-full bg-white/[0.13] shadow-[inset_0_0.5px_0_rgba(255,255,255,0.25)]"
+              className={`tab-gosterge pointer-events-none absolute inset-y-1 left-1 rounded-full ${ana ? "bg-[#eef0ff]" : "bg-white/[0.13] shadow-[inset_0_0.5px_0_rgba(255,255,255,0.25)]"}`}
               style={{
                 width: "calc((100% - 0.5rem) / 5)",
                 transform: `translateX(${gostergeIndeks * 100}%)`,
@@ -666,7 +668,7 @@ export default function Nav() {
                 key={l.href}
                 href={l.href}
                 className={`dokun flex min-h-[3.3rem] flex-col items-center justify-center gap-0.5 rounded-full text-[10.5px] font-medium ${
-                  aktif ? "text-amber" : "text-white/75"
+                  aktif ? (ana ? "text-[#4f46e5]" : "text-amber") : ana ? "text-[#7a809b]" : "text-white/75"
                 }`}
               >
                 <span key={aktif ? "a" : "p"} className={aktif ? "tab-ikon-aktif" : ""}>
@@ -680,7 +682,7 @@ export default function Nav() {
             type="button"
             onClick={() => (sheet === "daha" ? kapat() : ac("daha"))}
             className={`dokun flex min-h-[3.3rem] flex-col items-center justify-center gap-0.5 rounded-full text-[10.5px] font-medium ${
-              gostergeIndeks === 4 ? "text-amber" : "text-white/75"
+              gostergeIndeks === 4 ? (ana ? "text-[#4f46e5]" : "text-amber") : ana ? "text-[#7a809b]" : "text-white/75"
             }`}
             aria-expanded={sheet === "daha"}
             aria-label="Diğer menü"

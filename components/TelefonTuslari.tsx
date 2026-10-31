@@ -40,7 +40,10 @@ export default function TelefonTuslari({
   acikAnahtar,
   excelHref,
   ayarlarda = false,
+  tema = "koyu",
 }: {
+  /** "acik": ana sayfanın "Her zaman yanında" kartı */
+  tema?: "koyu" | "acik";
   acikAnahtar: string | null;
   excelHref?: string;
   /** Ayarlar'da hep görünür; ana sayfada iş bitince (kurulu + bildirim açık) gizlenir. */
@@ -88,6 +91,64 @@ export default function TelefonTuslari({
   // Ana sayfa: kontrol bitmeden gösterme (yanıp sönmesin); bu cihazda bildirim
   // açıksa hiç gösterme — her cihazda. Ayarlar'da hep durur.
   if (!ayarlarda && (bildirimAcik === null || bildirimAcik)) return null;
+
+  if (tema === "acik" && !ayarlarda) {
+    return (
+      <section id="telefon-tuslari" className="ana-yaninda ana-gir" style={{ animationDelay: "420ms" }} aria-labelledby="her-zaman">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="ana-telefon-ikon" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+              <path d="M11 18.5h2" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <h2 id="her-zaman" className="text-[16.5px] font-extrabold tracking-[-0.01em]">Her zaman yanında</h2>
+            <p className="text-[12.5px] leading-snug text-[var(--a-ikincil)]">Ana ekranına ekle, yeni yüklerden haber al.</p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          {eklendi ? (
+            <p className="rounded-full bg-[#dcfce7] px-4 py-2 text-center text-[13px] font-bold text-[#15803d]">✓ Ana ekranda kurulu</p>
+          ) : (
+            <button type="button" onClick={() => void ekle()} className="ana-ana-dugme !min-h-10 !text-[14px]">
+              Ana ekrana ekle
+            </button>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <PushIzinButonu
+              tema="acik"
+              acikAnahtar={acikAnahtar}
+              onAcildi={() => setTimeout(() => setBildirimAcik(true), 1200)}
+            />
+            <TestBildirimButonu tema="acik" />
+          </div>
+          {mesaj && <p className="text-[12.5px] font-bold text-[#16a34a]">{mesaj}</p>}
+        </div>
+        {yardim && !eklendi && (
+          <div className="col-span-full rounded-2xl bg-[#eef1fb] px-3 py-3 text-[13px] text-[var(--a-ikincil)]">
+            <p className="font-bold text-[var(--a-murekkep)]">{ios ? "iPhone / iPad" : "Android / Chrome"}</p>
+            <ol className="mt-1.5 list-decimal space-y-0.5 pl-4">
+              {ios ? (
+                <>
+                  <li>Alttaki <b>Paylaş</b> (kare ve ok)</li>
+                  <li><b>Ana Ekrana Ekle</b></li>
+                  <li>Ekle — ikondan aç, bildirimi buradan aç</li>
+                </>
+              ) : (
+                <>
+                  <li>Sağ üst <b>⋮</b> menü</li>
+                  <li><b>Ana ekrana ekle</b> veya <b>Uygulamayı yükle</b></li>
+                  <li>Ekle — sonra bu sayfada Bildirimi aç</li>
+                </>
+              )}
+            </ol>
+            <button type="button" onClick={() => setYardim(false)} className="ana-link mt-2">Tamam</button>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section id="telefon-tuslari" className={ayarlarda ? "space-y-3" : "kart space-y-3 p-4 sm:p-5"}>

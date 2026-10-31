@@ -35,7 +35,7 @@ async function okundu(id?: number): Promise<void> {
 }
 
 /** Üst barda zil + okunmamış sayısı; dokununca sayfadan çıkmadan pencere açılır. */
-export default function BildirimZili() {
+export default function BildirimZili({ tema = "koyu" }: { tema?: "koyu" | "cam" } = {}) {
   const router = useRouter();
   const [liste, setListe] = useState<Bildirim[]>([]);
   const [okunmamis, setOkunmamis] = useState(0);
@@ -116,10 +116,14 @@ export default function BildirimZili() {
           setAcik(true);
           if (okunmamis > 0) hepsiOkundu();
         }}
-        className="dokun relative flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-paper"
+        className={
+          tema === "cam"
+            ? "ana-zil relative flex h-12 w-12 items-center justify-center rounded-full text-white"
+            : "dokun relative flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-paper"
+        }
         aria-label={okunmamis > 0 ? `${okunmamis} okunmamış bildirim` : "Bildirimler"}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={tema === "cam" ? "h-[22px] w-[22px]" : "h-[18px] w-[18px]"}>
           <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
           <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
         </svg>

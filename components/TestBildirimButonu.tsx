@@ -8,10 +8,36 @@ import {
 } from "@/app/ai-actions";
 
 /** Ayarlar: Telegram + Push bildirim yollarını doğrula. */
-export default function TestBildirimButonu() {
+export default function TestBildirimButonu({ tema = "koyu" }: { tema?: "koyu" | "acik" } = {}) {
   const [bekliyor, baslat] = useTransition();
   const [tgSonuc, setTgSonuc] = useState<AiSonuc>(null);
   const [pushSonuc, setPushSonuc] = useState<AiSonuc>(null);
+
+  if (tema === "acik") {
+    return (
+      <span className="contents">
+        <button
+          type="button"
+          disabled={bekliyor}
+          onClick={() => {
+            baslat(async () => {
+              setPushSonuc(null);
+              setPushSonuc(await testPushGonder());
+            });
+          }}
+          className="ana-hap disabled:opacity-60"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-[var(--a-indigo)]" aria-hidden>
+            <path d="M22 2 11 13" />
+            <path d="M22 2 15 22l-4-9-9-4 20-7z" />
+          </svg>
+          {bekliyor ? "Gönderiliyor…" : "Test bildirimi"}
+        </button>
+        {pushSonuc && "hata" in pushSonuc && <p role="alert" className="basis-full text-[12px] font-semibold text-[#dc2626]">{pushSonuc.hata}</p>}
+        {pushSonuc && "bilgi" in pushSonuc && <p role="status" className="basis-full text-[12px] font-semibold text-[#16a34a]">✓ {pushSonuc.bilgi}</p>}
+      </span>
+    );
+  }
 
   return (
     <div className="space-y-3 rounded-xl border border-white/10 bg-white/4 p-3">
