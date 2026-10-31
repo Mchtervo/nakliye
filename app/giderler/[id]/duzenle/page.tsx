@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import GiderForm from "@/components/GiderForm";
 import { kurustanGiris } from "@/lib/para";
+import { veresiyeYerleri } from "@/lib/veresiye";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,10 @@ export default async function GiderDuzenleSayfasi({
   const id = Number(idHam);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
-  const gider = await prisma.gider.findUnique({ where: { id } });
+  const [gider, yerler] = await Promise.all([
+    prisma.gider.findUnique({ where: { id } }),
+    veresiyeYerleri().catch(() => []),
+  ]);
   if (!gider) notFound();
 
   const tutarKurus = gider.kdvli
@@ -55,7 +59,10 @@ export default async function GiderDuzenleSayfasi({
             litre: gider.litre != null ? String(gider.litre) : "",
             km: gider.km != null ? String(gider.km) : "",
             fisResmi: gider.fisResmi,
+            odeme: gider.odeme,
+            veresiyeYer: gider.veresiyeYer || "",
           }}
+          veresiyeYerleri={yerler}
         />
       </div>
       <Link

@@ -226,6 +226,11 @@ export default async function GiderlerSayfasi({
                     <div>
                       <div className="font-display text-lg font-bold text-paper">
                         {kategoriAdi(gider.kategori)}
+                        {gider.odeme === "VERESIYE" && (
+                          <span className="rozet rozet-bekliyor ml-2 align-middle">
+                            Veresiye
+                          </span>
+                        )}
                         {gider.gonderildi && (
                           <span className="rozet rozet-odendi ml-2 align-middle">
                             Gönderildi

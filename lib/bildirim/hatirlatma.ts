@@ -166,7 +166,7 @@ export async function bakimHatirlat(): Promise<number> {
     seviye === 3
       ? `Bakım ${km(o.sonrakiBakimKm)}'de yapılacaktı, tahmini gösterge ${km(o.tahminiSayac ?? 0)}. Bakımı yaptıysan ana sayfada "Bakım yapıldı"ya bas.`
       : `Tahmini gösterge ${km(o.tahminiSayac ?? 0)}, sonraki bakım ${km(o.sonrakiBakimKm)}. Göstergeyi ana sayfadan güncellersen hesap netleşir.`,
-    "/#km"
+    "/arac#km"
   );
   return seviye;
 }
@@ -189,7 +189,7 @@ export async function belgeHatirlat(): Promise<number> {
     await bilgiBildir(
       kalan < 0 ? `${ad} süresi geçti` : kalan <= 1 ? `${ad} ${kalan === 0 ? "bugün" : "yarın"} bitiyor` : `${ad}: ${kalan} gün kaldı`,
       `Bitiş: ${tarihYaz(b.bitis)}. Yeniledikten sonra ana sayfada "Yenilendi"ye basıp yeni tarihi gir.`,
-      "/#belgeler"
+      "/arac#belgeler"
     );
     gonderilen += 1;
   }
@@ -221,7 +221,7 @@ export async function kartHatirlat(): Promise<number> {
           ? `${k.ad}: son ödeme bugün`
           : `${k.ad}: son ödemeye ${k.kalanGun} gün`,
       `Kalan borç ${borc}. Son ödeme ${tarihYaz(k.sonOdeme)}. Ödediysen ana sayfada "Ödeme yap"tan kaydet.`,
-      "/#kartlar"
+      "/kartlar"
     );
     gonderilen += 1;
   }
@@ -241,7 +241,7 @@ export async function yakitHatirlat(): Promise<boolean> {
   await bilgiBildir(
     "Yakıt tüketimi arttı",
     `Son dolumda ${s(v.sonLt100)} lt/100 km yaktın, ortalaman ${s(v.lt100)}. Kaçak, lastik basıncı, filtre ve enjektörü kontrol ettir; km ya da litre yanlış yazıldıysa gideri düzelt.`,
-    "/#km"
+    "/arac#km"
   );
   return true;
 }

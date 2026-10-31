@@ -120,6 +120,8 @@ model Gider {
   gonderimTarihi DateTime?
   litre          Float?
   km             Int?
+  odeme          String    @default("PESIN") // PESIN | VERESIYE
+  veresiyeYer    String? // veresiye alınan istasyon / dükkân
   createdAt      DateTime  @default(now())
 }
 
@@ -425,4 +427,15 @@ model PushAbone {
   auth      String
   cihaz     String?
   createdAt DateTime @default(now())
+}
+
+// Veresiye defteri: istasyona / dükkâna yapılan ödemeler (borç = veresiye giderler − ödemeler)
+model VeresiyeOdeme {
+  id        Int      @id @default(autoincrement())
+  yer       String
+  tarih     DateTime @default(now())
+  tutar     Int
+  createdAt DateTime @default(now())
+
+  @@index([yer])
 }

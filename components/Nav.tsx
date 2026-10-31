@@ -83,6 +83,20 @@ const DAHA_GRUPLAR: DahaGrup[] = [
         ),
       },
       {
+        href: "/arac",
+        ad: "Araç ve belgeler",
+        aciklama: "Km, bakım, yakıt, muayene",
+        renk: "#30d158",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round">
+            <path d="M1 9h12v7H1z" />
+            <path d="M13 12h4l3 3v1h-7z" />
+            <circle cx="6" cy="18.5" r="1.5" />
+            <circle cx="17" cy="18.5" r="1.5" />
+          </svg>
+        ),
+      },
+      {
         href: "/giderler/yeni",
         ad: "Fiş çek",
         aciklama: "Yeni gider / foto",
@@ -112,6 +126,18 @@ const DAHA_GRUPLAR: DahaGrup[] = [
     baslik: "Para",
     ogeler: [
       {
+        href: "/ozet",
+        ad: "Finans özeti",
+        aciklama: "Gelir, gider, kasa, grafik",
+        renk: "#5e5ce6",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 17l6-6 4 4 8-8" />
+            <path d="M14 7h7v7" />
+          </svg>
+        ),
+      },
+      {
         href: "/para",
         ad: "Kasa & Cari",
         aciklama: "Nakit + kim ne borçlu",
@@ -121,6 +147,30 @@ const DAHA_GRUPLAR: DahaGrup[] = [
             <rect x="3" y="6" width="18" height="13" rx="2" />
             <path d="M3 10h18" />
             <circle cx="12" cy="14.5" r="1.5" />
+          </svg>
+        ),
+      },
+      {
+        href: "/kartlar",
+        ad: "Kredi kartları",
+        aciklama: "Borç, son ödeme, ödeme yap",
+        renk: "#0a84ff",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+            <path d="M2.5 10h19M6 15h4" />
+          </svg>
+        ),
+      },
+      {
+        href: "/veresiye",
+        ad: "Veresiye defteri",
+        aciklama: "İstasyon borçları",
+        renk: "#bf5af2",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+            <path d="M5 17a3 3 0 0 1 3-3h11M9 8h6" />
           </svg>
         ),
       },
@@ -151,7 +201,7 @@ const DAHA_GRUPLAR: DahaGrup[] = [
         ),
       },
       {
-        href: "/#telefon-tuslari",
+        href: "/ayarlar#telefon-tuslari",
         ad: "Ana ekrana ekle",
         aciklama: "Telefon ikonu + bildirim",
         renk: "#ff9f0a",

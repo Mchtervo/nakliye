@@ -260,6 +260,14 @@ export async function yukOdemeEkle(
   return null;
 }
 
+/** Gider formu: peşin mi veresiye mi; veresiyede yer (istasyon) zorunlu. */
+function odemeOku(formData: FormData): { odeme: string; veresiyeYer: string | null } | { hata: string } {
+  if (formData.get("odeme") !== "VERESIYE") return { odeme: "PESIN", veresiyeYer: null };
+  const yer = metinOku(formData.get("veresiyeYer")).replace(/s+/g, " ");
+  if (!yer) return { hata: "Veresiye nereden alındı? İstasyon / dükkân adını yaz." };
+  return { odeme: "VERESIYE", veresiyeYer: yer.slice(0, 80) };
+}
+
 export async function giderEkle(
   _oncekiDurum: FormSonuc,
   formData: FormData
@@ -280,6 +288,9 @@ export async function giderEkle(
   const kdvli = formData.get("kdvli") === "1";
   const kdvDahilMi = formData.get("kdvDahilMi") === "1";
   const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
+
+  const odemeBilgi = odemeOku(formData);
+  if ("hata" in odemeBilgi) return odemeBilgi;
 
   const litreHam = metinOku(formData.get("litre"));
   const litre = litreHam ? Number(litreHam.replace(",", ".")) : null;
@@ -312,6 +323,7 @@ export async function giderEkle(
       litre,
       km,
       fisResmi: fisSonuc?.yol ?? null,
+      ...odemeBilgi,
     },
   });
   // Yakıt fişindeki gösterge bakım takibini günceller
@@ -353,6 +365,9 @@ export async function giderGuncelle(
   const kdvli = formData.get("kdvli") === "1";
   const kdvDahilMi = formData.get("kdvDahilMi") === "1";
   const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
+
+  const odemeBilgi = odemeOku(formData);
+  if ("hata" in odemeBilgi) return odemeBilgi;
 
   const litreHam = metinOku(formData.get("litre"));
   const litre = litreHam ? Number(litreHam.replace(",", ".")) : null;
@@ -400,6 +415,7 @@ export async function giderGuncelle(
       litre,
       km,
       fisResmi,
+      ...odemeBilgi,
     },
   });
   if (kategori === "YAKIT" && km) {
@@ -571,6 +587,7 @@ export async function aracKaydet(_onceki: AracSonuc, formData: FormData): Promis
   if (mevcut) await prisma.arac.update({ where: { id: mevcut.id }, data });
   else await prisma.arac.create({ data: { ...data, kmTarih: kmSayac !== null ? new Date() : null } });
   revalidatePath("/");
+  revalidatePath("/arac");
   return { hata: null, tamam: true };
 }
 
@@ -584,6 +601,7 @@ export async function bakimYapildi(): Promise<void> {
     data: { sonBakimKm: ozet.tahminiSayac, kmSayac: ozet.tahminiSayac, kmTarih: new Date(), bakimUyari: 0 },
   });
   revalidatePath("/");
+  revalidatePath("/arac");
 }
 
 export type BelgeSonuc = { hata: string | null; tamam: boolean };
@@ -605,6 +623,7 @@ export async function belgeKaydet(_onceki: BelgeSonuc, formData: FormData): Prom
     await prisma.belge.create({ data: { tur, ad, bitis } });
   }
   revalidatePath("/");
+  revalidatePath("/arac");
   return { hata: null, tamam: true };
 }
 
@@ -612,6 +631,7 @@ export async function belgeSil(id: number): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
   await prisma.belge.delete({ where: { id } }).catch(() => null);
   revalidatePath("/");
+  revalidatePath("/arac");
 }
 
 export type KartSonuc = { hata: string | null; tamam: boolean };
@@ -637,6 +657,7 @@ export async function kartKaydet(_onceki: KartSonuc, formData: FormData): Promis
     await prisma.krediKarti.create({ data: { ad, sonOdemeGunu: gun, borc } });
   }
   revalidatePath("/");
+  revalidatePath("/kartlar");
   return { hata: null, tamam: true };
 }
 
@@ -647,6 +668,7 @@ export async function kartOdemeYap(kartId: number, tutarYazi: string): Promise<K
   if (tutar === null || tutar <= 0) return { hata: "Ödeme tutarını yaz (örn. 5.000).", tamam: false };
   await prisma.kartOdeme.create({ data: { kartId, tutar } });
   revalidatePath("/");
+  revalidatePath("/kartlar");
   return { hata: null, tamam: true };
 }
 
@@ -654,4 +676,18 @@ export async function kartSil(id: number): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
   await prisma.krediKarti.delete({ where: { id } }).catch(() => null);
   revalidatePath("/");
+  revalidatePath("/kartlar");
+}
+
+export type VeresiyeSonuc = { hata: string | null; tamam: boolean };
+
+export async function veresiyeOdemeYap(yer: string, tutarYazi: string): Promise<VeresiyeSonuc> {
+  const ad = yer.trim();
+  const tutar = tlKurusaCevir(tutarYazi);
+  if (!ad) return { hata: "Yer bulunamadı.", tamam: false };
+  if (tutar === null || tutar <= 0) return { hata: "Ödeme tutarını yaz (örn. 5.000).", tamam: false };
+  await prisma.veresiyeOdeme.create({ data: { yer: ad, tutar } });
+  revalidatePath("/");
+  revalidatePath("/veresiye");
+  return { hata: null, tamam: true };
 }

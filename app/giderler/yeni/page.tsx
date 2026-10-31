@@ -1,8 +1,12 @@
 import Link from "next/link";
 import GiderForm from "@/components/GiderForm";
 import { bugunTarihStr } from "@/lib/tarih";
+import { veresiyeYerleri } from "@/lib/veresiye";
 
-export default function YeniGiderSayfasi() {
+export const dynamic = "force-dynamic";
+
+export default async function YeniGiderSayfasi() {
+  const yerler = await veresiyeYerleri().catch(() => []);
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div className="reveal">
@@ -12,7 +16,7 @@ export default function YeniGiderSayfasi() {
         <h1 className="font-display text-3xl font-extrabold text-paper">Yeni Gider</h1>
       </div>
       <div className="kart-paper p-4 sm:p-6 reveal reveal-d1">
-        <GiderForm bugunTarih={bugunTarihStr()} />
+        <GiderForm bugunTarih={bugunTarihStr()} veresiyeYerleri={yerler} />
       </div>
       <Link
         href="/giderler"

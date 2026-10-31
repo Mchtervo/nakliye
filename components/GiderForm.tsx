@@ -1,10 +1,34 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { giderEkle, giderGuncelle, type FormSonuc } from "@/app/actions";
 import TutarKdvGirisi from "@/components/TutarKdvGirisi";
 import FisYukle from "@/components/FisYukle";
-import { giderKategoriGruplari } from "@/lib/sabitler";
+import { gecerliKategoriMi, giderKategoriGruplari } from "@/lib/sabitler";
+import { kurustanGiris } from "@/lib/para";
+
+type FisSonucu = {
+  okunabildi: boolean;
+  firmaAdi: string | null;
+  tarih: string | null;
+  toplamTutarTl: number | null;
+  kdvTutarTl: number | null;
+  kdvDahilMi: boolean;
+  kategori: string;
+  litre: number | null;
+};
+
+/** AI fişten okuduklarını alanlara basar; sayac artınca ilgili alanlar yeniden kurulur. */
+type Doldurulan = {
+  sayac: number;
+  tarih?: string;
+  tutar?: string;
+  kdvli?: boolean;
+  kdvDahilMi?: boolean;
+  litre?: string;
+  aciklama?: string;
+  yer?: string;
+};
 
 export type GiderFormBaslangic = {
   id: number;
@@ -17,14 +41,19 @@ export type GiderFormBaslangic = {
   litre: string;
   km: string;
   fisResmi: string | null;
+  odeme: string;
+  veresiyeYer: string;
 };
 
 export default function GiderForm({
   bugunTarih,
   baslangic,
+  veresiyeYerleri = [],
 }: {
   bugunTarih: string;
   baslangic?: GiderFormBaslangic;
+  /** Daha önce veresiye alınan yerler (öneri listesi) */
+  veresiyeYerleri?: string[];
 }) {
   const duzenle = Boolean(baslangic);
   const [durum, aksiyon, bekliyor] = useActionState<FormSonuc, FormData>(
@@ -33,6 +62,48 @@ export default function GiderForm({
   );
   const [kategori, setKategori] = useState(baslangic?.kategori || "YAKIT");
   const [fisSil, setFisSil] = useState(false);
+  const [veresiye, setVeresiye] = useState(baslangic?.odeme === "VERESIYE");
+  const [d, setD] = useState<Doldurulan>({ sayac: 0 });
+  const [okuma, setOkuma] = useState<{ durum: "okuyor" | "tamam" | "hata"; mesaj: string } | null>(null);
+  const okumaNo = useRef(0);
+
+  async function fisiOku(dosya: File | null) {
+    const no = ++okumaNo.current;
+    if (!dosya) return setOkuma(null);
+    setOkuma({ durum: "okuyor", mesaj: "Fiş okunuyor…" });
+    try {
+      const form = new FormData();
+      form.append("fis", dosya);
+      const yanit = await fetch("/api/ai/fis-oku", { method: "POST", body: form });
+      const veri = (await yanit.json().catch(() => ({}))) as { sonuc?: FisSonucu; hata?: string };
+      if (no !== okumaNo.current) return;
+      const r = veri.sonuc;
+      if (!yanit.ok || !r) return setOkuma({ durum: "hata", mesaj: veri.hata || "Fiş okunamadı, elle doldur." });
+      if (!r.okunabildi || !r.toplamTutarTl) {
+        return setOkuma({ durum: "hata", mesaj: "Fiş net okunamadı — tutarı elle yaz, fotoğraf yine kaydolur." });
+      }
+      if (!duzenle && gecerliKategoriMi(r.kategori) && r.kategori !== "DIGER") setKategori(r.kategori);
+      setD((o) => ({
+        sayac: o.sayac + 1,
+        tarih: r.tarih && /^d{4}-d{2}-d{2}$/.test(r.tarih) ? r.tarih : undefined,
+        tutar: kurustanGiris(Math.round(r.toplamTutarTl! * 100)),
+        kdvli: r.kdvTutarTl ? true : undefined,
+        kdvDahilMi: r.kdvDahilMi,
+        litre: r.litre ? String(r.litre).replace(".", ",") : undefined,
+        aciklama: r.firmaAdi || undefined,
+        yer: r.firmaAdi || undefined,
+      }));
+      const parca = [
+        "tutar",
+        r.litre ? "litre" : null,
+        r.tarih ? "tarih" : null,
+        r.firmaAdi ? "istasyon" : null,
+      ].filter(Boolean);
+      setOkuma({ durum: "tamam", mesaj: `Fişten ${parca.join(", ")} dolduruldu — kontrol et.` });
+    } catch {
+      if (no === okumaNo.current) setOkuma({ durum: "hata", mesaj: "Bağlantı yok — tutarı elle yaz." });
+    }
+  }
 
   const demirbas = kategori === "DEMIRBAS";
   const kredi = kategori === "KREDI_ODEME";
@@ -53,7 +124,8 @@ export default function GiderForm({
           name="tarih"
           type="date"
           required
-          defaultValue={baslangic?.tarih || bugunTarih}
+          key={`tarih-${d.sayac}`}
+          defaultValue={d.tarih || baslangic?.tarih || bugunTarih}
           className="alan"
         />
       </div>
@@ -96,12 +168,12 @@ export default function GiderForm({
       )}
 
       <TutarKdvGirisi
-        key={`${kategori}-${baslangic?.id || "yeni"}`}
+        key={`${kategori}-${baslangic?.id || "yeni"}-${d.sayac}`}
         etiket={demirbas ? "Alım tutarı" : kredi ? "Ödeme tutarı" : "Gider tutarı"}
         varsayilanKdvli={varsayilanKdvli}
-        baslangicTutar={baslangic?.tutarYazi || ""}
-        baslangicKdvli={baslangic?.kdvli}
-        baslangicKdvDahilMi={baslangic?.kdvDahilMi ?? true}
+        baslangicTutar={d.tutar || baslangic?.tutarYazi || ""}
+        baslangicKdvli={d.kdvli ?? baslangic?.kdvli}
+        baslangicKdvDahilMi={d.kdvDahilMi ?? baslangic?.kdvDahilMi ?? true}
         kdvEtiketi="İndirilecek KDV"
         kdvNotu="Bu KDV’yi devlete ekstra ödemezsin; yüklerden gelen KDV borcundan düşülür."
       />
@@ -121,7 +193,8 @@ export default function GiderForm({
               type="text"
               inputMode="decimal"
               placeholder="Örnek: 350"
-              defaultValue={baslangic?.litre || ""}
+              key={`litre-${d.sayac}`}
+              defaultValue={d.litre || baslangic?.litre || ""}
               className="alan"
             />
           </div>
@@ -142,6 +215,45 @@ export default function GiderForm({
         </div>
       )}
 
+      {!kredi && (
+        <div>
+          <input type="hidden" name="odeme" value={veresiye ? "VERESIYE" : "PESIN"} />
+          <span className="etiket">Ödeme</span>
+          <div className="secenek-grup">
+            <button type="button" className={`secenek ${!veresiye ? "aktif" : ""}`} onClick={() => setVeresiye(false)}>
+              Peşin ödendi
+            </button>
+            <button type="button" className={`secenek ${veresiye ? "aktif" : ""}`} onClick={() => setVeresiye(true)}>
+              Veresiye alındı
+            </button>
+          </div>
+          {veresiye && (
+            <div className="mt-3 reveal">
+              <label htmlFor="veresiyeYer" className="etiket">
+                Nereden? (istasyon / dükkân)
+              </label>
+              <input
+                id="veresiyeYer"
+                name="veresiyeYer"
+                key={`yer-${d.sayac}`}
+                required
+                list="veresiye-yerleri"
+                autoComplete="off"
+                defaultValue={baslangic?.veresiyeYer || d.yer || ""}
+                placeholder="Örnek: Opet Gerede"
+                className="alan"
+              />
+              <datalist id="veresiye-yerleri">
+                {veresiyeYerleri.map((y) => (
+                  <option key={y} value={y} />
+                ))}
+              </datalist>
+              <p className="mt-1.5 text-xs text-fog">Veresiye defterine yazılır; ödedikçe oradan düşersin.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div>
         <label htmlFor="aciklama" className="etiket">
           Açıklama {demirbas ? "(ör. plaka / model)" : "(isteğe bağlı)"}
@@ -157,7 +269,8 @@ export default function GiderForm({
                 ? "Örnek: Garanti — tır kredisi 3. taksit"
                 : "Örnek: Opet - E5 üzeri"
           }
-          defaultValue={baslangic?.aciklama || ""}
+          key={`aciklama-${d.sayac}`}
+          defaultValue={d.aciklama || baslangic?.aciklama || ""}
           className="alan"
         />
       </div>
@@ -196,7 +309,27 @@ export default function GiderForm({
                 ? "Dekont / makbuz fotoğrafı"
                 : "Fatura / fiş fotoğrafı"
         }
-        aciklama="Çek veya seç — tutarı elle gir, fiş olduğu gibi kaydolur. AI okuma yok."
+        aciklama="Çek veya seç — AI tutarı, litreyi ve tarihi okuyup doldurur. Sen kontrol edip kaydet."
+        onDosya={(f) => void fisiOku(f)}
+        altBilgi={
+          okuma && (
+            <p
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${
+                okuma.durum === "okuyor"
+                  ? "bg-amber/10 text-amber"
+                  : okuma.durum === "tamam"
+                    ? "bg-teal/10 text-teal"
+                    : "bg-ember/10 text-ember"
+              }`}
+              aria-live="polite"
+            >
+              {okuma.durum === "okuyor" && (
+                <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-amber border-t-transparent" />
+              )}
+              {okuma.mesaj}
+            </p>
+          )
+        }
       />
 
       {durum?.hata && (
