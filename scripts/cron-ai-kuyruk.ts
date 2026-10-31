@@ -40,9 +40,17 @@ async function main() {
     await verimsizKaynaklariGuncelle();
     const kapanan = await sessizMesajlariKapat();
     if (kapanan > 0) console.log(`[cron-ai-kuyruk] sessiz kaynak: ${kapanan} mesaj AI'siz kapandı`);
-    const { koridorDisiMesajlariKapat } = await import("@/lib/kaynaklar/koridorOnEleme");
+    const { koridorDisiMesajlariKapat, jevKoridorEle } = await import("@/lib/kaynaklar/koridorOnEleme");
     const disi = await koridorDisiMesajlariKapat();
     if (disi > 0) console.log(`[cron-ai-kuyruk] koridor dışı rota: ${disi} mesaj AI'siz kapandı`);
+    const jev = await jevKoridorEle();
+    const { elemeArtir } = await import("@/lib/kaynaklar/elemeSayac");
+    const sayac: Record<string, number> = {};
+    if (kapanan) sayac.SESSIZ_KAYNAK = kapanan;
+    if (disi) sayac.KORIDOR_ON = disi;
+    if (jev.elenen) sayac.JEV_KORIDOR = jev.elenen;
+    if (Object.keys(sayac).length) await elemeArtir(sayac);
+    if (jev.soru > 0) console.log(`[cron-ai-kuyruk] jev koridor: ${jev.elenen}/${jev.soru} AI'siz kapandı`);
   } catch (e) {
     console.warn("[cron-ai-kuyruk] sessiz kaynak", e);
   }

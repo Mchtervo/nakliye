@@ -68,3 +68,45 @@ export async function jevYukIlaniSkoru(metin: string): Promise<number | null> {
     return null;
   }
 }
+
+/** Koridor sorusu eşiği. Ölçüm (31.10, 497 gerçek mesaj): 0.1'de koridor içi
+ *  ilan kaybı 0; elenen ilansız mesaj %21. Bu eşiğin altında kalan "ilanlar"
+ *  varışı yurt dışı / doğu olup varışsız kaydedilenlerdi (Moskova, Irak, Malatya). */
+export const JEV_KORIDOR_ESIK = 0.1;
+
+/**
+ * 0–1: mesajda çıkışı VE varışı koridor illerinde olan en az bir yük var mı?
+ * Hata / anahtar yoksa null (çağıran elemez).
+ */
+export async function jevKoridorSkoru(metin: string, iller: string[]): Promise<number | null> {
+  const anahtar = process.env.JEV_API_KEY;
+  if (!anahtar || process.env.JEV_KAPALI === "true" || iller.length === 0) return null;
+  try {
+    const yanit = await fetch(JEV_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${anahtar}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "jev-latest",
+        state: metin.slice(0, 3000),
+        questions: {
+          koridor: {
+            type: "noul",
+            instructions: `Bu mesajda, yükleme (çıkış) yeri VE boşaltma (varış) yeri İKİSİ DE şu illerden birinde (ilçe/semt adıyla yazılmış olabilir) olan en az bir yük ilanı var mı? İller: ${iller.join(", ")}. İstanbul'da yalnız Anadolu yakası sayılır.`,
+            criteria: {
+              true: "En az bir yükün hem çıkışı hem varışı listedeki illerde",
+              false:
+                "Hiçbir yükün iki ucu birden listede değil (biri doğu, güneydoğu, Karadeniz, Trakya, Avrupa yakası vb.) ya da yük yok",
+            },
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(ZAMAN_ASIMI_MS),
+    });
+    if (!yanit.ok) return null;
+    const veri = (await yanit.json()) as { answers?: { koridor?: { noul?: number } } };
+    const skor = veri.answers?.koridor?.noul;
+    return typeof skor === "number" ? skor : null;
+  } catch {
+    return null;
+  }
+}

@@ -39,3 +39,62 @@ export async function koridorDisiMesajlariKapat(): Promise<number> {
   });
   return r.count;
 }
+
+const JEV_SORULAN_ANAHTAR = "jev_koridor_sorulan";
+
+/**
+ * Jev'e "iki ucu koridorda yük var mı?" diye sor; skoru eşiğin altındakini
+ * AI'siz kapat. Her mesaj bir kez sorulur (id'ler Ayar'da tutulur).
+ */
+export async function jevKoridorEle(): Promise<{ soru: number; elenen: number }> {
+  const { jevKoridorSkoru, JEV_KORIDOR_ESIK, jevKullanilabilir } = await import("@/lib/ai/jev");
+  if (!jevKullanilabilir()) return { soru: 0, elenen: 0 };
+  const { YENI_ILAN_MS } = await import("@/lib/ilanTazelik");
+  const sinir = new Date(Date.now() - YENI_ILAN_MS);
+  const iller = koridorIlKumesi((await aiTercihleriOku()).koridorIller);
+  if (iller.length === 0 || iller.length >= 70) return { soru: 0, elenen: 0 };
+
+  const kayit = await prisma.ayar.findUnique({ where: { anahtar: JEV_SORULAN_ANAHTAR } });
+  let sorulan: number[] = [];
+  try {
+    sorulan = JSON.parse(kayit?.deger || "[]") as number[];
+  } catch {
+    sorulan = [];
+  }
+  const sorulanSet = new Set(sorulan);
+  const bekleyen = (
+    await prisma.hamMesaj.findMany({
+      where: { islendi: false, OR: [{ mesajZamani: { gte: sinir } }, { mesajZamani: null, createdAt: { gte: sinir } }] },
+      select: { id: true, metin: true },
+      orderBy: { createdAt: "desc" },
+      take: 120,
+    })
+  ).filter((m) => !sorulanSet.has(m.id));
+  if (bekleyen.length === 0) return { soru: 0, elenen: 0 };
+
+  const elenecek: { id: number; skor: number }[] = [];
+  for (let i = 0; i < bekleyen.length; i += 8) {
+    const parti = bekleyen.slice(i, i + 8);
+    const skorlar = await Promise.all(parti.map((m) => jevKoridorSkoru(m.metin, iller)));
+    parti.forEach((m, j) => {
+      const s = skorlar[j];
+      if (s !== null && s !== undefined) {
+        sorulanSet.add(m.id);
+        if (s < JEV_KORIDOR_ESIK) elenecek.push({ id: m.id, skor: s });
+      }
+    });
+  }
+  for (const e of elenecek) {
+    await prisma.hamMesaj.updateMany({
+      where: { id: e.id, islendi: false },
+      data: { islendi: true, hata: `JEV_KORIDOR: skor ${e.skor.toFixed(2)} < ${JEV_KORIDOR_ESIK} — AI atlandı` },
+    });
+  }
+  const deger = JSON.stringify([...sorulanSet].slice(-2000));
+  await prisma.ayar.upsert({
+    where: { anahtar: JEV_SORULAN_ANAHTAR },
+    create: { anahtar: JEV_SORULAN_ANAHTAR, deger },
+    update: { deger },
+  });
+  return { soru: bekleyen.length, elenen: elenecek.length };
+}
