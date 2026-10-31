@@ -9,6 +9,7 @@ import WhatsAppButonu from "@/components/WhatsAppButonu";
 import TelefonTuslari from "@/components/TelefonTuslari";
 import YolculukKarti from "@/components/YolculukKarti";
 import AracKmKarti from "@/components/AracKmKarti";
+import BelgeKarti from "@/components/BelgeKarti";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
 import { ayParametresi } from "@/lib/kdv";
 import AylikGrafik, { type AyVerisi } from "@/components/panel/AylikGrafik";
@@ -311,6 +312,8 @@ export default async function PanelSayfasi() {
       <YolculukKarti />
 
       <AracKmKarti />
+
+      <BelgeKarti />
 
       <TelefonTuslari
         acikAnahtar={pushAcikAnahtar()}

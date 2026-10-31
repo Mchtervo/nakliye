@@ -3,7 +3,15 @@
  *   npm run ts -- scripts/cron-hatirlatma.ts
  */
 import { prisma } from "@/lib/prisma";
-import { bakimHatirlat, odemeHatirlat, okuyucuHatirlat, yolculukKontrol, yolculukSor } from "@/lib/bildirim/hatirlatma";
+import {
+  bakimHatirlat,
+  belgeHatirlat,
+  odemeHatirlat,
+  okuyucuHatirlat,
+  yakitHatirlat,
+  yolculukKontrol,
+  yolculukSor,
+} from "@/lib/bildirim/hatirlatma";
 import { ikonHatirlat } from "@/lib/bildirim/ikonGuncelleme";
 
 async function main() {
@@ -12,8 +20,10 @@ async function main() {
   const ikon = await ikonHatirlat();
   const yolculuk = (await yolculukSor()) || (await yolculukKontrol());
   const bakim = await bakimHatirlat();
+  const belge = await belgeHatirlat();
+  const yakit = await yakitHatirlat();
   console.log(
-    `[cron-hatirlatma] okuyucu=${okuyucu} odeme=${odeme.adet}${odeme.atlandi ? ` (${odeme.atlandi})` : ""} ikon=${ikon} yolculuk=${yolculuk} bakim=${bakim}`
+    `[cron-hatirlatma] okuyucu=${okuyucu} odeme=${odeme.adet}${odeme.atlandi ? ` (${odeme.atlandi})` : ""} ikon=${ikon} yolculuk=${yolculuk} bakim=${bakim} belge=${belge} yakit=${yakit}`
   );
 }
 

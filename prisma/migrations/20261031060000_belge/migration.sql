@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS "Belge" (
+  "id" SERIAL NOT NULL,
+  "tur" TEXT NOT NULL,
+  "ad" TEXT,
+  "bitis" TIMESTAMP(3) NOT NULL,
+  "uyari" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "Belge_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX IF NOT EXISTS "Belge_bitis_idx" ON "Belge"("bitis");

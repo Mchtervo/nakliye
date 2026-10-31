@@ -108,9 +108,12 @@ export default function GiderForm({
 
       {kategori === "YAKIT" && (
         <div className="grid grid-cols-2 gap-3 reveal">
+          <p className="col-span-2 text-xs text-fog">
+            Her dolumda ikisini de yaz: 100 km&apos;de kaç litre yaktığın ve bakım km&apos;si buradan hesaplanır.
+          </p>
           <div>
             <label htmlFor="litre" className="etiket">
-              Litre (isteğe bağlı)
+              Alınan litre
             </label>
             <input
               id="litre"
@@ -124,7 +127,7 @@ export default function GiderForm({
           </div>
           <div>
             <label htmlFor="km" className="etiket">
-              Araç km (isteğe bağlı)
+              Göstergedeki km
             </label>
             <input
               id="km"

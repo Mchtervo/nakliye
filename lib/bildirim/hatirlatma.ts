@@ -171,6 +171,49 @@ export async function bakimHatirlat(): Promise<number> {
   return seviye;
 }
 
+/** Belge bitişi: 30 / 7 / 1 gün kala ve geçince birer kez (09–21 arası). */
+export async function belgeHatirlat(): Promise<number> {
+  const { saat } = trSimdi();
+  if (saat < 9 || saat >= 21) return 0;
+  const { belgeAdi, kalanGun, uyariSeviyesi } = await import("@/lib/belge");
+  const belgeler = await prisma.belge.findMany({
+    where: { bitis: { lte: new Date(Date.now() + 31 * GUN_MS) } },
+  });
+  let gonderilen = 0;
+  for (const b of belgeler) {
+    const kalan = kalanGun(b.bitis);
+    const seviye = uyariSeviyesi(kalan);
+    if (seviye <= b.uyari) continue;
+    await prisma.belge.update({ where: { id: b.id }, data: { uyari: seviye } });
+    const ad = belgeAdi(b.tur, b.ad);
+    await bilgiBildir(
+      kalan < 0 ? `${ad} süresi geçti` : kalan <= 1 ? `${ad} ${kalan === 0 ? "bugün" : "yarın"} bitiyor` : `${ad}: ${kalan} gün kaldı`,
+      `Bitiş: ${tarihYaz(b.bitis)}. Yeniledikten sonra ana sayfada "Yenilendi"ye basıp yeni tarihi gir.`,
+      "/#belgeler"
+    );
+    gonderilen += 1;
+  }
+  return gonderilen;
+}
+
+const YAKIT_UYARI_ANAHTAR = "yakit_uyari_dolum";
+
+/** Son dolum ortalamadan %15 fazla yaktıysa o dolum için bir kez. */
+export async function yakitHatirlat(): Promise<boolean> {
+  const { yakitVerimi } = await import("@/lib/yakit");
+  const v = await yakitVerimi();
+  if (!v.fazla || !v.sonDolumId || v.lt100 == null || v.sonLt100 == null) return false;
+  if ((await ayarAl(YAKIT_UYARI_ANAHTAR)) === String(v.sonDolumId)) return false;
+  await ayarKoy(YAKIT_UYARI_ANAHTAR, String(v.sonDolumId));
+  const s = (n: number) => n.toLocaleString("tr-TR", { maximumFractionDigits: 1 });
+  await bilgiBildir(
+    "Yakıt tüketimi arttı",
+    `Son dolumda ${s(v.sonLt100)} lt/100 km yaktın, ortalaman ${s(v.lt100)}. Kaçak, lastik basıncı, filtre ve enjektörü kontrol ettir; km ya da litre yanlış yazıldıysa gideri düzelt.`,
+    "/#km"
+  );
+  return true;
+}
+
 /** Kopan okuyucu için 3 saatte bir hatırlatma; eşleme kodu da içinde gelir. */
 export async function okuyucuHatirlat(): Promise<number> {
   const sorunlar = await daemonSorunlari();

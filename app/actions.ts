@@ -288,7 +288,8 @@ export async function giderEkle(
   }
 
   const kmHam = metinOku(formData.get("km"));
-  const km = kmHam ? Number(kmHam) : null;
+  // "452.000" Number() ile 452 oluyordu: binlik noktayı at
+  const km = kmHam ? Number(kmHam.replace(/[.\s]/g, "")) : null;
   if (km !== null && (!Number.isInteger(km) || km <= 0)) {
     return { hata: "Km değeri geçersiz (tam sayı olmalı)." };
   }
@@ -313,6 +314,11 @@ export async function giderEkle(
       fisResmi: fisSonuc?.yol ?? null,
     },
   });
+  // Yakıt fişindeki gösterge bakım takibini günceller
+  if (kategori === "YAKIT" && km) {
+    const { yakittanGostergeYaz } = await import("@/lib/yakit");
+    await yakittanGostergeYaz(km, tarih).catch(() => null);
+  }
 
   revalidatePath("/");
   revalidatePath("/giderler");
@@ -355,7 +361,8 @@ export async function giderGuncelle(
   }
 
   const kmHam = metinOku(formData.get("km"));
-  const km = kmHam ? Number(kmHam) : null;
+  // "452.000" Number() ile 452 oluyordu: binlik noktayı at
+  const km = kmHam ? Number(kmHam.replace(/[.\s]/g, "")) : null;
   if (km !== null && (!Number.isInteger(km) || km <= 0)) {
     return { hata: "Km değeri geçersiz (tam sayı olmalı)." };
   }
@@ -395,6 +402,10 @@ export async function giderGuncelle(
       fisResmi,
     },
   });
+  if (kategori === "YAKIT" && km) {
+    const { yakittanGostergeYaz } = await import("@/lib/yakit");
+    await yakittanGostergeYaz(km, tarih).catch(() => null);
+  }
 
   revalidatePath("/");
   revalidatePath("/giderler");
@@ -572,5 +583,33 @@ export async function bakimYapildi(): Promise<void> {
     where: { id: ozet.arac.id },
     data: { sonBakimKm: ozet.tahminiSayac, kmSayac: ozet.tahminiSayac, kmTarih: new Date(), bakimUyari: 0 },
   });
+  revalidatePath("/");
+}
+
+export type BelgeSonuc = { hata: string | null; tamam: boolean };
+
+/** Belge ekle (id yoksa) ya da bitiş tarihini güncelle (yenilendi). */
+export async function belgeKaydet(_onceki: BelgeSonuc, formData: FormData): Promise<BelgeSonuc> {
+  const { BELGE_TURLERI } = await import("@/lib/belge");
+  const id = Number(metinOku(formData.get("belgeId")));
+  const bitis = tarihOku(formData.get("bitis"));
+  if (!bitis) return { hata: "Bitiş tarihini seç.", tamam: false };
+  if (Number.isInteger(id) && id > 0) {
+    // Yeni tarih = yenilendi: uyarılar baştan
+    await prisma.belge.update({ where: { id }, data: { bitis, uyari: 0 } }).catch(() => null);
+  } else {
+    const tur = metinOku(formData.get("tur"));
+    if (!BELGE_TURLERI.some((t) => t.kod === tur)) return { hata: "Belge türünü seç.", tamam: false };
+    const ad = metinOku(formData.get("ad")) || null;
+    if (tur === "DIGER" && !ad) return { hata: "Diğer için belgenin adını yaz.", tamam: false };
+    await prisma.belge.create({ data: { tur, ad, bitis } });
+  }
+  revalidatePath("/");
+  return { hata: null, tamam: true };
+}
+
+export async function belgeSil(id: number): Promise<void> {
+  if (!Number.isInteger(id) || id <= 0) return;
+  await prisma.belge.delete({ where: { id } }).catch(() => null);
   revalidatePath("/");
 }

@@ -55,6 +55,21 @@ model Arac {
   updatedAt      DateTime  @updatedAt
 }
 
+/// Süreli belgeler: muayene, sigorta, kasko, takograf, SRC… Bitişe 30/7/1 gün kala bildirim.
+model Belge {
+  id        Int      @id @default(autoincrement())
+  /// MUAYENE | SIGORTA | KASKO | TAKOGRAF | SRC | PSIKOTEKNIK | EHLIYET | K_BELGESI | DIGER
+  tur       String
+  ad        String?
+  bitis     DateTime
+  /// Gönderilen son uyarı: 0 yok, 1 ≤30 gün, 2 ≤7 gün, 3 ≤1 gün, 4 geçti
+  uyari     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bitis])
+}
+
 model Odeme {
   id    Int      @id @default(autoincrement())
   yukId Int
