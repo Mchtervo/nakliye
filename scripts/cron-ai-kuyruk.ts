@@ -40,7 +40,9 @@ async function main() {
     await verimsizKaynaklariGuncelle();
     const kapanan = await sessizMesajlariKapat();
     if (kapanan > 0) console.log(`[cron-ai-kuyruk] sessiz kaynak: ${kapanan} mesaj AI'siz kapandı`);
-    const { koridorDisiMesajlariKapat, jevKoridorEle } = await import("@/lib/kaynaklar/koridorOnEleme");
+    const { koridorDisiMesajlariKapat, jevKoridorEle, yanikDenemeleriIadeEt } = await import("@/lib/kaynaklar/koridorOnEleme");
+    const iade = await yanikDenemeleriIadeEt();
+    if (iade > 0) console.log(`[cron-ai-kuyruk] yarıda kalan ${iade} mesajın deneme hakkı iade edildi`);
     const disi = await koridorDisiMesajlariKapat();
     if (disi > 0) console.log(`[cron-ai-kuyruk] koridor dışı rota: ${disi} mesaj AI'siz kapandı`);
     const jev = await jevKoridorEle();

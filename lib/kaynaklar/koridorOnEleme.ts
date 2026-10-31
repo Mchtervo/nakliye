@@ -98,3 +98,17 @@ export async function jevKoridorEle(): Promise<{ soru: number; elenen: number }>
   });
   return { soru: bekleyen.length, elenen: elenecek.length };
 }
+
+/**
+ * Bütçe dolu / AI kapalı gibi sert durdurmada kuyruk, deneme sayısını
+ * artırıp hata yazmadan çıkıyordu; o mesajlar hakkını yakıp bir daha hiç
+ * denenmiyordu (31.10: kesintide gelen 16 mesaj takıldı). Bekleyen, hatasız
+ * ama denemesi dolmuş mesajların hakkını iade et.
+ */
+export async function yanikDenemeleriIadeEt(): Promise<number> {
+  const r = await prisma.hamMesaj.updateMany({
+    where: { islendi: false, hata: null, denemeSayisi: { gt: 0 } },
+    data: { denemeSayisi: 0 },
+  });
+  return r.count;
+}
