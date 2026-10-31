@@ -64,6 +64,7 @@ export default async function YukDuzenleSayfasi({
             tutarYazi: kurustanGiris(tutarKurus),
             kdvli: yuk.kdvli,
             kdvDahilMi: yuk.kdvDahilMi,
+            km: yuk.km != null ? String(yuk.km) : "",
           }}
         />
       </div>

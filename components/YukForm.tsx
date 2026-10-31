@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { yukEkle, yukGuncelle, type FormSonuc } from "@/app/actions";
 import TutarKdvGirisi from "@/components/TutarKdvGirisi";
+import { seferKmTahmini } from "@/lib/seferYer";
 
 export type YukFormBaslangic = {
   id: number;
@@ -14,6 +15,8 @@ export type YukFormBaslangic = {
   tutarYazi: string;
   kdvli: boolean;
   kdvDahilMi: boolean;
+  /** Elle girilmiş km (boşsa otomatik) */
+  km?: string;
 };
 
 /** AI ilanından gelen ön dolgu (yeni yük eklerken). */
@@ -54,6 +57,10 @@ export default function YukForm({
     if (hazir?.firmaAdi || firmalar.length === 0) return "yeni";
     return "";
   });
+
+  const [nereden, setNereden] = useState(baslangic?.nereden || hazir?.nereden || "");
+  const [nereye, setNereye] = useState(baslangic?.nereye || hazir?.nereye || "");
+  const tahminiKm = nereden.trim() && nereye.trim() ? seferKmTahmini(nereden, nereye) : null;
 
   return (
     <form action={aksiyon} className="space-y-4">
@@ -125,7 +132,8 @@ export default function YukForm({
             type="text"
             required
             placeholder="Örnek: Mersin"
-            defaultValue={baslangic?.nereden || hazir?.nereden || ""}
+            value={nereden}
+            onChange={(e) => setNereden(e.target.value)}
             className="alan"
           />
         </div>
@@ -139,10 +147,35 @@ export default function YukForm({
             type="text"
             required
             placeholder="Örnek: İstanbul"
-            defaultValue={baslangic?.nereye || hazir?.nereye || ""}
+            value={nereye}
+            onChange={(e) => setNereye(e.target.value)}
             className="alan"
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="km" className="etiket">
+          Kilometre <span className="font-normal text-fog">(boş bırak, otomatik hesaplanır)</span>
+        </label>
+        <input
+          id="km"
+          name="km"
+          type="text"
+          inputMode="numeric"
+          placeholder={tahminiKm !== null ? `≈ ${tahminiKm.toLocaleString("tr-TR")} km` : "Örnek: 450"}
+          defaultValue={baslangic?.km || ""}
+          className="alan"
+        />
+        <p className="mt-1 text-xs text-fog">
+          {tahminiKm === null
+            ? nereden.trim() && nereye.trim()
+              ? "Yer tanınmadı — km'yi elle yaz."
+              : "Nereden ve nereye yazınca tahmini km çıkar."
+            : tahminiKm === 0
+              ? "Aynı il içi — gerçek km'yi elle yazabilirsin."
+              : `Tahmin: ${tahminiKm.toLocaleString("tr-TR")} km (il merkezleri arası). Farklıysa yaz.`}
+        </p>
       </div>
 
       <TutarKdvGirisi

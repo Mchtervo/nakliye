@@ -80,6 +80,7 @@ export async function yukEkle(
       netTutar,
       kdvTutar,
       toplamTutar,
+      km: kmOku(formData.get("km")),
       odemeDurumu: odendiMi ? "ODENDI" : "BEKLIYOR",
       odemeler: odendiMi
         ? { create: { tarih, tutar: toplamTutar, not: "Kayıt sırasında ödendi" } }
@@ -153,6 +154,7 @@ export async function yukGuncelle(
       kdvTutar,
       toplamTutar,
       odemeDurumu,
+      km: kmOku(formData.get("km")),
     },
   });
 
@@ -514,4 +516,53 @@ export async function kasaHareketSil(id: number): Promise<void> {
   revalidatePath("/");
   revalidatePath("/kasa");
   revalidatePath("/para");
+}
+
+/** "12.500" / "12500 km" → 12500; boş/geçersiz → null. */
+function kmOku(deger: FormDataEntryValue | null): number | null {
+  const rakam = metinOku(deger).replace(/[^\d]/g, "");
+  if (!rakam) return null;
+  const n = Number(rakam);
+  return Number.isFinite(n) && n >= 0 && n < 10_000_000 ? n : null;
+}
+
+export type AracSonuc = { hata: string | null; tamam: boolean };
+
+/** Ana sayfa km kartı: gösterge km, bakım aralığı, son bakım km. */
+export async function aracKaydet(_onceki: AracSonuc, formData: FormData): Promise<AracSonuc> {
+  const kmSayac = kmOku(formData.get("kmSayac"));
+  const bakimAralikKm = kmOku(formData.get("bakimAralikKm"));
+  const sonBakimKm = kmOku(formData.get("sonBakimKm"));
+  if (bakimAralikKm !== null && (bakimAralikKm < 1000 || bakimAralikKm > 200_000)) {
+    return { hata: "Bakım aralığı 1.000 ile 200.000 km arası olmalı.", tamam: false };
+  }
+  if (kmSayac !== null && sonBakimKm !== null && sonBakimKm > kmSayac) {
+    return { hata: "Son bakım km'si göstergeden büyük olamaz.", tamam: false };
+  }
+  const mevcut = await prisma.arac.findFirst({ orderBy: { id: "asc" } });
+  const sayacDegisti = kmSayac !== null && kmSayac !== mevcut?.kmSayac;
+  const data = {
+    kmSayac,
+    bakimAralikKm,
+    sonBakimKm,
+    ...(sayacDegisti ? { kmTarih: new Date() } : {}),
+    // Bakım bilgisi değişince uyarılar baştan
+    ...(sonBakimKm !== mevcut?.sonBakimKm || bakimAralikKm !== mevcut?.bakimAralikKm ? { bakimUyari: 0 } : {}),
+  };
+  if (mevcut) await prisma.arac.update({ where: { id: mevcut.id }, data });
+  else await prisma.arac.create({ data: { ...data, kmTarih: kmSayac !== null ? new Date() : null } });
+  revalidatePath("/");
+  return { hata: null, tamam: true };
+}
+
+/** "Bakım yapıldı": son bakım = şu anki (tahmini) gösterge. */
+export async function bakimYapildi(): Promise<void> {
+  const { kmOzeti } = await import("@/lib/seferKm");
+  const ozet = await kmOzeti();
+  if (!ozet.arac || ozet.tahminiSayac === null) return;
+  await prisma.arac.update({
+    where: { id: ozet.arac.id },
+    data: { sonBakimKm: ozet.tahminiSayac, kmSayac: ozet.tahminiSayac, kmTarih: new Date(), bakimUyari: 0 },
+  });
+  revalidatePath("/");
 }

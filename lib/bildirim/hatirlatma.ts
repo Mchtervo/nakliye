@@ -147,6 +147,30 @@ export async function yolculukKontrol(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Bakım yaklaşınca: ≤1000 km, ≤500 km ve geçince birer kez (08–21 arası).
+ * "Bakım yapıldı" ya da bakım ayarı değişince seviye sıfırlanır.
+ */
+export async function bakimHatirlat(): Promise<number> {
+  const { saat } = trSimdi();
+  if (saat < 8 || saat >= 21) return 0;
+  const { kmOzeti } = await import("@/lib/seferKm");
+  const o = await kmOzeti();
+  if (!o.arac || o.bakimaKalan === null || o.sonrakiBakimKm === null) return 0;
+  const seviye = o.bakimaKalan <= 0 ? 3 : o.bakimaKalan <= 500 ? 2 : o.bakimaKalan <= 1000 ? 1 : 0;
+  if (seviye <= o.arac.bakimUyari) return 0;
+  await prisma.arac.update({ where: { id: o.arac.id }, data: { bakimUyari: seviye } });
+  const km = (n: number) => `${n.toLocaleString("tr-TR")} km`;
+  await bilgiBildir(
+    seviye === 3 ? "Bakım zamanı geçti" : `Bakıma ${km(o.bakimaKalan)} kaldı`,
+    seviye === 3
+      ? `Bakım ${km(o.sonrakiBakimKm)}'de yapılacaktı, tahmini gösterge ${km(o.tahminiSayac ?? 0)}. Bakımı yaptıysan ana sayfada "Bakım yapıldı"ya bas.`
+      : `Tahmini gösterge ${km(o.tahminiSayac ?? 0)}, sonraki bakım ${km(o.sonrakiBakimKm)}. Göstergeyi ana sayfadan güncellersen hesap netleşir.`,
+    "/#km"
+  );
+  return seviye;
+}
+
 /** Kopan okuyucu için 3 saatte bir hatırlatma; eşleme kodu da içinde gelir. */
 export async function okuyucuHatirlat(): Promise<number> {
   const sorunlar = await daemonSorunlari();

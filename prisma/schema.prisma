@@ -33,7 +33,26 @@ model Yuk {
   toplamTutar Int
   odemeDurumu String   @default("BEKLIYOR") // BEKLIYOR | KISMI | ODENDI
   odemeler    Odeme[]
+  /// Elle girilen yüklü km; boşsa nereden→nereye tahmini kullanılır.
+  km          Int?
   createdAt   DateTime @default(now())
+}
+
+/// Araç: km sayacı ve bakım takibi. Şimdilik tek kayıt; ileride kullanıcı başına.
+model Arac {
+  id             Int       @id @default(autoincrement())
+  ad             String    @default("Tır")
+  plaka          String?
+  /// Elle girilen gösterge km ve girildiği an
+  kmSayac        Int?
+  kmTarih        DateTime?
+  /// Kaç km'de bir bakım (10.000 / 15.000 …)
+  bakimAralikKm  Int?
+  sonBakimKm     Int?
+  /// Gönderilen son bakım uyarısı: 0 yok, 1 ≤1000 km, 2 ≤500 km, 3 geçti
+  bakimUyari     Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model Odeme {

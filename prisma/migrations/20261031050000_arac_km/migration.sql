@@ -1,0 +1,15 @@
+ALTER TABLE "Yuk" ADD COLUMN IF NOT EXISTS "km" INTEGER;
+
+CREATE TABLE IF NOT EXISTS "Arac" (
+  "id" SERIAL NOT NULL,
+  "ad" TEXT NOT NULL DEFAULT 'Tır',
+  "plaka" TEXT,
+  "kmSayac" INTEGER,
+  "kmTarih" TIMESTAMP(3),
+  "bakimAralikKm" INTEGER,
+  "sonBakimKm" INTEGER,
+  "bakimUyari" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "Arac_pkey" PRIMARY KEY ("id")
+);
