@@ -40,6 +40,9 @@ async function main() {
     await verimsizKaynaklariGuncelle();
     const kapanan = await sessizMesajlariKapat();
     if (kapanan > 0) console.log(`[cron-ai-kuyruk] sessiz kaynak: ${kapanan} mesaj AI'siz kapandı`);
+    const { koridorDisiMesajlariKapat } = await import("@/lib/kaynaklar/koridorOnEleme");
+    const disi = await koridorDisiMesajlariKapat();
+    if (disi > 0) console.log(`[cron-ai-kuyruk] koridor dışı rota: ${disi} mesaj AI'siz kapandı`);
   } catch (e) {
     console.warn("[cron-ai-kuyruk] sessiz kaynak", e);
   }
