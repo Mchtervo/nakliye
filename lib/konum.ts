@@ -12,13 +12,32 @@ import { yakinIller } from "@/lib/donus";
 const ANAHTAR = "arac_konum";
 const YON_ANAHTAR = "arac_yon_iller";
 
+/** Kullanıcı bilerek "tüm bölge" seçti (Kaldır). */
+const TUM = "TUM";
+
+/**
+ * Seçilen konum; seçilmemişse açık yolculuğun varış ili, o da yoksa ana üs.
+ * Boş konum her yerden bildirim demekti (Gebze → Niğde, Balıkesir → Muğla).
+ * Yalnız "Kaldır" (TUM) tüm bölgeyi açar.
+ */
 export async function aracKonumu(): Promise<string | null> {
   const k = await prisma.ayar.findUnique({ where: { anahtar: ANAHTAR } });
-  return ilBul(k?.deger) ?? null;
+  if (k?.deger === TUM) return null;
+  const secili = ilBul(k?.deger);
+  if (secili) return secili;
+  const yolculuk = await prisma.donusTalebi.findFirst({
+    where: { aktif: true },
+    orderBy: { createdAt: "desc" },
+    select: { cikisIl: true },
+  });
+  if (yolculuk?.cikisIl) return yolculuk.cikisIl;
+  const anaUs = await prisma.ayar.findUnique({ where: { anahtar: "ai_ana_us" } });
+  return ilBul(anaUs?.deger) ?? "Ankara";
 }
 
+/** il → o konum; null → bilerek tüm bölge. */
 export async function aracKonumuYaz(il: string | null): Promise<void> {
-  const deger = il ? ilBul(il) ?? "" : "";
+  const deger = il ? ilBul(il) ?? "" : TUM;
   await prisma.ayar.upsert({
     where: { anahtar: ANAHTAR },
     update: { deger },
@@ -55,9 +74,8 @@ export function yonIlleri(yonler: string[]): string[] {
 }
 
 /**
- * Konumdan çıkan + seçilen yönlere giden ilanlar. Açık yolculuğun
- * eşleşmeleri konumdan bağımsız dahil (yöne uyarsa). Yön seçiliyken varışı
- * yazmayan ilan gelmez.
+ * Konumdan (+60 km) çıkan ve seçilen yönlere giden ilanlar.
+ * Yön seçiliyken varışı yazmayan ilan gelmez.
  */
 export function konumKosulu(
   konum: string | null,
@@ -67,6 +85,7 @@ export function konumKosulu(
   const yon: Prisma.YukIlaniWhereInput =
     yonler.length > 0 ? { varisIl: { in: yonIlleri(yonler) } } : {};
   const cikis: Prisma.YukIlaniWhereInput = konum ? { cikisIl: { in: yakinIller(konum) } } : {};
-  // Dönüş eşleşmesi konumdan bağımsız gelir ama seçilen yöne yine uymalı
-  return { OR: [{ AND: [cikis, yon] }, { AND: [{ donusTalebi: { aktif: true } }, yon] }] };
+  // İstisna yok: dönüş eşleşmesi de konumun çevresinden çıkmalı (yoksa
+  // Düzce'deyken eski Ankara aramasının ilanları sızıyordu).
+  return { AND: [cikis, yon] };
 }

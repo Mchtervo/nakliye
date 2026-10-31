@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { kdvHesapla, tlKurusaCevir, tlYaz } from "@/lib/para";
 import { GIDER_KATEGORILERI } from "@/lib/sabitler";
 import { fisKaydet, fisSil } from "@/lib/fis";
-import { donusTalebiOlustur } from "@/lib/donus";
+import { digerYolculuklariKapat, donusTalebiOlustur } from "@/lib/donus";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -89,7 +89,15 @@ export async function yukEkle(
   });
 
   // Boş dönmemek için ters yönde dönüş yükü araması açılır.
-  await donusTalebiOlustur(yeniYuk.id, nereden, nereye).catch(() => null);
+  const talepId = await donusTalebiOlustur(yeniYuk.id, nereden, nereye).catch(() => null);
+  // Bugün/dün tarihli sefer = şu anki yolculuk: araç boşaltma yerinde,
+  // bildirimler oradan (+60 km) gelsin; eski aramalar kapansın.
+  if (talepId && Date.now() - tarih.getTime() < 2 * 24 * 60 * 60 * 1000) {
+    const { aracKonumuYaz } = await import("@/lib/konum");
+    await digerYolculuklariKapat(talepId).catch(() => null);
+    await aracKonumuYaz(nereye).catch(() => null);
+    revalidatePath("/ai/yukler");
+  }
 
   revalidatePath("/");
   revalidatePath("/yukler");

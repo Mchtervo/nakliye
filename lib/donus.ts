@@ -49,7 +49,20 @@ export async function yolculukBaslat(
   yukleme: string,
   bosaltma: string
 ): Promise<number | null> {
-  return donusTalebiOlustur(null, yukleme, bosaltma);
+  const id = await donusTalebiOlustur(null, yukleme, bosaltma);
+  if (id) await digerYolculuklariKapat(id);
+  return id;
+}
+
+/**
+ * Tek araç, tek güncel yolculuk: eski aramalar açık kalırsa onların
+ * eşleşmeleri konumdan bağımsız bildirilmeye devam ediyordu.
+ */
+export async function digerYolculuklariKapat(acikKalacakId: number): Promise<void> {
+  await prisma.donusTalebi.updateMany({
+    where: { aktif: true, id: { not: acikKalacakId } },
+    data: { aktif: false },
+  });
 }
 
 /**
