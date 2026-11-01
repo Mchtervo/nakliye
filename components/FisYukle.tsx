@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { gorseliKucult } from "@/lib/gorsel";
 
@@ -102,18 +103,7 @@ export default function FisYukle({
   }
 
   return (
-    <div
-      className={`space-y-2 rounded-xl border p-3 ${
-        vurgulu
-          ? "border-amber/35 bg-amber/8"
-          : "border-white/12 bg-white/4"
-      }`}
-    >
-      <div>
-        <span className="etiket !text-fog">{baslik}</span>
-        <p className="mt-0.5 text-xs text-fog">{aciklama}</p>
-      </div>
-
+    <div className={`gd-fis ${vurgulu ? "gd-fis-vurgu" : ""}`}>
       <input
         ref={inputRef}
         id="fisResmi"
@@ -126,63 +116,60 @@ export default function FisYukle({
       />
 
       {hazirlaniyor ? (
-        <div className="flex items-center gap-2 rounded-xl border border-amber/25 bg-amber/10 px-3 py-5 text-sm font-semibold text-amber">
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-amber border-t-transparent" />
-          Fotoğraf küçültülüyor...
+        <div className="flex items-center justify-center gap-2 py-5 text-[13.5px] font-semibold text-[#4338ca]">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#4338ca] border-t-transparent" />
+          Fotoğraf hazırlanıyor…
         </div>
       ) : !onizleme ? (
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (!inputRef.current) return;
-              inputRef.current.setAttribute("capture", "environment");
-              inputRef.current.click();
-            }}
-            className="rounded-xl border border-dashed border-amber/40 bg-asphalt/60 px-3 py-5 text-sm font-semibold text-amber transition-colors hover:bg-amber/10"
-          >
-            Kamerayla çek
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (!inputRef.current) return;
-              inputRef.current.removeAttribute("capture");
-              inputRef.current.click();
-            }}
-            className="rounded-xl border border-dashed border-white/25 bg-asphalt/60 px-3 py-5 text-sm font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber"
-          >
-            Galeriden seç
-          </button>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-white/12 bg-asphalt/80">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={onizleme}
-            alt="Fatura önizleme"
-            className="max-h-56 w-full object-contain bg-black/30"
-          />
-          <div className="flex items-center justify-between gap-2 border-t border-white/10 px-3 py-2">
-            <span className="truncate text-xs text-fog">{dosyaAdi}</span>
+        <div>
+          <div className="flex items-center gap-3">
+            <Image src="/ana/fis-kamera.png" alt="" width={64} height={64} className="h-14 w-14 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[15px] font-extrabold">{baslik}</p>
+              <p className="text-[12px] text-[var(--a-ikincil)]">{aciklama}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={temizle}
-              className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold text-ember hover:bg-ember/10"
+              onClick={() => {
+                if (!inputRef.current) return;
+                inputRef.current.setAttribute("capture", "environment");
+                inputRef.current.click();
+              }}
+              className="ana-ana-dugme !min-h-10 !text-[13.5px]"
             >
+              Kamerayla çek
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!inputRef.current) return;
+                inputRef.current.removeAttribute("capture");
+                inputRef.current.click();
+              }}
+              className="sf-ikincil-dugme !min-h-10"
+            >
+              Galeriden seç
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl bg-[#f3f5fb]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={onizleme} alt="Fiş önizleme" className="max-h-56 w-full bg-[#e8ebf5] object-contain" />
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
+            <span className="truncate text-[12px] text-[var(--a-ikincil)]">{dosyaAdi}</span>
+            <button type="button" onClick={temizle} className="shrink-0 rounded-lg px-2 py-1 text-[13px] font-semibold text-[#dc2626]">
               Kaldır
             </button>
           </div>
         </div>
       )}
 
-      {hata && (
-        <p className="rounded-lg border border-ember/30 bg-ember/10 px-3 py-2 text-sm text-paper">
-          {hata}
-        </p>
-      )}
+      {hata && <p className="mt-2 rounded-xl bg-[#fee2e2] px-3 py-2 text-[13px] text-[#7f1d1d]">{hata}</p>}
 
-      {altBilgi}
+      {altBilgi && <div className="mt-2">{altBilgi}</div>}
     </div>
   );
 }

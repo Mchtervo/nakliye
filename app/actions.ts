@@ -336,7 +336,8 @@ export async function giderEkle(
   revalidatePath("/giderler");
   revalidatePath("/muhasebeci");
   revalidatePath("/raporlar");
-  redirect("/giderler");
+  // Liste "✓ Gider kaydedildi" göstersin (kayıt gerçekten bitti)
+  redirect("/giderler?kayit=1");
 }
 
 export async function giderGuncelle(
@@ -427,7 +428,8 @@ export async function giderGuncelle(
   revalidatePath("/giderler");
   revalidatePath("/muhasebeci");
   revalidatePath("/raporlar");
-  redirect("/giderler");
+  // Liste "✓ Gider kaydedildi" göstersin (kayıt gerçekten bitti)
+  redirect("/giderler?kayit=1");
 }
 
 export async function giderSil(id: number): Promise<void> {
@@ -542,7 +544,8 @@ export async function kasaHareketEkle(
   revalidatePath("/");
   revalidatePath("/kasa");
   revalidatePath("/para");
-  redirect("/para?sekme=kasa");
+  // Kayıt bitince listede kısa "kaydedildi" bildirimi
+  redirect("/para?sekme=kasa&kayit=1");
 }
 
 export async function kasaHareketSil(id: number): Promise<void> {

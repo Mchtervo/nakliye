@@ -8,7 +8,12 @@ export default function BilgiSorButonu({
   ilanId,
   gonderenUserId,
   telefon,
+  sinif,
+  etiket = "Bilgi Sor",
 }: {
+  /** Düğme görünümü (açık tema için); verilmezse koyu varsayılan */
+  sinif?: string;
+  etiket?: string;
   ilanId: number;
   gonderenUserId?: string | null;
   telefon?: string | null;
@@ -80,9 +85,12 @@ export default function BilgiSorButonu({
         type="button"
         disabled={bekliyor}
         onClick={bas}
-        className="w-full rounded-xl border border-white/12 bg-white/[0.06] px-2 py-3 text-sm font-bold text-paper transition-colors hover:bg-white/[0.12] disabled:opacity-50"
+        className={
+          sinif ||
+          "w-full rounded-xl border border-white/12 bg-white/[0.06] px-2 py-3 text-sm font-bold text-paper transition-colors hover:bg-white/[0.12] disabled:opacity-50"
+        }
       >
-        {bekliyor ? "Gönderiliyor…" : "Bilgi Sor"}
+        {bekliyor ? "Gönderiliyor…" : etiket}
       </button>
 
       {toast && (

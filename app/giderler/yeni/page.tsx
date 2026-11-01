@@ -1,29 +1,30 @@
-import Link from "next/link";
 import GiderForm from "@/components/GiderForm";
+import { anaYazi } from "@/components/ana/yazi";
+import { HareketKok } from "@/components/ana/Hareket";
 import { bugunTarihStr } from "@/lib/tarih";
 import { veresiyeYerleri } from "@/lib/veresiye";
 
 export const dynamic = "force-dynamic";
 
-export default async function YeniGiderSayfasi() {
+export default async function YeniGiderSayfasi({
+  searchParams,
+}: {
+  searchParams: Promise<{ odeme?: string; yer?: string }>;
+}) {
+  const sp = await searchParams;
   const yerler = await veresiyeYerleri().catch(() => []);
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <div className="reveal">
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber">
-          Harcama
-        </p>
-        <h1 className="font-display text-3xl font-extrabold text-paper">Yeni Gider</h1>
-      </div>
-      <div className="kart-paper p-4 sm:p-6 reveal reveal-d1">
-        <GiderForm bugunTarih={bugunTarihStr()} veresiyeYerleri={yerler} />
-      </div>
-      <Link
-        href="/giderler"
-        className="block text-center text-sm font-medium text-fog transition-colors hover:text-amber"
-      >
-        ← Giderlere dön
-      </Link>
+    <div className={`ana ${anaYazi.variable}`}>
+      <HareketKok>
+        <GiderForm
+          baslik="Yeni gider"
+          altBaslik="Gider kaydı oluştur"
+          bugunTarih={bugunTarihStr()}
+          veresiyeYerleri={yerler}
+          ilkVeresiye={sp.odeme === "VERESIYE"}
+          ilkVeresiyeYer={(sp.yer || "").trim().slice(0, 80) || undefined}
+        />
+      </HareketKok>
     </div>
   );
 }

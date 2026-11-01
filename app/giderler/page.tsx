@@ -1,21 +1,19 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { tlYaz, tarihYaz } from "@/lib/para";
+import { tarihYaz } from "@/lib/para";
 import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
 import { ayAraligi } from "@/lib/tarih";
 import { ayEtiketi, ayParametresi, ayParametresiOku } from "@/lib/kdv";
-import { giderSil } from "@/app/actions";
-import AySecici from "@/components/AySecici";
-import SilButonu from "@/components/SilButonu";
+import GiderlerGorunum from "@/components/gider/GiderlerGorunum";
 
 export const dynamic = "force-dynamic";
 
 export default async function GiderlerSayfasi({
   searchParams,
 }: {
-  searchParams: Promise<{ ay?: string }>;
+  searchParams: Promise<{ ay?: string; kayit?: string }>;
 }) {
-  const { yil, ay } = ayParametresiOku((await searchParams).ay);
+  const sp = await searchParams;
+  const { yil, ay } = ayParametresiOku(sp.ay);
   const { bas, son } = ayAraligi(yil, ay);
   const ayAdi = ayEtiketi(yil, ay);
 
@@ -49,241 +47,43 @@ export default async function GiderlerSayfasi({
     .filter((k) => k.adet > 0)
     .sort((a, b) => b.tutar - a.tutar);
 
-  const maxKat = kategoriToplamlari[0]?.tutar || 1;
+  const onceki = new Date(yil, ay - 2, 1);
+  const sonraki = new Date(yil, ay, 1);
+  const ayHref = (d: Date) => `/giderler?ay=${ayParametresi(d.getFullYear(), d.getMonth() + 1)}`;
+  const ayKisa = new Intl.DateTimeFormat("tr-TR", { month: "short" });
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3 reveal">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber">
-            Harcamalar
-          </p>
-          <h1 className="font-display text-3xl font-extrabold text-paper sm:text-4xl">
-            Giderler
-          </h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <a
-            href={`/api/excel?ay=${ayParametresi(yil, ay)}`}
-            className="btn btn-teal !px-3 !py-2 text-xs sm:text-sm"
-          >
-            Excel indir
-          </a>
-          <Link href="/muhasebeci" className="btn btn-ghost !px-3 !py-2 text-xs sm:text-sm">
-            Muhasebeciye Gönder
-          </Link>
-          <Link href="/giderler/yeni" className="btn btn-amber !px-3 !py-2 text-xs sm:text-sm">
-            + Yeni Gider
-          </Link>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <AySecici yol="/giderler" yil={yil} ay={ay} />
-        <p className="text-xs text-fog">
-          Bugüne kadar {tlYaz(tumGider._sum.toplamTutar ?? 0)} · net{" "}
-          {tlYaz(tumGider._sum.netTutar ?? 0)}
-        </p>
-      </div>
-
-      <section className="kart grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 sm:p-5">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
-            {ayAdi} toplam
-          </p>
-          <p className="mt-1 font-display text-xl font-extrabold tabular-nums text-ember">
-            {tlYaz(genelToplam)}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
-            Net gider
-          </p>
-          <p className="mt-1 font-display text-xl font-extrabold tabular-nums">
-            {tlYaz(genelNet)}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
-            KDV
-          </p>
-          <p className="mt-1 font-display text-xl font-extrabold tabular-nums text-amber">
-            {tlYaz(genelKdv)}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-fog">
-            {demirbaslar.length > 0 ? "Demirbaş" : "Adet"}
-          </p>
-          <p className="mt-1 font-display text-xl font-extrabold tabular-nums">
-            {demirbaslar.length > 0
-              ? tlYaz(demirbasToplam)
-              : `${isletmeGiderleri.length}`}
-          </p>
-          {demirbaslar.length > 0 && (
-            <p className="mt-0.5 text-xs text-fog">KDV {tlYaz(demirbasKdv)}</p>
-          )}
-        </div>
-      </section>
-
-      {giderler.length > 0 && (
-        <section className="kart space-y-4 p-4 sm:p-5 reveal reveal-d1">
-
-          <div>
-            <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-fog">
-              Kategori bazlı toplam
-            </div>
-            <div className="space-y-3">
-              {kategoriToplamlari.map((k) => {
-                const yuzde = Math.round((k.tutar / maxKat) * 100);
-                return (
-                  <div key={k.kod}>
-                    <div className="mb-1 flex items-baseline justify-between gap-2">
-                      <span className="text-sm font-semibold text-paper">
-                        {k.ad}
-                        <span className="ml-2 text-xs font-medium text-fog">
-                          {k.adet} adet
-                        </span>
-                      </span>
-                      <span className="font-display text-base font-bold text-ember">
-                        {tlYaz(k.tutar)}
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                      <div
-                        className="bar-anim h-full rounded-full bg-ember"
-                        style={{ width: `${yuzde}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {demirbaslar.length > 0 && (
-        <section className="kart space-y-2 border-amber/20 p-4 sm:p-5 reveal reveal-d2">
-          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber">
-            Demirbaş özeti
-          </div>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="font-display text-2xl font-extrabold text-paper">
-                {tlYaz(demirbasToplam)}
-              </div>
-              <div className="text-xs text-fog">
-                {demirbaslar.length} alım · işletme giderine yazılmadı
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-fog">
-                İndirilecek KDV
-              </div>
-              <div className="font-display text-xl font-extrabold text-amber">
-                {tlYaz(demirbasKdv)}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {giderler.length === 0 ? (
-        <div className="bos-durum">
-          {ayAdi} ayında gider yok. &quot;Yeni Gider&quot; ile ekle veya başka ay seç.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {giderler.map((gider, i) => (
-            <div
-              key={gider.id}
-              className={`kart p-4 sm:p-5 reveal reveal-d${Math.min(i + 1, 6)}`}
-            >
-              <div className="flex gap-3">
-                {gider.fisResmi ? (
-                  <a
-                    href={gider.fisResmi}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 overflow-hidden rounded-xl border border-white/10"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={gider.fisResmi}
-                      alt="Fiş"
-                      className="h-16 w-16 object-cover"
-                    />
-                  </a>
-                ) : (
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/4 text-[10px] text-fog">
-                    Fiş yok
-                  </div>
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="font-display text-lg font-bold text-paper">
-                        {kategoriAdi(gider.kategori)}
-                        {gider.odeme === "VERESIYE" && (
-                          <span className="rozet rozet-bekliyor ml-2 align-middle">
-                            Veresiye
-                          </span>
-                        )}
-                        {gider.gonderildi && (
-                          <span className="rozet rozet-odendi ml-2 align-middle">
-                            Gönderildi
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-sm text-fog">
-                        {tarihYaz(gider.tarih)}
-                        {gider.aciklama ? ` · ${gider.aciklama}` : ""}
-                        {gider.litre ? ` · ${gider.litre} lt` : ""}
-                        {gider.km
-                          ? ` · ${gider.km.toLocaleString("tr-TR")} km`
-                          : ""}
-                      </div>
-                    </div>
-                    <div className="font-display text-xl font-extrabold text-ember">
-                      {tlYaz(gider.toplamTutar)}
-                    </div>
-                  </div>
-
-                  {gider.kategori === "DEMIRBAS" && gider.kdvTutar > 0 && (
-                    <div className="mt-2 rounded-lg border border-amber/20 bg-amber/10 px-2.5 py-1.5 text-sm font-semibold text-amber">
-                      KDV {tlYaz(gider.kdvTutar)} · Net {tlYaz(gider.netTutar)}
-                    </div>
-                  )}
-
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3">
-                    <div className="text-sm text-fog">
-                      {gider.kdvli
-                        ? `Net ${tlYaz(gider.netTutar)} + KDV ${tlYaz(gider.kdvTutar)}`
-                        : "KDV'siz"}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/giderler/${gider.id}/duzenle`}
-                        className="rounded-lg border border-white/20 px-2.5 py-1.5 text-sm font-semibold text-paper transition-colors hover:border-amber/40 hover:text-amber"
-                      >
-                        Düzenle
-                      </Link>
-                      <SilButonu
-                        onay={`${kategoriAdi(gider.kategori)} giderini (${tlYaz(
-                          gider.toplamTutar
-                        )}) silmek istediğine emin misin?`}
-                        sil={giderSil.bind(null, gider.id)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <GiderlerGorunum
+      v={{
+        ayAdi,
+        oncekiHref: ayHref(onceki),
+        sonrakiHref: ayHref(sonraki),
+        excelHref: `/api/excel?ay=${ayParametresi(yil, ay)}`,
+        kaydedildi: sp.kayit === "1",
+        toplam: genelToplam,
+        net: genelNet,
+        kdv: genelKdv,
+        bugunKadar: tumGider._sum.toplamTutar ?? 0,
+        kategoriler: kategoriToplamlari.map((k) => ({ kod: k.kod, ad: k.ad, tutar: k.tutar, adet: k.adet })),
+        demirbas: demirbaslar.length > 0 ? { toplam: demirbasToplam, kdv: demirbasKdv, adet: demirbaslar.length } : null,
+        giderler: giderler.map((g) => ({
+          id: g.id,
+          gun: String(g.tarih.getDate()),
+          ayKisa: ayKisa.format(g.tarih).replace(".", ""),
+          kategori: g.kategori,
+          kategoriAd: kategoriAdi(g.kategori),
+          alt: (g.odeme === "VERESIYE" && g.veresiyeYer) || g.aciklama || tarihYaz(g.tarih),
+          ek: [g.litre ? `${g.litre} lt` : null, g.km ? `${g.km.toLocaleString("tr-TR")} km` : null].filter(Boolean).join(" · ") || null,
+          toplam: g.toplamTutar,
+          net: g.netTutar,
+          kdv: g.kdvTutar,
+          kdvli: g.kdvli,
+          veresiye: g.odeme === "VERESIYE",
+          gonderildi: g.gonderildi,
+          demirbas: g.kategori === "DEMIRBAS",
+          fisResmi: g.fisResmi,
+        })),
+      }}
+    />
   );
 }

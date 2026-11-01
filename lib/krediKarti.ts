@@ -33,15 +33,18 @@ export type KartDurumu = {
   sonOdeme: Date;
   kalanGun: number;
   uyari: string | null;
+  /** Bu ekstreden sonraki ödemeler (yeniden eskiye) */
+  odemeler: { id: number; tarih: Date; tutar: number }[];
 };
 
 export async function kartlarDurumu(simdi = new Date()): Promise<KartDurumu[]> {
   const kartlar = await prisma.krediKarti.findMany({
     orderBy: { id: "asc" },
-    include: { odemeler: { select: { tarih: true, tutar: true } } },
+    include: { odemeler: { select: { id: true, tarih: true, tutar: true }, orderBy: [{ tarih: "desc" }, { id: "desc" }] } },
   });
   return kartlar.map((k) => {
-    const odenen = k.odemeler.filter((o) => o.tarih >= k.borcTarih).reduce((t, o) => t + o.tutar, 0);
+    const donem = k.odemeler.filter((o) => o.tarih >= k.borcTarih);
+    const odenen = donem.reduce((t, o) => t + o.tutar, 0);
     const kalan = Math.max(0, k.borc - odenen);
     // Borç kalmışsa son ödeme, ekstrenin girildiği günden sonraki ilk son ödeme
     // günüdür; geçtiyse gecikme olarak kalır (ay dönünce "24 gün kaldı" demez).
@@ -58,6 +61,7 @@ export async function kartlarDurumu(simdi = new Date()): Promise<KartDurumu[]> {
       sonOdeme,
       kalanGun: gunFarki(sonOdeme, simdi),
       uyari: k.uyari,
+      odemeler: donem,
     };
   });
 }

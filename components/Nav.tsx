@@ -463,8 +463,20 @@ export default function Nav() {
   }
 
   const aktifMi = (href: string) => sayfaAktifMi(pathname, href);
-  // Ana sayfa açık tasarımda: kendi başlığı var, alt menü açık renk
-  const ana = pathname === "/" || pathname === "/ana-onizleme";
+  // Açık tasarımlı sayfalar: kendi başlığı var, alt menü açık renk
+  const ana =
+    pathname === "/" ||
+    pathname.startsWith("/ana-onizleme") ||
+    pathname === "/ai/yukler" ||
+    pathname === "/yukler" ||
+    pathname.startsWith("/yukler/") ||
+    pathname === "/plan" ||
+    pathname === "/giderler" ||
+    pathname.startsWith("/giderler/") ||
+    pathname === "/veresiye" ||
+    pathname === "/para" ||
+    pathname.startsWith("/firmalar/") ||
+    pathname === "/kartlar";
   const dahaAktif = DAHA_DUZ.some((l) => aktifMi(l.href));
   const dockIndeks = DOCK.findIndex((d) => aktifMi(d.href));
   const gostergeIndeks = sheet === "daha" || (dockIndeks < 0 && dahaAktif) ? 4 : dockIndeks;

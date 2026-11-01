@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import YukForm from "@/components/YukForm";
+import { anaYazi } from "@/components/ana/yazi";
 import { kurustanGiris } from "@/lib/para";
 
 export const dynamic = "force-dynamic";
@@ -38,42 +38,25 @@ export default async function YukDuzenleSayfasi({
     : yuk.toplamTutar;
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <div className="reveal">
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber">
-          Düzelt
-        </p>
-        <h1 className="font-display text-3xl font-extrabold text-paper">
-          Yükü Düzenle
-        </h1>
-        <p className="mt-1 text-sm text-fog">
-          {yuk.nereden} → {yuk.nereye}
-        </p>
-      </div>
-      <div className="kart-paper p-4 sm:p-6 reveal reveal-d1">
-        <YukForm
-          firmalar={firmalar}
-          bugunTarih={tarihInput(yuk.tarih)}
-          baslangic={{
-            id: yuk.id,
-            tarih: tarihInput(yuk.tarih),
-            firmaId: yuk.firmaId,
-            nereden: yuk.nereden,
-            nereye: yuk.nereye,
-            aciklama: yuk.aciklama || "",
-            tutarYazi: kurustanGiris(tutarKurus),
-            kdvli: yuk.kdvli,
-            kdvDahilMi: yuk.kdvDahilMi,
-            km: yuk.km != null ? String(yuk.km) : "",
-          }}
-        />
-      </div>
-      <Link
-        href="/yukler"
-        className="block text-center text-sm font-medium text-fog transition-colors hover:text-amber"
-      >
-        ← Yüklere dön
-      </Link>
+    <div className={`ana ${anaYazi.variable}`}>
+      <YukForm
+        baslik="Seferi düzenle"
+        altBaslik={`${yuk.nereden} → ${yuk.nereye}`}
+        firmalar={firmalar}
+        bugunTarih={tarihInput(yuk.tarih)}
+        baslangic={{
+          id: yuk.id,
+          tarih: tarihInput(yuk.tarih),
+          firmaId: yuk.firmaId,
+          nereden: yuk.nereden,
+          nereye: yuk.nereye,
+          aciklama: yuk.aciklama || "",
+          tutarYazi: kurustanGiris(tutarKurus),
+          kdvli: yuk.kdvli,
+          kdvDahilMi: yuk.kdvDahilMi,
+          km: yuk.km != null ? String(yuk.km) : "",
+        }}
+      />
     </div>
   );
 }

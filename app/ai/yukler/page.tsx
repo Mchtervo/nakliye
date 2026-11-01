@@ -1,18 +1,12 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
-import { ILLER, ilBul, sehirHavzasi } from "@/lib/iller";
+import { ilBul, sehirHavzasi } from "@/lib/iller";
 import { SUPHE_SINIRI, tercihKosulu, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
-import {
-  eskiIlanlariTemizle,
-  simdiTara,
-} from "@/app/ai-actions";
-import AksiyonButonu from "@/components/AksiyonButonu";
-import IlanAramaCubugu, { type RotaCip } from "@/components/IlanAramaCubugu";
-import IlanKart from "@/components/IlanKart";
+import YukBulGorunum from "@/components/yuk/YukBulGorunum";
+import type { RotaCip } from "@/components/yuk/AramaTepsisi";
 import { fiyatAkliDisiMi } from "@/lib/ai/ilanCozumle";
 import {
   hatAnahtar,
@@ -25,8 +19,7 @@ import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
 import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import type { Prisma } from "@prisma/client";
 import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
-import { yakinIller } from "@/lib/donus";
-import YonSecici from "@/components/YonSecici";
+import { aktifYolculuklar, yakinIller } from "@/lib/donus";
 
 export const dynamic = "force-dynamic";
 
@@ -478,221 +471,128 @@ export default async function AiYuklerSayfasi({
     };
   }
 
-  return (
-    <div className="mx-auto max-w-lg space-y-3 xl:max-w-5xl">
-      {/* Başlık: tek satır durum + 2 tuş. Arşiv alta taşındı. */}
-      <div className="flex items-start justify-between gap-3 reveal">
-        <div className="min-w-0">
-          <h1 className="font-display text-3xl font-extrabold tracking-tight text-paper">
-            Yük bul
-          </h1>
-          <p className="mt-1 text-sm">
-            {iyiSayisi > 0 ? (
-              <span className="font-semibold text-teal">{iyiSayisi} taze iyi iş</span>
-            ) : (
-              <span className="text-fog">
-                {yeniSayisi > 0
-                  ? `${yeniSayisi} yeni ilan`
-                  : kaynakSayisi > 0
-                    ? "Şu an yeni ilan yok"
-                    : "Kaynak yok — Ayarlar’dan aç"}
-              </span>
-            )}
-          </p>
-          <Link href="/ayarlar#ai" className="mt-0.5 block truncate text-xs text-fog hover:text-amber">
-            {[
-              tercih.aracTipleri.map((k) => aracTipiAdi(k)).join("/") || null,
-              tercih.maxTonaj ? `≤${tercih.maxTonaj}t` : null,
-              tercih.minUcret ? `≥${tlYaz(tercih.minUcret)}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "Filtre yok"}{" "}
-            <span className="text-amber">· değiştir</span>
-          </Link>
-        </div>
-        <AksiyonButonu
-          calistir={simdiTara}
-          etiket="Yenile"
-          bekleyenEtiket="..."
-          sinif="btn btn-amber shrink-0 !px-4 !py-2 text-sm"
-        />
-      </div>
+  // Dönüş sekmesi: aktif yolculuk (en yenisi) — başlık rotası ve panel
+  const yolculuk =
+    sekme === "DONUS" ? ((await aktifYolculuklar().catch(() => []))[0] ?? null) : null;
 
-      {sekme === "YENI" && !rotaFiltresiVar && (
-        <div className="space-y-3 rounded-2xl bg-white/[0.04] p-3">
-          {(konum || yonler.length > 0) && (
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="min-w-0 truncate text-paper">
-                {konumFiltresi
-                  ? `📍 ${konum ? `${konum} çevresinden` : "Her yerden"}${yonler.length ? ` → ${yonler.join(", ")}` : ""}`
-                  : "📍 Tüm bölge, tüm yönler"}
-              </span>
-              <Link href={konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler"} className="shrink-0 font-semibold text-amber">
-                {konumFiltresi ? "Tümünü göster" : "Filtreyi aç"}
-              </Link>
-            </div>
-          )}
-          <YonSecici yonler={yonler} iller={ILLER} cevreler={yonCevreleri} />
-        </div>
-      )}
+  const aracFiltreYazi =
+    [
+      tercih.aracTipleri.map((k) => aracTipiAdi(k)).join("/") || null,
+      tercih.maxTonaj ? `≤${tercih.maxTonaj}t` : null,
+      tercih.minUcret ? `≥${tlYaz(tercih.minUcret)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Filtre yok";
 
+  const bildirimler = (
+    <>
       {okuyucuSorunlari.map((s) => (
-        <div
-          key={s.ad}
-          className="rounded-xl border border-ember/30 bg-ember/10 px-3 py-2.5 text-sm text-paper"
-        >
+        <div key={s.ad} className="rounded-2xl bg-[#fee2e2] px-4 py-3 text-[13px] text-[#7f1d1d]">
           <strong>{s.baslik}.</strong> <span className="select-all">{s.detay}</span>
         </div>
       ))}
-
       {killSwitch && (
-        <div className="rounded-xl border border-amber/30 bg-amber/10 px-3 py-2.5 text-sm text-paper">
+        <div className="rounded-2xl bg-[#fff1dc] px-4 py-3 text-[13px] text-[#7c2d12]">
           <strong>AI kapalı.</strong> Tarama devam eder; kuyruk birikir.
         </div>
       )}
-
       {!killSwitch && !anahtarVar && (
-        <div className="rounded-xl border border-ember/30 bg-ember/10 px-3 py-2.5 text-sm text-paper">
+        <div className="rounded-2xl bg-[#fee2e2] px-4 py-3 text-[13px] text-[#7f1d1d]">
           <strong>OpenAI anahtarı yok.</strong>
         </div>
       )}
-
       {aiAcik && kaynakSayisi === 0 && (
-        <div className="rounded-xl border border-white/10 bg-white/4 px-3 py-2.5 text-sm text-fog">
+        <div className="rounded-2xl bg-white px-4 py-3 text-[13px] text-[#3b4262]">
           Telegram botunu gruba ekle veya Ayarlar&apos;dan kaynak ekle.
         </div>
       )}
+    </>
+  );
 
-      <IlanAramaCubugu
-        key={`${neredenHam}|${nereyeHam}|${sekme}`}
-        sekme={sekme}
-        nereden={neredenHam}
-        nereye={nereyeHam}
-        cipler={cipler}
-      />
-
-      {(neredenHata || nereyeHata) && (
-        <p className="text-xs text-ember">
-          Yer adı çözülemedi
-          {neredenHata ? `: «${neredenHam}»` : ""}
-          {nereyeHata ? `${neredenHata ? "," : ":"} «${nereyeHam}»` : ""}
-          . İl veya ilçe yaz (Ostim, Gebze, Hadımköy…).
-        </p>
-      )}
-
-      {filtreOzet && !neredenHata && !nereyeHata && (
-        <p className="text-xs text-teal">Filtre: {filtreOzet}</p>
-      )}
-
-      <div className="sekme-serit -mx-1">
-        {SEKMELER.map((s) => {
-          const aktif = s.kod === sekme;
-          const rozet =
-            s.kod === "YENI"
-              ? yeniSayisi
-              : s.kod === "DONUS"
-                ? donusSayisi
-                : s.kod === "SUPHELI"
-                  ? supheliSayisi
-                  : null;
-          return (
-            <Link
-              key={s.kod}
-              href={sekmeHref(s.kod, neredenHam, nereyeHam, arsivGoster)}
-              className={`sekme-oge ${aktif ? "aktif" : ""}`}
-            >
-              {s.ad}
-              {rozet !== null && rozet > 0 && (
-                <span className="ml-1 text-xs font-bold text-amber">{rozet}</span>
-              )}
-            </Link>
-          );
-        })}
-      </div>
-
-      {sirali.length === 0 ? (
-        <div className="bos-durum space-y-3">
-          <p>
-            {neredenHam || nereyeHam
-              ? tekSehirArama
-                ? `${tekSehirAd} çıkışlı / varışlı ilan yok.`
-                : "Bu rotada ilan yok."
-              : sekme === "YENI"
-                ? "Şu an yeni ilan yok."
-                : "Bu listede kayıt yok."}
-          </p>
-          {(neredenHam || nereyeHam) && (
-            <Link
-              href={`/ai/yukler?sekme=${encodeURIComponent(sekme)}`}
-              className="inline-block text-sm font-bold text-amber hover:underline"
-            >
-              Filtreyi kaldır · tüm ilanlar
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3 xl:grid xl:grid-cols-2 xl:items-start xl:gap-3 xl:space-y-0">
-          {sirali.map((ilan) => {
-            return (
-              <IlanKart
-                key={ilan.id}
-                ilan={{
-                  id: ilan.id,
-                  durum: ilan.durum,
-                  nereden: ilan.nereden,
-                  nereye: ilan.nereye,
-                  cikisIl: ilan.cikisIl,
-                  varisIl: ilan.varisIl,
-                  tonaj: ilan.tonaj,
-                  yukTipi: ilan.yukTipi,
-                  aracTipi: ilan.aracTipi,
-                  aracTipiKod: ilan.aracTipiKod,
-                  aracUzunluk: ilan.aracUzunluk,
-                  koridorTipi: ilan.koridorTipi,
-                  ucret: ilan.ucret,
-                  fiyatTon: ilan.fiyatTon,
-                  fiyatBelirsiz: ilan.fiyatBelirsiz,
-                  firmaAdi: ilan.firmaAdi,
-                  telefon: ilan.telefon,
-                  waNot: gorusmeMap.get(ilan.id) ?? null,
-                  gonderenUserId: ilan.gonderenUserId,
-                  guvenSkoru: ilan.guvenSkoru,
-                  hamMetin: ilan.hamMetin,
-                  createdAt: ilan.createdAt,
-                  sonGorulme: ilan.sonGorulme,
-                  donusTalebiId: ilan.donusTalebiId,
-                  kaynakAd: ilan.kaynak?.ad ?? null,
-                  ucretYazi:
-                    ilan.ucret !== null ? kurustanGiris(ilan.ucret) : null,
-                  odakli: odak === ilan.id,
-                  soluk: solukMu(ilan.sonGorulme),
-                  vurgulu: iyiIsMi(ilan),
-                  kar: karIcin(ilan),
-                  donusOnerileri: donusMap.get(ilan.id),
-                }}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      <div className="flex items-center justify-center gap-4 pb-4 text-xs font-semibold">
-        <Link
-          href={sekmeHref(sekme, neredenHam, nereyeHam, !arsivGoster)}
-          className={arsivGoster ? "text-amber" : "text-fog hover:text-amber"}
-        >
-          {arsivGoster ? "Arşivi gizle" : "Arşivi göster"}
-        </Link>
-      {sirali.length > 0 && (
-          <AksiyonButonu
-            calistir={eskiIlanlariTemizle}
-            etiket="6 saati geçenleri sil"
-            bekleyenEtiket="..."
-            onay="6 saattir yenilenmeyen ilanlar silinsin mi?"
-            sinif="text-xs font-semibold text-fog hover:text-amber"
-          />
-      )}
-      </div>
-    </div>
+  return (
+    <YukBulGorunum
+      v={{
+        sekme,
+        nereden: neredenHam,
+        nereye: nereyeHam,
+        cipler,
+        sekmeler: SEKMELER.filter((s) => s.kod !== "SUPHELI" || sekme === "SUPHELI").map((s) => ({
+          kod: s.kod,
+          ad: s.ad,
+          href: sekmeHref(s.kod, neredenHam, nereyeHam, arsivGoster),
+          rozet: s.kod === "YENI" ? yeniSayisi : s.kod === "DONUS" ? donusSayisi : s.kod === "SUPHELI" ? supheliSayisi : null,
+        })),
+        konum,
+        yonler,
+        yonCevreleri,
+        konumFiltresi,
+        konumLink: konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler",
+        aracFiltreYazi,
+        yonSeciciGoster: sekme === "YENI" && !rotaFiltresiVar,
+        durumSatiri:
+          iyiSayisi > 0
+            ? `${iyiSayisi} taze iyi iş`
+            : yeniSayisi > 0
+              ? `${yeniSayisi} yeni ilan`
+              : kaynakSayisi > 0
+                ? "Şu an yeni ilan yok"
+                : "Kaynak yok — Ayarlar’dan aç",
+        bildirimler,
+        ilanlar: sirali.map((ilan) => ({
+          id: ilan.id,
+          durum: ilan.durum,
+          nereden: ilan.nereden,
+          nereye: ilan.nereye,
+          cikisIl: ilan.cikisIl,
+          varisIl: ilan.varisIl,
+          tonaj: ilan.tonaj,
+          yukTipi: ilan.yukTipi,
+          aracTipi: ilan.aracTipi,
+          aracTipiKod: ilan.aracTipiKod,
+          aracUzunluk: ilan.aracUzunluk,
+          koridorTipi: ilan.koridorTipi,
+          ucret: ilan.ucret,
+          fiyatTon: ilan.fiyatTon,
+          fiyatBelirsiz: ilan.fiyatBelirsiz,
+          firmaAdi: ilan.firmaAdi,
+          telefon: ilan.telefon,
+          waNot: gorusmeMap.get(ilan.id) ?? null,
+          gonderenUserId: ilan.gonderenUserId,
+          guvenSkoru: ilan.guvenSkoru,
+          hamMetin: ilan.hamMetin,
+          createdAt: ilan.createdAt,
+          sonGorulme: ilan.sonGorulme,
+          donusTalebiId: ilan.donusTalebiId,
+          kaynakAd: ilan.kaynak?.ad ?? null,
+          ucretYazi: ilan.ucret !== null ? kurustanGiris(ilan.ucret) : null,
+          odakli: odak === ilan.id,
+          soluk: solukMu(ilan.sonGorulme),
+          vurgulu: iyiIsMi(ilan),
+          kar: karIcin(ilan),
+          donusOnerileri: donusMap.get(ilan.id),
+        })),
+        supheli: { sayi: supheliSayisi, href: sekmeHref("SUPHELI", neredenHam, nereyeHam, arsivGoster) },
+        bosMesaj:
+          neredenHam || nereyeHam
+            ? tekSehirArama
+              ? `${tekSehirAd} çıkışlı / varışlı ilan yok.`
+              : "Bu rotada ilan yok."
+            : sekme === "YENI"
+              ? "Şu an yeni ilan yok."
+              : sekme === "ILGILENIYOR"
+                ? "Takipte ilan yok. Kalbe basarak takibe alabilirsin."
+                : "Bu listede kayıt yok.",
+        filtreKaldirHref: neredenHam || nereyeHam ? `/ai/yukler?sekme=${encodeURIComponent(sekme)}` : null,
+        filtreOzet: filtreOzet && !neredenHata && !nereyeHata ? filtreOzet : null,
+        yerHatasi:
+          neredenHata || nereyeHata
+            ? `Yer adı çözülemedi${neredenHata ? `: «${neredenHam}»` : ""}${nereyeHata ? `${neredenHata ? "," : ":"} «${nereyeHam}»` : ""}. İl veya ilçe yaz (Ostim, Gebze, Hadımköy…).`
+            : null,
+        arsiv: { goster: arsivGoster, href: sekmeHref(sekme, neredenHam, nereyeHam, !arsivGoster) },
+        yolculuk: yolculuk
+          ? { id: yolculuk.id, cikis: yolculuk.cikis, varis: yolculuk.varis, cikisIl: yolculuk.cikisIl, cevre: yakinIller(yolculuk.cikisIl).slice(1) }
+          : null,
+      }}
+    />
   );
 }

@@ -1,17 +1,18 @@
 "use client";
 
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
+import { LazyMotion, MotionConfig, domMax } from "motion/react";
 import type { ReactNode } from "react";
 
 /**
  * Ana sayfa hareket kökü (Motion: yerleşim kayması, açılan panel, görünürken
  * dolan grafik, çıkış). Basma, giriş ve döngüler CSS’te (globals .ana-*).
- * Yalnız gereken özellikler yüklenir (LazyMotion); "hareketi azalt" açıksa
+ * domMax: seçim zemininin kayması (layoutId) ve liste yerleşimi (layout) için
+ * gerekir; domAnimation bunları içermez. "hareketi azalt" açıksa
  * dönüşümler kapanır (reducedMotion="user").
  */
 export function HareketKok({ children }: { children: ReactNode }) {
   return (
-    <LazyMotion features={domAnimation} strict>
+    <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">{children}</MotionConfig>
     </LazyMotion>
   );
