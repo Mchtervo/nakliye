@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { aktifBaglam } from "@/lib/baglam";
+import { anaPrisma } from "@/lib/prismaAna";
+import { uyeIlanDurumYaz } from "@/lib/uyeIlan";
+import { whatsappMesajUrl } from "@/lib/whatsapp";
 import { AYAR_ANAHTARLARI, ayarYaz } from "@/lib/ayarlar";
 import { aracKodlariCozumle } from "@/lib/arac";
 import { bolgeCozumle } from "@/lib/bolgeler";
@@ -142,12 +146,28 @@ const ILAN_DURUMLARI = [
   "ARSIV",
 ];
 
+async function uyeMi(): Promise<boolean> {
+  return (await aktifBaglam()).uyeId !== null;
+}
+
+/** Ortak ilan (ana şema) gerçekten var mı: üye durumu boşa yazılmasın. */
+async function ortakIlanVar(id: number): Promise<boolean> {
+  return Boolean(await anaPrisma.yukIlani.findUnique({ where: { id }, select: { id: true } }));
+}
+
 export async function ilanDurumGuncelle(
   id: number,
   durum: string
 ): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
   if (!ILAN_DURUMLARI.includes(durum)) return;
+
+  // Üye: durum kendi defterine; yöneticinin ilan durumu değişmez
+  if (await uyeMi()) {
+    if (await ortakIlanVar(id)) await uyeIlanDurumYaz(id, durum);
+    revalidatePath("/ai/yukler");
+    return;
+  }
 
   await prisma.yukIlani.update({ where: { id }, data: { durum } }).catch(() => null);
 
@@ -196,6 +216,16 @@ export async function ilanBilgiSor(id: number): Promise<
 > {
   if (!Number.isInteger(id) || id <= 0) {
     return { ok: false, mesaj: "Geçersiz ilan." };
+  }
+  // Üye: yöneticinin Telegram hesabı kullanılmaz; üyenin kendi WhatsApp'ı açılır
+  if (await uyeMi()) {
+    const ilan = await anaPrisma.yukIlani.findUnique({ where: { id }, select: { telefon: true, nereden: true, nereye: true } });
+    const waUrl = ilan?.telefon
+      ? whatsappMesajUrl(ilan.telefon, `Merhaba, ${ilan.nereden || ""} → ${ilan.nereye || ""} yükü için yazıyorum. Yük duruyor mu? Fiyat ve tonaj nedir?`)
+      : null;
+    if (!waUrl) return { ok: false, mesaj: "İlanda geçerli telefon yok." };
+    await uyeIlanDurumYaz(id, "ILETISIME_GECILDI");
+    return { ok: true, kanal: "whatsapp", mesaj: "WhatsApp açılıyor", waUrl };
   }
   try {
     const ilan = await prisma.yukIlani.findUnique({
@@ -257,6 +287,11 @@ export async function ilanTelegramDmGonder(
 /** WhatsApp açıldı / kopyalandı → ILETISIME_GECILDI */
 export async function ilanIletisimeGecildi(id: number): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
+  if (await uyeMi()) {
+    if (await ortakIlanVar(id)) await uyeIlanDurumYaz(id, "ILETISIME_GECILDI");
+    revalidatePath("/ai/yukler");
+    return;
+  }
   await prisma.yukIlani
     .update({ where: { id }, data: { durum: "ILETISIME_GECILDI" } })
     .catch(() => null);
@@ -267,6 +302,8 @@ export async function ilanIletisimeGecildi(id: number): Promise<void> {
 /** Arayınca yanlış çıkan numara: kara listeye, o numaralı ilanlar elenir. */
 export async function ilanYanlisNumara(id: number): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
+  // Kara liste herkesi etkiler: yalnız yönetici
+  if (await uyeMi()) return;
   const ilan = await prisma.yukIlani.findUnique({ where: { id }, select: { telefon: true } });
   if (!ilan?.telefon) return;
   const { yanlisNumaraIsaretle } = await import("@/lib/kaynaklar/yanlisNumara");
@@ -276,12 +313,19 @@ export async function ilanYanlisNumara(id: number): Promise<void> {
 
 export async function ilanSil(id: number): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) return;
+  // Üye ortak ilanı silemez; yalnız kendi listesinden gizler
+  if (await uyeMi()) {
+    if (await ortakIlanVar(id)) await uyeIlanDurumYaz(id, "ELENDI");
+    revalidatePath("/ai/yukler");
+    return;
+  }
   await prisma.yukIlani.delete({ where: { id } }).catch(() => null);
   revalidatePath("/ai/yukler");
   revalidatePath("/ai/donus");
 }
 
 export async function eskiIlanlariTemizle(): Promise<void> {
+  if (await uyeMi()) return;
   // 6 saati geçen ilanları siler
   const { eskiIlanlariArsivle } = await import("@/lib/ilanTazelik");
   await eskiIlanlariArsivle();
@@ -289,6 +333,11 @@ export async function eskiIlanlariTemizle(): Promise<void> {
 }
 
 export async function simdiTara(): Promise<void> {
+  // Tarama yöneticinin kaynaklarıyla arka planda sürer; üyede yalnız liste tazelenir
+  if (await uyeMi()) {
+    revalidatePath("/ai/yukler");
+    return;
+  }
   await kaynaklariTara(4);
   revalidatePath("/ai/yukler");
   revalidatePath("/ai/donus");

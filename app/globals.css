@@ -2685,3 +2685,20 @@ button.sf-ikincil-dugme:active { transform: scale(0.97); background: #e5e8fb; }
   button.sf-ikincil-dugme:active { transform: none; }
   .kk-serit { scroll-behavior: auto; }
 }
+
+/* Üye üst şeridi: yönetici görünümü + eksik bilgi hatırlatması */
+.uye-serit {
+  position: sticky;
+  top: 0;
+  z-index: 65;
+  margin: -0.5rem -1rem 0.5rem;
+}
+.uye-serit-satir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: calc(env(safe-area-inset-top) + 0.5rem) 1rem 0.5rem;
+  font-size: 13px;
+}
+.uye-serit-satir + .uye-serit-satir { padding-top: 0.5rem; }

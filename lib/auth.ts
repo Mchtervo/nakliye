@@ -45,29 +45,75 @@ async function hmac(govde: string): Promise<string> {
   return toBase64Url(imza);
 }
 
-export async function oturumTokeniOlustur(): Promise<string> {
-  const exp = Math.floor(Date.now() / 1000) + OTURUM_SURE_SN;
-  const govde = `ok.${exp}`;
-  const imza = await hmac(govde);
-  return `${govde}.${imza}`;
+/** Yönetici "üye paneline gir" görünümü (yönetici oturumu yanında ayrı çerez). */
+export const GORUNUM_COOKIE = "nd_gorunum";
+
+export type Oturum = { rol: "admin" } | { rol: "uye"; uyeId: number };
+
+async function tokenYap(onek: string, sureSn = OTURUM_SURE_SN): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + sureSn;
+  const govde = `${onek}.${exp}`;
+  return `${govde}.${await hmac(govde)}`;
 }
 
-export async function oturumGecerliMi(
-  token: string | undefined | null
-): Promise<boolean> {
-  if (!token) return false;
+/** Ön ek + geçerlilik + imza denetimi; geçerliyse ön eki döner. */
+async function tokenCoz(token: string | undefined | null): Promise<string | null> {
+  if (!token) return null;
   const parcalar = token.split(".");
-  if (parcalar.length !== 3) return false;
-  const [ok, expStr, imza] = parcalar;
-  if (ok !== "ok") return false;
+  if (parcalar.length !== 3) return null;
+  const [onek, expStr, imza] = parcalar;
   const exp = Number(expStr);
-  if (!Number.isFinite(exp) || exp * 1000 < Date.now()) return false;
-  const govde = `${ok}.${expStr}`;
-  const beklenen = await hmac(govde);
-  if (imza.length !== beklenen.length) return false;
+  if (!Number.isFinite(exp) || exp * 1000 < Date.now()) return null;
+  const beklenen = await hmac(`${onek}.${expStr}`);
+  if (imza.length !== beklenen.length) return null;
   let fark = 0;
   for (let i = 0; i < imza.length; i++) {
     fark |= imza.charCodeAt(i) ^ beklenen.charCodeAt(i);
   }
-  return fark === 0;
+  return fark === 0 ? onek : null;
+}
+
+/** Yönetici oturumu (eski biçim "ok.exp.imza" aynen geçerli). */
+export async function oturumTokeniOlustur(): Promise<string> {
+  return tokenYap("ok");
+}
+
+/** Üye oturumu: "u<id>.exp.imza" */
+export async function uyeTokeniOlustur(uyeId: number): Promise<string> {
+  return tokenYap(`u${uyeId}`);
+}
+
+/** Yöneticinin üye görünümü: "g<id>.exp.imza" (8 saat) */
+export async function gorunumTokeniOlustur(uyeId: number): Promise<string> {
+  return tokenYap(`g${uyeId}`, 60 * 60 * 8);
+}
+
+export async function oturumCoz(token: string | undefined | null): Promise<Oturum | null> {
+  const onek = await tokenCoz(token);
+  if (onek === "ok") return { rol: "admin" };
+  const m = onek ? /^u(\d+)$/.exec(onek) : null;
+  return m ? { rol: "uye", uyeId: Number(m[1]) } : null;
+}
+
+export async function gorunumCoz(token: string | undefined | null): Promise<number | null> {
+  const onek = await tokenCoz(token);
+  const m = onek ? /^g(\d+)$/.exec(onek) : null;
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * İstekte kim adına çalışılıyor: yönetici görünüm çerezi varsa o üye.
+ * Middleware ve sunucu aynı kuralı kullanır.
+ */
+export async function etkinOturum(oturumToken: string | undefined | null, gorunumToken: string | undefined | null): Promise<(Oturum & { yoneticiGoruyor?: boolean }) | null> {
+  const o = await oturumCoz(oturumToken);
+  if (o?.rol === "admin") {
+    const g = await gorunumCoz(gorunumToken);
+    if (g) return { rol: "uye", uyeId: g, yoneticiGoruyor: true };
+  }
+  return o;
+}
+
+export async function oturumGecerliMi(token: string | undefined | null): Promise<boolean> {
+  return (await oturumCoz(token)) !== null;
 }

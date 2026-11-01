@@ -1,4 +1,9 @@
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { aktifBaglam } from "@/lib/baglam";
+import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
+import { anaPrisma } from "@/lib/prismaAna";
+import { uyeDurumu } from "@/lib/uyeProfil";
 import { prisma } from "@/lib/prisma";
 import { tlYazKisa, tarihYaz } from "@/lib/para";
 import { kategoriAdi } from "@/lib/sabitler";
@@ -21,6 +26,10 @@ function selamlama(simdi: Date): string {
 }
 
 export default async function PanelSayfasi() {
+  // Yeni üye: önce aracını eklesin
+  const b = await aktifBaglam();
+  if (b.uyeId !== null && !(await uyeDurumu(b.uyeId))?.arac?.plaka) redirect("/profil?ilk=1");
+
   const simdi = new Date();
   const [yukler, giderler, bekleyenYukler, kasaToplam, yeniIlan, aylar] = await Promise.all([
     prisma.yuk.findMany({
@@ -51,9 +60,10 @@ export default async function PanelSayfasi() {
       },
     }),
     prisma.kasaHareket.groupBy({ by: ["tip"], _sum: { tutar: true } }),
-    prisma.yukIlani.count({
+    // Üyede ortak ilan listesinden sayılır (yöneticinin durumlarına bakmadan)
+    (b.uyeId !== null ? anaPrisma : prisma).yukIlani.count({
       where: {
-        durum: "YENI",
+        ...(b.uyeId !== null ? { guvenSkoru: { gte: SUPHE_SINIRI }, durum: { notIn: ["ARSIV", "ELENDI"] } } : { durum: "YENI" }),
         // Yük bul sayfasıyla aynı: son 2 saatte paylaşılan
         sonGorulme: { gte: new Date(simdi.getTime() - YENI_ILAN_MS) },
       },

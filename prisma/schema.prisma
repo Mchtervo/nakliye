@@ -439,3 +439,17 @@ model VeresiyeOdeme {
 
   @@index([yer])
 }
+
+/// Üye (normal kullanıcı) hesabı. Yalnız ana şemada kullanılır; üyenin tüm
+/// kayıtları kendi şemasında ("uye_<id>") durur, yöneticinin verisine erişemez.
+model Uye {
+  id           Int       @id @default(autoincrement())
+  kullaniciAdi String    @unique
+  sifreHash    String
+  ad           String?
+  telefon      String?
+  sehir        String?
+  aktif        Boolean   @default(true)
+  sonGiris     DateTime?
+  createdAt    DateTime  @default(now())
+}

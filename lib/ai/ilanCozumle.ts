@@ -28,6 +28,7 @@ import {
 import { rotaAyniSatirdaMi } from "@/lib/kaynaklar/rotaDogrula";
 import { irtibatTelefonuBul, telefonlariCikar } from "@/lib/kaynaklar/onDedup";
 import { guvenliKirp } from "@/lib/metin";
+import { FIYAT_AKIL } from "@/lib/fiyatAkil";
 
 /** Bir parti çağrısına en fazla bu kadar mesaj dilimi. */
 const AI_MAX_MESAJ_PARCA = Number(process.env.AI_MAX_MESAJ_PARCA || 3);
@@ -165,31 +166,8 @@ export function cozumEleTopla(
   };
 }
 
-/** Komple navlun / ton başı akıl sınırları (TL). */
-export const FIYAT_AKIL = {
-  kompleMin: 2_000,
-  kompleMax: 150_000,
-  tonMin: 200,
-  tonMax: 5_000,
-} as const;
-
-/** Kayıtlı fiyat mantıklı mı? (kuruş cinsinden alanlar) */
-export function fiyatAkliDisiMi(ilan: {
-  ucret: number | null;
-  fiyatTon: number | null;
-  fiyatBelirsiz?: boolean;
-}): boolean {
-  if (ilan.fiyatBelirsiz) return true;
-  if (ilan.ucret != null && ilan.ucret > 0) {
-    const tl = ilan.ucret / 100;
-    if (tl < FIYAT_AKIL.kompleMin || tl > FIYAT_AKIL.kompleMax) return true;
-  }
-  if (ilan.fiyatTon != null && ilan.fiyatTon > 0) {
-    const tl = ilan.fiyatTon / 100;
-    if (tl < FIYAT_AKIL.tonMin || tl > FIYAT_AKIL.tonMax) return true;
-  }
-  return false;
-}
+// Fiyat akıl sınırları ayrı dosyada (istemci bileşenleri AI kodunu çekmesin); davranış aynı
+export { FIYAT_AKIL, fiyatAkliDisiMi } from "@/lib/fiyatAkil";
 
 function telefonTemizle(ham: string | null): string | null {
   if (!ham) return null;

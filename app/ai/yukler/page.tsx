@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { aktifBaglam } from "@/lib/baglam";
+import { anaPrisma } from "@/lib/prismaAna";
+import { uyeIlanDurumlari } from "@/lib/uyeIlan";
 import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
@@ -22,6 +25,9 @@ import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
 import { aktifYolculuklar, yakinIller } from "@/lib/donus";
 
 export const dynamic = "force-dynamic";
+
+/** Üyede: dönüş eşleştirmesi ve şüpheli kutusu yöneticinin işi */
+const UYE_SEKMELERI = ["YENI", "ILGILENIYOR", "HEPSI"];
 
 const SEKMELER = [
   { kod: "YENI", ad: "Yeni" },
@@ -107,7 +113,16 @@ export default async function AiYuklerSayfasi({
   }>;
 }) {
   const sp = await searchParams;
-  const sekme = SEKMELER.some((s) => s.kod === sp.sekme)
+  // Üye: ilanlar ortak listeden (ana şema) salt okunur gelir; takip/gizleme
+  // üyenin kendi defterinde. Yöneticinin ilan durumları, görüşmeleri, Telegram
+  // kimlikleri üyeye geçmez.
+  const uye = (await aktifBaglam()).uyeId !== null;
+  const ilanDb = uye ? anaPrisma : prisma;
+  const uyeDurum = uye ? await uyeIlanDurumlari() : new Map<number, string>();
+  const uyeTakipIdleri = [...uyeDurum].filter(([, d]) => d !== "ELENDI").map(([id]) => id);
+  const uyeGizliIdler = [...uyeDurum].filter(([, d]) => d === "ELENDI").map(([id]) => id);
+  const sekmeKodlari = uye ? UYE_SEKMELERI : SEKMELER.map((s) => s.kod);
+  const sekme = sekmeKodlari.includes(sp.sekme as string)
     ? (sp.sekme as string)
     : "YENI";
   const odakId = Number(sp.id);
@@ -182,6 +197,21 @@ export default async function AiYuklerSayfasi({
       durum: { in: [...aktifDurumlar] },
       ...tercihKosulu(tercih, { webDahil: true }),
     };
+  }
+
+  if (uye) {
+    // Yöneticinin ilan durumu (ilgileniyor, aldı…) üyenin listesini etkilemez
+    tabanFiltre =
+      sekme === "ILGILENIYOR"
+        ? { id: { in: uyeTakipIdleri } }
+        : sekme === "HEPSI"
+          ? { guvenSkoru: { gte: SUPHE_SINIRI }, id: { notIn: uyeGizliIdler } }
+          : {
+              guvenSkoru: { gte: SUPHE_SINIRI },
+              ...tercihKosulu(tercih, { webDahil: true }),
+              // Yeni: üyenin henüz dokunmadıkları (rota aramasında takiptekiler de görünür)
+              id: { notIn: rotaFiltresiVar ? uyeGizliIdler : [...uyeDurum.keys()] },
+            };
   }
 
   // Tek şehir: çıkış VEYA varış. İkisi dolu: havza (Gebze=Kocaeli → İstanbul
@@ -277,17 +307,17 @@ export default async function AiYuklerSayfasi({
 
   const [ilanlarHam, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
     await Promise.all([
-      prisma.yukIlani.findMany({
+      ilanDb.yukIlani.findMany({
         where: filtre,
         orderBy: [{ createdAt: "desc" }],
         take: 40,
         include: { kaynak: { select: { ad: true, tur: true } } },
       }),
-      prisma.ilanKaynagi.count({ where: { aktif: true } }),
-      prisma.yukIlani.count({
+      ilanDb.ilanKaynagi.count({ where: { aktif: true } }),
+      ilanDb.yukIlani.count({
         where: {
           AND: [
-            { durum: "YENI" },
+            uye ? { guvenSkoru: { gte: SUPHE_SINIRI }, id: { notIn: [...uyeDurum.keys()] } } : { durum: "YENI" },
             sayacTazelik,
             tercihKosulu(tercih, { webDahil: true }),
             // Liste konuma göre süzülüyorsa sayaç da aynı ilanları saysın
@@ -295,7 +325,7 @@ export default async function AiYuklerSayfasi({
           ],
         },
       }),
-      prisma.yukIlani.count({
+      uye ? Promise.resolve(0) : prisma.yukIlani.count({
         where: {
           AND: [
             {
@@ -309,7 +339,7 @@ export default async function AiYuklerSayfasi({
           ],
         },
       }),
-      prisma.yukIlani.count({
+      uye ? Promise.resolve(0) : prisma.yukIlani.count({
         where: {
           AND: [
             {
@@ -335,7 +365,7 @@ export default async function AiYuklerSayfasi({
   // Bildirimden gelinen ilan (id=) listenin filtresine takılsa da en üstte görünsün
   const odakEk =
     odak && !ilanlarHam.some((i) => i.id === odak)
-      ? await prisma.yukIlani.findUnique({
+      ? await ilanDb.yukIlani.findUnique({
           where: { id: odak },
           include: { kaynak: { select: { ad: true, tur: true } } },
         })
@@ -343,7 +373,8 @@ export default async function AiYuklerSayfasi({
   const ilanlar = odakEk ? [odakEk, ...ilanlarHam] : ilanlarHam;
 
   const gorusmeMap = new Map<number, string>();
-  if (ilanlar.length > 0) {
+  // Yöneticinin WhatsApp görüşmeleri üyeye gösterilmez
+  if (ilanlar.length > 0 && !uye) {
     const gorusmeler = await prisma.whatsAppGorusme.findMany({
       where: { ilanId: { in: ilanlar.map((i) => i.id) } },
       orderBy: { id: "desc" },
@@ -362,7 +393,7 @@ export default async function AiYuklerSayfasi({
   }
 
   const aiAcik = aiKullanilabilir();
-  const okuyucuSorunlari = await daemonSorunlari().catch(() => []);
+  const okuyucuSorunlari = uye ? [] : await daemonSorunlari().catch(() => []);
   const killSwitch = aiKapaliMi();
   const anahtarVar = Boolean(process.env.OPENAI_API_KEY);
   const cipler = rotaCipleri(tercih.rotalar);
@@ -484,7 +515,7 @@ export default async function AiYuklerSayfasi({
       .filter(Boolean)
       .join(" · ") || "Filtre yok";
 
-  const bildirimler = (
+  const bildirimler = uye ? null : (
     <>
       {okuyucuSorunlari.map((s) => (
         <div key={s.ad} className="rounded-2xl bg-[#fee2e2] px-4 py-3 text-[13px] text-[#7f1d1d]">
@@ -516,7 +547,7 @@ export default async function AiYuklerSayfasi({
         nereden: neredenHam,
         nereye: nereyeHam,
         cipler,
-        sekmeler: SEKMELER.filter((s) => s.kod !== "SUPHELI" || sekme === "SUPHELI").map((s) => ({
+        sekmeler: SEKMELER.filter((s) => sekmeKodlari.includes(s.kod) && (s.kod !== "SUPHELI" || sekme === "SUPHELI")).map((s) => ({
           kod: s.kod,
           ad: s.ad,
           href: sekmeHref(s.kod, neredenHam, nereyeHam, arsivGoster),
@@ -536,11 +567,13 @@ export default async function AiYuklerSayfasi({
               ? `${yeniSayisi} yeni ilan`
               : kaynakSayisi > 0
                 ? "Şu an yeni ilan yok"
-                : "Kaynak yok — Ayarlar’dan aç",
+                : uye
+                  ? "Şu an yeni ilan yok"
+                  : "Kaynak yok — Ayarlar’dan aç",
         bildirimler,
         ilanlar: sirali.map((ilan) => ({
           id: ilan.id,
-          durum: ilan.durum,
+          durum: uye ? (uyeDurum.get(ilan.id) ?? "YENI") : ilan.durum,
           nereden: ilan.nereden,
           nereye: ilan.nereye,
           cikisIl: ilan.cikisIl,
@@ -557,7 +590,8 @@ export default async function AiYuklerSayfasi({
           firmaAdi: ilan.firmaAdi,
           telefon: ilan.telefon,
           waNot: gorusmeMap.get(ilan.id) ?? null,
-          gonderenUserId: ilan.gonderenUserId,
+          // Telegram kimliği yöneticinin hesabıyla mesaj için: üyede yok
+          gonderenUserId: uye ? null : ilan.gonderenUserId,
           guvenSkoru: ilan.guvenSkoru,
           hamMetin: ilan.hamMetin,
           createdAt: ilan.createdAt,
@@ -589,6 +623,7 @@ export default async function AiYuklerSayfasi({
             ? `Yer adı çözülemedi${neredenHata ? `: «${neredenHam}»` : ""}${nereyeHata ? `${neredenHata ? "," : ":"} «${nereyeHam}»` : ""}. İl veya ilçe yaz (Ostim, Gebze, Hadımköy…).`
             : null,
         arsiv: { goster: arsivGoster, href: sekmeHref(sekme, neredenHam, nereyeHam, !arsivGoster) },
+        uye,
         yolculuk: yolculuk
           ? { id: yolculuk.id, cikis: yolculuk.cikis, varis: yolculuk.varis, cikisIl: yolculuk.cikisIl, cevre: yakinIller(yolculuk.cikisIl).slice(1) }
           : null,
