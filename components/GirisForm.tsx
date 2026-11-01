@@ -14,20 +14,6 @@ export default function GirisForm({ next }: { next: string }) {
     <form action={aksiyon} className="space-y-4">
       <input type="hidden" name="next" value={next} />
       <div>
-        <label htmlFor="kullaniciAdi" className="etiket">
-          Kullanıcı adı <span className="font-normal text-fog">(üyeler için)</span>
-        </label>
-        <input
-          id="kullaniciAdi"
-          name="kullaniciAdi"
-          type="text"
-          autoCapitalize="none"
-          autoComplete="username"
-          placeholder="Yönetici girişinde boş bırak"
-          className="alan"
-        />
-      </div>
-      <div>
         <label htmlFor="sifre" className="etiket">
           Şifre
         </label>
@@ -36,8 +22,8 @@ export default function GirisForm({ next }: { next: string }) {
           name="sifre"
           type="password"
           required
-          autoComplete="current-password"
-          placeholder="Şifren"
+          autoFocus
+          placeholder="Uygulama şifren"
           className="alan"
         />
       </div>

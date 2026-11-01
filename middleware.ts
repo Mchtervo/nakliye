@@ -1,23 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GORUNUM_COOKIE, OTURUM_COOKIE, etkinOturum } from "@/lib/auth";
-
-/** Üyeye (ve üye görünümündeki yöneticiye) kapalı yönetici sayfaları / uçları. */
-function uyeyeKapali(yol: string, yoneticiGoruyor: boolean): boolean {
-  if (yol === "/ai/yukler") return false;
-  // Yönetim yalnız yöneticinin kendi görünümünde; üye görünümünden "Yönetime dön" ile çıkılır
-  if (yol === "/yonetim" || yol.startsWith("/yonetim/")) return !yoneticiGoruyor;
-  return [
-    "/ai",
-    "/ayarlar",
-    "/ana-onizleme",
-    "/api/yedek",
-    "/api/telegram",
-    "/api/ai/tara",
-    "/api/ai/kuyruk",
-    "/api/ai/gunluk-analiz",
-    "/api/ai/test-on",
-  ].some((k) => yol === k || yol.startsWith(k + "/"));
-}
+import { OTURUM_COOKIE, oturumGecerliMi } from "@/lib/auth";
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -45,15 +27,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const oturum = await etkinOturum(req.cookies.get(OTURUM_COOKIE)?.value, req.cookies.get(GORUNUM_COOKIE)?.value);
-  if (oturum) {
-    if (oturum.rol === "uye" && uyeyeKapali(pathname, Boolean(oturum.yoneticiGoruyor))) {
-      if (pathname.startsWith("/api/")) return NextResponse.json({ hata: "Yetki yok." }, { status: 403 });
-      const ana = req.nextUrl.clone();
-      ana.pathname = "/";
-      ana.search = "";
-      return NextResponse.redirect(ana);
-    }
+  const token = req.cookies.get(OTURUM_COOKIE)?.value;
+  if (await oturumGecerliMi(token)) {
     return NextResponse.next();
   }
 

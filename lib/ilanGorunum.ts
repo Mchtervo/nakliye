@@ -1,4 +1,4 @@
-import { fiyatAkliDisiMi } from "@/lib/fiyatAkil";
+import { fiyatAkliDisiMi } from "@/lib/ai/ilanCozumle";
 import { tlYazKisa } from "@/lib/para";
 
 export type FiyatAlanlari = {

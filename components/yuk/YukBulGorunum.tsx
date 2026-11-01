@@ -40,8 +40,6 @@ export type YukBulVeri = {
   filtreOzet: string | null;
   yerHatasi: string | null;
   arsiv: { goster: boolean; href: string };
-  /** Üye görünümü: yöneticiye özel düğmeler (arşiv, toplu silme) gizlenir */
-  uye?: boolean;
   yolculuk: DonusYolculuk | null;
 };
 
@@ -258,7 +256,6 @@ export default function YukBulGorunum({ v }: { v: YukBulVeri }) {
               </div>
             )}
 
-            {!v.uye && (
             <div className="flex items-center justify-center gap-4 pb-4 pt-2 text-[12.5px] font-semibold">
               <Link href={v.arsiv.href} className={v.arsiv.goster ? "text-[var(--a-indigo)]" : "text-[var(--a-ikincil)]"}>
                 {v.arsiv.goster ? "Arşivi gizle" : "Arşivi göster"}
@@ -273,7 +270,6 @@ export default function YukBulGorunum({ v }: { v: YukBulVeri }) {
                 />
               )}
             </div>
-            )}
           </div>
         </div>
       </HareketKok>

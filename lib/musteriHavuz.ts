@@ -3,10 +3,7 @@ import { ilBul } from "@/lib/iller";
 import { koridorIlKumesi } from "@/lib/koridor";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 
-import type { MusteriSinif } from "@/lib/musteriBicim";
-
-export type { MusteriSinif };
-export { telefonGorunum } from "@/lib/musteriBicim";
+export type MusteriSinif = "YUK_SAHIBI" | "KOMISYONCU" | "KARISIK";
 
 export type MusteriOzet = {
   telefon: string;
@@ -283,4 +280,9 @@ export async function musteriHavuzuOku(opts?: {
   });
 
   return sonuc;
+}
+
+export function telefonGorunum(tel10: string): string {
+  if (tel10.length !== 10) return tel10;
+  return `0${tel10.slice(0, 3)} ${tel10.slice(3, 6)} ${tel10.slice(6)}`;
 }

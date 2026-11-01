@@ -3,8 +3,6 @@ import { Suspense } from "react";
 import { IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
-import UyeSeridi from "@/components/uye/UyeSeridi";
-import { aktifBaglam } from "@/lib/baglam";
 import PwaKayit from "@/components/PwaKayit";
 import Guncelleme from "@/components/Guncelleme";
 import IkonUyari from "@/components/IkonUyari";
@@ -43,15 +41,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Menü üyeye yönetici bölümlerini göstermez (sayfalar middleware ile de kapalı)
-  // Hata olursa kısıtlı menü (güvenli taraf)
-  const b = await aktifBaglam().catch(() => null);
-  const rol = b === null || b.uyeId !== null ? "uye" : "admin";
   return (
     <html lang="tr" className={`${sans.variable} h-full antialiased`}>
       <body className="min-h-full font-sans">
@@ -65,12 +59,9 @@ export default async function RootLayout({
           <GezinmeIlerleme />
         </Suspense>
         <div className="app-shell">
-          <Nav rol={rol} />
+          <Nav />
           <main className="app-main">
             <div className="app-main-inner mx-auto w-full">
-              <Suspense fallback={null}>
-                <UyeSeridi />
-              </Suspense>
               <IkonUyari />
               {children}
             </div>
