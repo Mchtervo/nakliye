@@ -21,8 +21,6 @@ export type UyeDurumu = {
   arac: { ad: string; plaka: string | null } | null;
   /** Doldurulması gereken bilgiler (boşsa tamam) */
   eksikler: string[];
-  /** Üyenin defteri (şeması) hazır mı */
-  hazir: boolean;
   seferSayisi: number;
   giderSayisi: number;
 };
@@ -31,18 +29,13 @@ export type UyeDurumu = {
 export async function uyeDurumu(uyeId: number): Promise<UyeDurumu | null> {
   const uye = await anaPrisma.uye.findUnique({ where: { id: uyeId } });
   if (!uye) return null;
-  // Defter kuruluyorsa yönetim paneli beklemesin: "hazırlanıyor" döner
-  const hazirlik = uyeSemasiHazirla(uyeId);
-  const bitti = await Promise.race([hazirlik.then(() => true), new Promise<boolean>((ok) => setTimeout(() => ok(false), 4000))]);
-  hazirlik.catch(() => null);
+  await uyeSemasiHazirla(uyeId);
   const db = uyeIstemcisi(uyeId);
-  const [arac, seferSayisi, giderSayisi] = bitti
-    ? await Promise.all([
-        db.arac.findFirst({ orderBy: { id: "asc" }, select: { ad: true, plaka: true } }),
-        db.yuk.count(),
-        db.gider.count(),
-      ])
-    : [null, 0, 0];
+  const [arac, seferSayisi, giderSayisi] = await Promise.all([
+    db.arac.findFirst({ orderBy: { id: "asc" }, select: { ad: true, plaka: true } }),
+    db.yuk.count(),
+    db.gider.count(),
+  ]);
   const eksikler: string[] = [];
   if (!arac?.plaka) eksikler.push("Araç ve plaka");
   if (!uye.ad) eksikler.push("Ad soyad");
@@ -58,7 +51,6 @@ export async function uyeDurumu(uyeId: number): Promise<UyeDurumu | null> {
     createdAt: uye.createdAt,
     arac,
     eksikler,
-    hazir: bitti,
     seferSayisi,
     giderSayisi,
   };
