@@ -4,7 +4,9 @@
  * aynı il içindeki sefer 0 sayılır; sefer formunda km elle düzeltilebilir.
  * Toplam km = yüklü km + boş km (önceki seferin bittiği il → bu seferin çıkışı).
  */
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { aktifArac, aracKayitKosulu } from "@/lib/aktifArac";
 import { yaklasikKarayoluKm } from "@/lib/ilMesafe";
 import { seferIl, seferKmTahmini } from "@/lib/seferYer";
 
@@ -19,8 +21,9 @@ export type SeferKm = {
 };
 
 /** Tüm seferler tarih sırasıyla: yüklü km (elle ya da tahmin) + öncesindeki boş km. */
-export async function seferKmleri(anaUs: string | null = "Ankara"): Promise<SeferKm[]> {
+export async function seferKmleri(anaUs: string | null = "Ankara", kosul: Prisma.YukWhereInput = {}): Promise<SeferKm[]> {
   const seferler = await prisma.yuk.findMany({
+    where: kosul,
     orderBy: [{ tarih: "asc" }, { id: "asc" }],
     select: { id: true, tarih: true, nereden: true, nereye: true, km: true },
   });
@@ -65,7 +68,9 @@ export type KmOzeti = {
 };
 
 export async function kmOzeti(simdi = new Date(), anaUs: string | null = "Ankara"): Promise<KmOzeti> {
-  const [liste, arac] = await Promise.all([seferKmleri(anaUs), prisma.arac.findFirst({ orderBy: { id: "asc" } })]);
+  // Km ve bakım seçili araca göre: o aracın seferleri (eski kayıtlar ilk araçta)
+  const arac = await aktifArac();
+  const liste = await seferKmleri(anaUs, arac ? await aracKayitKosulu(arac.id) : {});
   const ayBasi = new Date(simdi.getFullYear(), simdi.getMonth(), 1);
   const buAy = topla(liste.filter((s) => s.tarih >= ayBasi));
   const hepsi = topla(liste);

@@ -48,7 +48,8 @@ async function hmac(govde: string): Promise<string> {
 /** Yönetici "üye paneline gir" görünümü (yönetici oturumu yanında ayrı çerez). */
 export const GORUNUM_COOKIE = "nd_gorunum";
 
-export type Oturum = { rol: "admin" } | { rol: "uye"; uyeId: number };
+/** surum: üyenin oturum sürümü; hesaptaki sürüm artınca eski çerezler geçersiz olur */
+export type Oturum = { rol: "admin"; surum: number } | { rol: "uye"; uyeId: number; surum: number };
 
 async function tokenYap(onek: string, sureSn = OTURUM_SURE_SN): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + sureSn;
@@ -74,13 +75,13 @@ async function tokenCoz(token: string | undefined | null): Promise<string | null
 }
 
 /** Yönetici oturumu (eski biçim "ok.exp.imza" aynen geçerli). */
-export async function oturumTokeniOlustur(): Promise<string> {
-  return tokenYap("ok");
+export async function oturumTokeniOlustur(surum = 0): Promise<string> {
+  return tokenYap(surum > 0 ? `okv${surum}` : "ok");
 }
 
-/** Üye oturumu: "u<id>.exp.imza" */
-export async function uyeTokeniOlustur(uyeId: number): Promise<string> {
-  return tokenYap(`u${uyeId}`);
+/** Üye oturumu: "u<id>s<sürüm>.exp.imza" (eski "u<id>" sürüm 0 sayılır) */
+export async function uyeTokeniOlustur(uyeId: number, surum = 0): Promise<string> {
+  return tokenYap(`u${uyeId}s${surum}`);
 }
 
 /** Yöneticinin üye görünümü: "g<id>.exp.imza" (8 saat) */
@@ -90,9 +91,10 @@ export async function gorunumTokeniOlustur(uyeId: number): Promise<string> {
 
 export async function oturumCoz(token: string | undefined | null): Promise<Oturum | null> {
   const onek = await tokenCoz(token);
-  if (onek === "ok") return { rol: "admin" };
-  const m = onek ? /^u(\d+)$/.exec(onek) : null;
-  return m ? { rol: "uye", uyeId: Number(m[1]) } : null;
+  const y = onek ? /^ok(?:v(\d+))?$/.exec(onek) : null;
+  if (y) return { rol: "admin", surum: Number(y[1] ?? 0) };
+  const m = onek ? /^u(\d+)(?:s(\d+))?$/.exec(onek) : null;
+  return m ? { rol: "uye", uyeId: Number(m[1]), surum: Number(m[2] ?? 0) } : null;
 }
 
 export async function gorunumCoz(token: string | undefined | null): Promise<number | null> {
@@ -109,7 +111,8 @@ export async function etkinOturum(oturumToken: string | undefined | null, gorunu
   const o = await oturumCoz(oturumToken);
   if (o?.rol === "admin") {
     const g = await gorunumCoz(gorunumToken);
-    if (g) return { rol: "uye", uyeId: g, yoneticiGoruyor: true };
+    // Yönetici görünümü: sürüm yöneticinin kendi oturumunun sürümüdür
+    if (g) return { rol: "uye", uyeId: g, surum: o.surum, yoneticiGoruyor: true };
   }
   return o;
 }

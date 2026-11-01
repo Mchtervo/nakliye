@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { aktifArac } from "@/lib/aktifArac";
 import { kdvHesapla, tlKurusaCevir, tlYaz } from "@/lib/para";
 import { GIDER_KATEGORILERI } from "@/lib/sabitler";
 import { fisKaydet, fisSil } from "@/lib/fis";
@@ -81,6 +82,7 @@ export async function yukEkle(
       kdvTutar,
       toplamTutar,
       km: kmOku(formData.get("km")),
+      aracId: (await aktifArac())?.id ?? null,
       odemeDurumu: odendiMi ? "ODENDI" : "BEKLIYOR",
       odemeler: odendiMi
         ? { create: { tarih, tutar: toplamTutar, not: "Kayıt sırasında ödendi" } }
@@ -323,6 +325,7 @@ export async function giderEkle(
       litre,
       km,
       fisResmi: fisSonuc?.yol ?? null,
+      aracId: (await aktifArac())?.id ?? null,
       ...odemeBilgi,
     },
   });
@@ -577,7 +580,8 @@ export async function aracKaydet(_onceki: AracSonuc, formData: FormData): Promis
   if (kmSayac !== null && sonBakimKm !== null && sonBakimKm > kmSayac) {
     return { hata: "Son bakım km'si göstergeden büyük olamaz.", tamam: false };
   }
-  const mevcut = await prisma.arac.findFirst({ orderBy: { id: "asc" } });
+  // Seçili araç (çoklu araçta km kartı aktif aracı düzenler)
+  const mevcut = await aktifArac();
   const sayacDegisti = kmSayac !== null && kmSayac !== mevcut?.kmSayac;
   const data = {
     kmSayac,
@@ -588,7 +592,7 @@ export async function aracKaydet(_onceki: AracSonuc, formData: FormData): Promis
     ...(sonBakimKm !== mevcut?.sonBakimKm || bakimAralikKm !== mevcut?.bakimAralikKm ? { bakimUyari: 0 } : {}),
   };
   if (mevcut) await prisma.arac.update({ where: { id: mevcut.id }, data });
-  else await prisma.arac.create({ data: { ...data, kmTarih: kmSayac !== null ? new Date() : null } });
+  else await prisma.arac.create({ data: { ...data, aktif: true, kmTarih: kmSayac !== null ? new Date() : null } });
   revalidatePath("/");
   revalidatePath("/arac");
   return { hata: null, tamam: true };

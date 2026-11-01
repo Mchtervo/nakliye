@@ -269,3 +269,23 @@ export async function okuyucuHatirlat(): Promise<number> {
   });
   return gonderilen;
 }
+
+/** Kredi taksiti: vadeye 3 gün, 1 gün kala, vade günü ve geçince birer kez (09–21). */
+export async function krediHatirlat(): Promise<number> {
+  const { saat } = trSimdi();
+  if (saat < 9 || saat >= 21) return 0;
+  const { yaklasanTaksitler } = await import("@/lib/kredi");
+  let gonderilen = 0;
+  for (const t of await yaklasanTaksitler(3)) {
+    const seviye = t.kalanGun < 0 ? 4 : t.kalanGun === 0 ? 3 : t.kalanGun <= 1 ? 2 : 1;
+    if (seviye <= t.uyari) continue;
+    await prisma.krediTaksit.update({ where: { id: t.id }, data: { uyari: seviye } });
+    await bilgiBildir(
+      seviye === 4 ? `${t.krediAd}: taksit gecikti` : seviye === 3 ? `${t.krediAd}: taksit bugün` : `${t.krediAd}: taksite ${t.kalanGun} gün`,
+      `${t.sira}. taksit ${tlYaz(t.tutar)}, vade ${tarihYaz(t.vade)}. Ödediysen Krediler sayfasında "Ödendi"ye bas.`,
+      "/krediler"
+    );
+    gonderilen += 1;
+  }
+  return gonderilen;
+}

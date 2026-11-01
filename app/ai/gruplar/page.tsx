@@ -1,3 +1,4 @@
+import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { grupDurumlari } from "@/lib/kaynaklar/telegramUye";
 import {
@@ -16,6 +17,7 @@ function isabetSirasi(a: number | null, b: number | null): number {
 }
 
 export default async function GrupKaliteSayfasi() {
+  await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const sayacGun = await sayacBaslangicGaranti();
   const gruplar = (await grupDurumlari()).filter(
     (g) => g.durum === "AKTIF" && g.aktif

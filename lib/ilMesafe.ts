@@ -88,7 +88,7 @@ const IL_KOORD: Record<string, [number, number]> = {
   Zonguldak: [41.46, 31.8],
 };
 
-function haversineKm(
+export function haversineKm(
   a: [number, number],
   b: [number, number]
 ): number {
@@ -132,3 +132,9 @@ export function yaklasikKarayoluKm(
 
 /** Ana üsse bu (karayolu) mesafeden uzak varış → düşük skor / eleme. */
 export const VARIS_UZA_KM = 600;
+
+/** İl merkezinin yaklaşık koordinatı (bilinmiyorsa null). */
+export function ilKoordinati(il: string | null | undefined): [number, number] | null {
+  const i = ilBul(il);
+  return i ? (IL_KOORD[i] ?? null) : null;
+}

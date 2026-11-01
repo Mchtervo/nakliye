@@ -24,8 +24,11 @@ export async function middleware(req: NextRequest) {
 
   if (
     pathname.startsWith("/giris") ||
+    pathname === "/kayit" ||
+    pathname === "/kosullar" ||
+    pathname === "/sifre-unuttum" ||
+    pathname === "/oturum-kapandi" ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/uploads") ||
     // Netlify'ın kendi uçları: zamanlanmış fonksiyonlar buradan çağrılır,
     // araya girilirse cron çalışmaz.
     pathname.startsWith("/.netlify") ||

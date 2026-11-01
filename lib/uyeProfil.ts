@@ -1,6 +1,7 @@
 import { OTURUM_COOKIE, oturumCoz } from "@/lib/auth";
 import { anaPrisma, uyeIstemcisi } from "@/lib/prismaAna";
 import { uyeSemasiHazirla } from "@/lib/uyeSema";
+import { smsHazirMi } from "@/lib/sms";
 
 /** Gerçek yönetici oturumu mu (üye görünümünde olsa bile). */
 export async function yoneticiMi(): Promise<boolean> {
@@ -20,6 +21,8 @@ export type UyeDurumu = {
   sonGiris: Date | null;
   createdAt: Date;
   arac: { ad: string; plaka: string | null } | null;
+  kurulumBitti: Date | null;
+  telefonDogrulandi: Date | null;
   /** Doldurulması gereken bilgiler (boşsa tamam) */
   eksikler: string[];
   /** Üyenin defteri (şeması) hazır mı */
@@ -39,15 +42,17 @@ export async function uyeDurumu(uyeId: number): Promise<UyeDurumu | null> {
   const db = uyeIstemcisi(uyeId);
   const [arac, seferSayisi, giderSayisi] = bitti
     ? await Promise.all([
-        db.arac.findFirst({ orderBy: { id: "asc" }, select: { ad: true, plaka: true } }),
+        db.arac.findFirst({ orderBy: [{ aktif: "desc" }, { id: "asc" }], select: { ad: true, plaka: true } }),
         db.yuk.count(),
         db.gider.count(),
       ])
     : [null, 0, 0];
   const eksikler: string[] = [];
-  if (!arac?.plaka) eksikler.push("Araç ve plaka");
+  // Plaka isteğe bağlı; zorunlu olan kurulum (araç tipi, şehir, kasa)
+  if (!uye.kurulumBitti) eksikler.push("Araç kurulumu");
   if (!uye.ad) eksikler.push("Ad soyad");
   if (!uye.telefon) eksikler.push("Telefon");
+  else if (!uye.telefonDogrulandi && smsHazirMi()) eksikler.push("Telefon doğrulama");
   return {
     id: uye.id,
     kullaniciAdi: uye.kullaniciAdi,
@@ -58,6 +63,8 @@ export async function uyeDurumu(uyeId: number): Promise<UyeDurumu | null> {
     sonGiris: uye.sonGiris,
     createdAt: uye.createdAt,
     arac,
+    kurulumBitti: uye.kurulumBitti,
+    telefonDogrulandi: uye.telefonDogrulandi,
     eksikler,
     hazir: bitti,
     seferSayisi,

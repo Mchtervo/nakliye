@@ -1,12 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { AnimatePresence, m } from "motion/react";
 import { useActionState, useEffect, useState } from "react";
 import { sifreDegistir } from "@/app/auth-actions";
 import { profilKaydet } from "@/app/uye-actions";
 
-const ARAC_TIPLERI = ["Tır", "Kamyon", "Kamyonet", "Panelvan"];
-const KASA_TIPLERI = ["Tenteli", "Kapalı kasa", "Frigo", "Damper", "Açık kasa", "Lowbed", "Konteyner", "Diğer"];
 
 export type ProfilBaslangic = {
   aracTipi: string;
@@ -37,7 +36,6 @@ export function ProfilForm({ b }: { b: ProfilBaslangic }) {
     return r?.hata ? { hata: r.hata, tamam: false, n: o.n + 1 } : { hata: null, tamam: true, n: o.n + 1 };
   }, { hata: null, tamam: false, n: 0 });
   const [gizle, setGizle] = useState(0);
-  const [tip, setTip] = useState(b.aracTipi || "Tır");
 
   useEffect(() => {
     if (!durum.tamam) return;
@@ -47,33 +45,15 @@ export function ProfilForm({ b }: { b: ProfilBaslangic }) {
 
   return (
     <form action={aksiyon} className="space-y-4">
-      <section className="rounded-[1.5rem] bg-white p-4 shadow-[var(--a-golge)]" aria-labelledby="profil-arac">
-        <h2 id="profil-arac" className="ana-baslik">
-          Aracın
-        </h2>
-        <p className="mb-3 text-[12.5px] text-[var(--a-ikincil)]">Yük önerileri ve seferler bu araca göre.</p>
-        <input type="hidden" name="aracTipi" value={tip} />
-        <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Araç tipi">
-          {ARAC_TIPLERI.map((t) => (
-            <button key={t} type="button" aria-pressed={tip === t} onClick={() => setTip(t)} className={`ks-yon relative !min-h-11 !text-[13px] ${tip === t ? "!text-white" : "!text-[#3b4262]"}`}>
-              {tip === t && <m.span layoutId="arac-tipi" className="absolute inset-0 rounded-[1rem] bg-gradient-to-br from-[#6d6af8] to-[#4338ca]" transition={{ type: "spring", stiffness: 520, damping: 42 }} aria-hidden />}
-              <span className="relative">{t}</span>
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-          <Alan id="kasaTipi" etiket="Kasa tipi">
-            <select id="kasaTipi" name="kasaTipi" defaultValue={b.kasaTipi || "Tenteli"} className="sf-girdi sf-secim">
-              {KASA_TIPLERI.map((k) => (
-                <option key={k}>{k}</option>
-              ))}
-            </select>
-          </Alan>
-          <Alan id="plaka" etiket="Plaka" zorunlu>
-            <input id="plaka" name="plaka" required defaultValue={b.plaka} placeholder="06 ABC 123" autoCapitalize="characters" className="sf-girdi uppercase" />
-          </Alan>
-        </div>
-      </section>
+      <Link href="/arac" className="rp-genis-dugme">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-extrabold text-[#3730a3]">Araçların</span>
+          <span className="block text-[12.5px] text-[var(--a-ikincil)]">Tip, kasa, plaka, km ve belgeler Araç sayfasında</span>
+        </span>
+        <span className="text-[20px] text-[var(--a-ikincil)]" aria-hidden>
+          ›
+        </span>
+      </Link>
 
       <section className="rounded-[1.5rem] bg-white p-4 shadow-[var(--a-golge)]" aria-labelledby="profil-bilgi">
         <h2 id="profil-bilgi" className="ana-baslik mb-3">

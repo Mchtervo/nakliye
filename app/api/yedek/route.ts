@@ -1,3 +1,4 @@
+import { aktifBaglam } from "@/lib/baglam";
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +8,8 @@ import { fisBaytOku } from "@/lib/fis";
 export const runtime = "nodejs";
 
 export async function GET() {
+  // Yalnız yönetici (middleware dışında sunucuda da)
+  if ((await aktifBaglam()).rol !== "admin") return Response.json({ hata: "Yetki yok." }, { status: 403 });
   const zip = new JSZip();
 
   const [firmalar, yukler, odemeler, giderler, ayarlar] = await Promise.all([

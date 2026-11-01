@@ -1,3 +1,4 @@
+import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { tlYaz } from "@/lib/para";
@@ -28,6 +29,7 @@ function Satir({
 }
 
 export default async function AiAnalizSayfasi() {
+  await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const [sonAnaliz, metrikler] = await Promise.all([
     prisma.aiAnaliz.findFirst({ orderBy: { tarih: "desc" } }),
     metrikleriTopla(),

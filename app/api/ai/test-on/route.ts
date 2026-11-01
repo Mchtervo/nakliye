@@ -1,3 +1,4 @@
+import { aktifBaglam } from "@/lib/baglam";
 import { prisma } from "@/lib/prisma";
 import {
   aiTestArkaPlandaBaslat,
@@ -9,6 +10,8 @@ export const maxDuration = 300;
 
 /** GET — test durumu + son çağrı (panel “takıldı mı?” görsün). */
 export async function GET() {
+  // Yalnız yönetici (middleware dışında sunucuda da)
+  if ((await aktifBaglam()).rol !== "admin") return Response.json({ hata: "Yetki yok." }, { status: 403 });
   const durum = await testDurumOku();
   const son = await prisma.aiCagri.findFirst({
     orderBy: { zaman: "desc" },
@@ -41,6 +44,8 @@ export async function GET() {
  * ?durdur=1 → takılan testi öldür (panel / curl).
  */
 export async function POST(request: Request) {
+  // Yalnız yönetici (middleware dışında sunucuda da)
+  if ((await aktifBaglam()).rol !== "admin") return Response.json({ hata: "Yetki yok." }, { status: 403 });
   const url = new URL(request.url);
   if (url.searchParams.get("durdur") === "1") {
     const { spawnSync } = await import("node:child_process");
@@ -61,6 +66,8 @@ export async function POST(request: Request) {
 
 /** DELETE — takılan testi durdur. */
 export async function DELETE() {
+  // Yalnız yönetici (middleware dışında sunucuda da)
+  if ((await aktifBaglam()).rol !== "admin") return Response.json({ hata: "Yetki yok." }, { status: 403 });
   const { spawnSync } = await import("node:child_process");
   const r = spawnSync("npm", ["run", "ai:test-durdur"], {
     cwd: process.cwd(),

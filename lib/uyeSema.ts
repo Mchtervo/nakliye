@@ -38,6 +38,12 @@ function gocCalistir(sema: string): Promise<void> {
 }
 
 const hazir = new Map<number, Promise<void>>();
+const bitti = new Set<number>();
+
+/** Bu süreçte şeması hazırlanmış mı (beklemeden). */
+export function uyeSemasiHazirMi(uyeId: number): boolean {
+  return bitti.has(uyeId);
+}
 
 /**
  * Üye şemasını oluşturur / eksik göçleri uygular (süreç başına bir kez).
@@ -54,7 +60,7 @@ export function uyeSemasiHazirla(uyeId: number): Promise<void> {
       if (eksik) await gocCalistir(sema);
     })();
     // Hata olursa sonraki istekte yeniden denensin
-    p.catch(() => hazir.delete(uyeId));
+    p.then(() => bitti.add(uyeId)).catch(() => hazir.delete(uyeId));
     hazir.set(uyeId, p);
   }
   return p;

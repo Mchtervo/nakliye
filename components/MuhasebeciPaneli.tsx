@@ -1,18 +1,20 @@
 "use client";
 
+import { m } from "motion/react";
 import {
   useActionState,
   useMemo,
   useState,
   useSyncExternalStore,
   useTransition,
+  type ReactNode,
 } from "react";
 import {
   fisleriGonderildiIsaretle,
   muhasebeciNumaraKaydet,
   type FormSonuc,
 } from "@/app/actions";
-import { tlYaz } from "@/lib/para";
+import { tlYazKisa } from "@/lib/para";
 
 type FisOge = {
   id: number;
@@ -74,16 +76,51 @@ async function fisDosyalariHazirla(fisler: FisOge[]): Promise<File[]> {
   return dosyalar;
 }
 
+/** Seçim kutusu: işaret çizilir, kutu kısa bir "tık" yapar. */
+function Kutu({ secili }: { secili: boolean }) {
+  return (
+    <m.span
+      className={`mh-kutu ${secili ? "mh-kutu-secili" : ""}`}
+      animate={{ scale: secili ? [1, 1.18, 1] : 1 }}
+      transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+      aria-hidden
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+        <m.path d="M5 12.5l4.5 4.5L19 7.5" initial={false} animate={{ pathLength: secili ? 1 : 0, opacity: secili ? 1 : 0 }} transition={{ duration: 0.22 }} />
+      </svg>
+    </m.span>
+  );
+}
+
+function PaketSatiri({ ikon, ton, ad, alt }: { ikon: ReactNode; ton: string; ad: ReactNode; alt: string }) {
+  return (
+    <li className="flex items-center gap-3 py-2">
+      <span className={`ana-mini-ikon ${ton}`} aria-hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {ikon}
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-semibold">{ad}</span>
+        <span className="block truncate text-[11.5px] text-[var(--a-ikincil)]">{alt}</span>
+      </span>
+    </li>
+  );
+}
+
 export default function MuhasebeciPaneli({
   baslangicTelefon,
   fisler,
   ayEtiket,
   seciliAy,
+  ornek = false,
 }: {
   baslangicTelefon: string;
   fisler: FisOge[];
   ayEtiket: string;
   seciliAy: string;
+  /** Yerel önizleme: hiçbir şey kaydedilmez, indirilmez, paylaşılmaz */
+  ornek?: boolean;
 }) {
   const [telefonDurum, telefonAksiyon, telefonBekliyor] = useActionState<
     FormSonuc,
@@ -108,6 +145,9 @@ export default function MuhasebeciPaneli({
     () => fisler.filter((f) => secilen.includes(f.id)),
     [fisler, secilen]
   );
+  const seciliToplam = seciliFisler.reduce((t, f) => t + f.toplamTutar, 0);
+  const hepsiSecili = fisler.length > 0 && seciliFisler.length === fisler.length;
+  const gonderilenVar = fisler.some((f) => f.gonderildi);
 
   function toggle(id: number) {
     setSecilen((onceki) =>
@@ -115,12 +155,20 @@ export default function MuhasebeciPaneli({
     );
   }
 
-  function hepsiniSec() {
-    setSecilen(fisler.map((f) => f.id));
+  function tumunuDegistir() {
+    setSecilen(hepsiSecili ? [] : fisler.map((f) => f.id));
   }
 
   function sadeceYeni() {
     setSecilen(fisler.filter((f) => !f.gonderildi).map((f) => f.id));
+  }
+
+  /** Örnek görünümde gerçek işlem yapılmaz. */
+  function ornekMi(): boolean {
+    if (!ornek) return false;
+    setHata(null);
+    setMesaj(`Örnek görünüm: ${seciliFisler.length} fiş seçili. Paket hazırlanmadı, hiçbir şey paylaşılmadı.`);
+    return true;
   }
 
   function onKosul(): boolean {
@@ -139,7 +187,7 @@ export default function MuhasebeciPaneli({
 
   /** Mobil: WhatsApp uygulamasına paylaş */
   async function mobilWhatsappGonder() {
-    if (!onKosul()) return;
+    if (!onKosul() || ornekMi()) return;
 
     baslat(async () => {
       try {
@@ -189,7 +237,7 @@ export default function MuhasebeciPaneli({
 
   /** Masaüstü: WhatsApp Web veya Desktop uygulaması */
   async function masaustuWhatsappGonder() {
-    if (!onKosul()) return;
+    if (!onKosul() || ornekMi()) return;
 
     baslat(async () => {
       try {
@@ -223,6 +271,7 @@ export default function MuhasebeciPaneli({
       setHata("İndirilecek fiş seçilmedi.");
       return;
     }
+    if (ornekMi()) return;
     baslat(async () => {
       try {
         await zipIndir(
@@ -247,6 +296,7 @@ export default function MuhasebeciPaneli({
       setHata("Gönderilecek fiş seçilmedi.");
       return;
     }
+    if (ornekMi()) return;
 
     baslat(async () => {
       try {
@@ -277,219 +327,250 @@ export default function MuhasebeciPaneli({
     });
   }
 
+  const bos = bekliyor || seciliFisler.length === 0;
+
   return (
-    <div className="space-y-5">
-      <form action={telefonAksiyon} className="kart-paper p-4">
-        <label htmlFor="telefon" className="etiket">
-          Muhasebeci telefon numarası
-        </label>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            id="telefon"
-            name="telefon"
-            type="tel"
-            required
-            placeholder="05XX XXX XX XX"
-            value={telefon}
-            onChange={(e) => setTelefon(e.target.value)}
-            className="alan"
+    <div className="space-y-6">
+      <section aria-labelledby="fis-secimi">
+        <div className="flex items-center justify-between gap-3 px-1">
+          <h2 id="fis-secimi" className="ana-baslik" aria-live="polite">
+            <m.span
+              key={seciliFisler.length}
+              className="inline-block tabular-nums"
+              initial={{ y: -6, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.22 }}
+            >
+              {seciliFisler.length}
+            </m.span>{" "}
+            fiş seçildi
+          </h2>
+          {fisler.length > 0 && (
+            <button type="button" onClick={tumunuDegistir} className="mh-tumu" aria-pressed={hepsiSecili}>
+              <Kutu secili={hepsiSecili} />
+              Tümünü seç
+            </button>
+          )}
+        </div>
+        <p className="mt-0.5 px-1 text-[12.5px] text-[var(--a-ikincil)]">
+          {ayEtiket} · {fisler.length} fişli gider
+          {seciliFisler.length > 0 && (
+            <>
+              {" "}
+              · seçilen toplam <b className="tabular-nums text-[var(--a-murekkep)]">{tlYazKisa(seciliToplam)}</b>
+            </>
+          )}
+          {gonderilenVar && (
+            <>
+              {" · "}
+              <button type="button" onClick={sadeceYeni} className="ana-link font-bold">
+                Sadece yeniler
+              </button>
+            </>
+          )}
+        </p>
+
+        {fisler.length === 0 ? (
+          <p className="rp-bos mt-3">Bu ayda fiş resmi olan gider yok. Gider eklerken fiş fotoğrafı yükle.</p>
+        ) : (
+          <ul className="rp-kart mt-3 px-2 py-1">
+            {fisler.map((fis) => {
+              const secili = secilen.includes(fis.id);
+              return (
+                <li key={fis.id} className="border-b border-[var(--a-cizgi)] last:border-0">
+                  <label className="mh-fis" data-secili={secili ? "1" : undefined}>
+                    <input type="checkbox" checked={secili} onChange={() => toggle(fis.id)} className="sr-only" />
+                    <Kutu secili={secili} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={fis.fisResmi} alt="" className="mh-kucuk" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14.5px] font-bold">
+                        {fis.kategoriAd} <span className="font-medium text-[var(--a-ikincil)]">· {fis.tarihYazi}</span>
+                      </span>
+                      <span className="block text-[15.5px] font-extrabold tabular-nums">{tlYazKisa(fis.toplamTutar)}</span>
+                      {(fis.aciklama || fis.gonderildi) && (
+                        <span className="block truncate text-[11.5px] text-[var(--a-ikincil)]">
+                          {fis.gonderildi && <span className="font-bold text-[#16a34a]">Daha önce gönderildi</span>}
+                          {fis.gonderildi && fis.aciklama ? " · " : ""}
+                          {fis.aciklama}
+                        </span>
+                      )}
+                    </span>
+                    <a href={fis.fisResmi} target="_blank" rel="noopener noreferrer" className="mh-buyut" aria-label={`${fis.kategoriAd} fişini büyük aç`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="6" />
+                        <path d="M16 16l4 4M11 8.5v5M8.5 11h5" />
+                      </svg>
+                    </a>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="paket-icerigi">
+        <h2 id="paket-icerigi" className="ana-baslik px-1">
+          Paket içeriği
+        </h2>
+        <ul className="mt-2 rounded-[1.3rem] bg-[#eef1fd] px-3.5 py-1.5">
+          <PaketSatiri
+            ton="ana-ton-indigo"
+            ikon={
+              <>
+                <rect x="4" y="5" width="16" height="14" rx="2.5" />
+                <path d="M4 16l4.5-4.5 3.5 3.5 2.5-2.5L20 18" />
+              </>
+            }
+            ad={
+              <>
+                Fiş görselleri <span className="text-[var(--a-ikincil)]">({seciliFisler.length} adet)</span>
+              </>
+            }
+            alt="Yalnız seçtiğin fişler"
           />
-          <button
-            type="submit"
-            disabled={telefonBekliyor}
-            className="btn btn-ink shrink-0"
-          >
-            {telefonBekliyor ? "Kaydediliyor..." : "Kaydet"}
+          <PaketSatiri
+            ton="ana-ton-yesil"
+            ikon={
+              <>
+                <rect x="5" y="3.5" width="14" height="17" rx="2.5" />
+                <path d="M9 9l6 6M15 9l-6 6" />
+              </>
+            }
+            ad="Gider listesi (Excel)"
+            alt={`giderler.xlsx · ${ayEtiket} kayıtları`}
+          />
+          <PaketSatiri
+            ton="ana-ton-indigo"
+            ikon={
+              <>
+                <rect x="5" y="3.5" width="14" height="17" rx="2.5" />
+                <path d="M9 8.5h6M9 12.5h6M9 16.5h4" />
+              </>
+            }
+            ad={
+              <>
+                Dönem özeti <span className="capitalize text-[var(--a-ikincil)]">({ayEtiket})</span>
+              </>
+            }
+            alt="ozet.html"
+          />
+        </ul>
+      </section>
+
+      <form
+        action={telefonAksiyon}
+        onSubmit={(e) => {
+          if (ornek) {
+            e.preventDefault();
+            ornekMi();
+          }
+        }}
+        aria-labelledby="muhasebeci-tel"
+      >
+        <label id="muhasebeci-tel" htmlFor="telefon" className="ana-baslik block px-1">
+          Muhasebecinin telefonu
+        </label>
+        <div className="mt-2 flex gap-2">
+          <div className="relative min-w-0 flex-1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#4f46e5]" aria-hidden>
+              <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
+            </svg>
+            <input
+              id="telefon"
+              name="telefon"
+              type="tel"
+              required
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="05XX XXX XX XX"
+              value={telefon}
+              onChange={(e) => setTelefon(e.target.value)}
+              className="ana-alan !pl-11"
+            />
+          </div>
+          <button type="submit" disabled={telefonBekliyor} className="ana-hap !min-h-[3rem] shrink-0 !px-4">
+            {telefonBekliyor ? "…" : "Kaydet"}
           </button>
         </div>
-        {telefonDurum?.hata && (
-          <p className="mt-2 text-sm font-semibold text-ember">{telefonDurum.hata}</p>
-        )}
+        {telefonDurum?.hata && <p className="mt-2 px-1 text-[13px] font-semibold text-[#dc2626]">{telefonDurum.hata}</p>}
         {!telefonDurum?.hata && baslangicTelefon && telefon === baslangicTelefon && (
-          <p className="mt-2 text-xs text-fog">Kayıtlı numara: {baslangicTelefon}</p>
+          <p className="mt-1.5 px-1 text-[12px] text-[var(--a-ikincil)]">Kayıtlı numara</p>
         )}
       </form>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm text-fog">
-          {ayEtiket} · {fisler.length} fişli gider · {secilen.length} seçili
-        </div>
-        <div className="flex gap-2 text-sm">
-          <button
-            type="button"
-            onClick={sadeceYeni}
-            className="rounded-lg px-2.5 py-1.5 font-semibold text-fog hover:bg-white/5 hover:text-paper"
+      <div aria-live="polite">
+        {(hata || mesaj) && (
+          <m.p
+            key={hata || mesaj}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`whitespace-pre-line rounded-[1.1rem] px-3.5 py-3 text-[13.5px] font-semibold ${
+              hata ? "bg-[#fee2e2] text-[#b91c1c]" : "bg-[#dcfce7] text-[#166534]"
+            }`}
           >
-            Sadece yeniler
-          </button>
-          <button
-            type="button"
-            onClick={hepsiniSec}
-            className="rounded-lg px-2.5 py-1.5 font-semibold text-fog hover:bg-white/5 hover:text-paper"
-          >
-            Tümünü seç
-          </button>
-        </div>
+            {hata || mesaj}
+          </m.p>
+        )}
       </div>
 
-      {fisler.length === 0 ? (
-        <div className="bos-durum">
-          Bu ayda fiş resmi olan gider yok. Gider eklerken fiş fotoğrafı yükle.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {fisler.map((fis) => {
-            const secili = secilen.includes(fis.id);
-            return (
-              <label
-                key={fis.id}
-                className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-all ${
-                  secili
-                    ? "border-amber/40 bg-asphalt-3 ring-1 ring-amber/20"
-                    : "border-white/10 bg-asphalt-2/60"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={secili}
-                  onChange={() => toggle(fis.id)}
-                  className="h-5 w-5 accent-[#f0a020]"
-                />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={fis.fisResmi}
-                  alt=""
-                  className="h-14 w-14 rounded-lg border border-white/10 object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-paper">
-                    {fis.kategoriAd}
-                    {fis.gonderildi && (
-                      <span className="ml-2 text-xs font-semibold text-ok">
-                        (daha önce gönderildi)
-                      </span>
-                    )}
-                  </div>
-                  <div className="truncate text-sm text-fog">
-                    {fis.tarihYazi}
-                    {fis.aciklama ? ` · ${fis.aciklama}` : ""} · {tlYaz(fis.toplamTutar)}
-                  </div>
-                </div>
-              </label>
-            );
-          })}
-        </div>
-      )}
-
-      {(hata || mesaj) && (
-        <div
-          className={`whitespace-pre-line rounded-xl border px-3 py-2.5 text-sm font-semibold ${
-            hata
-              ? "border-ember/30 bg-ember/10 text-ember"
-              : "border-ok/30 bg-ok/10 text-ok"
-          }`}
+      <section className="space-y-2.5" aria-label="Paylaşım">
+        <button type="button" disabled={bos} onClick={sadeceZipIndir} className="ana-ana-dugme w-full gap-2 !min-h-[3.3rem] !text-[1rem] disabled:opacity-55">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden>
+            <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+          </svg>
+          {bekliyor ? "Hazırlanıyor…" : "Paketi hazırla (ZIP indir)"}
+        </button>
+        <button
+          type="button"
+          disabled={bos}
+          onClick={mobil ? mobilWhatsappGonder : masaustuWhatsappGonder}
+          className="kk-cerceve-dugme w-full !min-h-[3.3rem] !text-[1rem] disabled:opacity-55"
         >
-          {hata || mesaj}
-        </div>
-      )}
-
-      <div className="sticky bottom-20 z-10 space-y-2 rounded-2xl border border-white/10 bg-asphalt-2/95 p-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl md:bottom-4">
-        {mobil ? (
-          <>
-            <button
-              type="button"
-              disabled={bekliyor || seciliFisler.length === 0}
-              onClick={mobilWhatsappGonder}
-              className="btn btn-teal btn-block"
-            >
-              {bekliyor
-                ? "Hazırlanıyor..."
-                : `WhatsApp ile Gönder (${seciliFisler.length} fiş)`}
-            </button>
-            <p className="text-center text-xs text-fog">
-              Telefonunda WhatsApp açılır; muhasebecini seçip fişleri gönderirsin.
-            </p>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              disabled={bekliyor || seciliFisler.length === 0}
-              onClick={masaustuWhatsappGonder}
-              className="btn btn-teal btn-block"
-            >
-              {bekliyor
-                ? "Hazırlanıyor..."
-                : `WhatsApp Web / Masaüstü (${seciliFisler.length} fiş)`}
-            </button>
-            <p className="text-center text-xs leading-relaxed text-fog">
-              ZIP iner + WhatsApp Web açılır. Tarayıcıda veya Desktop uygulamasında
-              sohbete 📎 ile ZIP&apos;i ekle.
-            </p>
-          </>
-        )}
-
-        {/* Diğer yol her zaman erişilebilir */}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {!mobil && (
-            <button
-              type="button"
-              disabled={bekliyor || seciliFisler.length === 0}
-              onClick={mobilWhatsappGonder}
-              className="btn btn-ghost btn-block !text-sm"
-            >
-              Mobil gibi paylaş
-            </button>
-          )}
-          {mobil && (
-            <button
-              type="button"
-              disabled={bekliyor || seciliFisler.length === 0}
-              onClick={masaustuWhatsappGonder}
-              className="btn btn-ghost btn-block !text-sm"
-            >
-              Web / Desktop yolu
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={bekliyor || seciliFisler.length === 0}
-            onClick={sadeceZipIndir}
-            className="btn btn-ghost btn-block !text-sm"
-          >
-            Sadece ZIP indir
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-[#16a34a]" aria-hidden>
+            <path d="M12 2.2A9.7 9.7 0 0 0 3.6 16.8L2.3 21.7l5-1.3A9.7 9.7 0 1 0 12 2.2zm0 17.7a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 19.9zm4.4-6c-.2-.1-1.4-.7-1.7-.8-.2-.1-.4-.1-.5.1l-.8.9c-.1.2-.3.2-.5.1a6.6 6.6 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.5-.4h-.5a.9.9 0 0 0-.7.3 2.8 2.8 0 0 0-.9 2.1 4.9 4.9 0 0 0 1 2.6 11.2 11.2 0 0 0 4.3 3.8c1.6.7 2.2.7 3 .6a2.5 2.5 0 0 0 1.7-1.2 2 2 0 0 0 .1-1.2c0-.1-.2-.2-.5-.3z" />
+          </svg>
+          WhatsApp’ta paylaş
+        </button>
+        <p className="px-2 text-center text-[12px] leading-relaxed text-[var(--a-ikincil)]">
+          {mobil
+            ? "Telefonun paylaşım ekranı açılır; muhasebecini sen seçip gönderirsin."
+            : "ZIP iner ve WhatsApp Web açılır; dosyayı sohbete 📎 ile sen eklersin."}
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" disabled={bos} onClick={mobil ? masaustuWhatsappGonder : mobilWhatsappGonder} className="ana-hap disabled:opacity-55">
+            {mobil ? "Web / Desktop yolu" : "Telefondaki gibi paylaş"}
           </button>
         </div>
 
-        <div className="space-y-2 border-t border-white/10 pt-2">
-          <label htmlFor="eposta" className="etiket !text-fog">
-            E-posta ile gönder
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row">
+        <details className="rp-kart px-4 py-3">
+          <summary className="cursor-pointer text-[14px] font-extrabold">E-posta ile gönder</summary>
+          <div className="mt-2.5 flex gap-2">
             <input
               id="eposta"
               type="email"
               inputMode="email"
+              aria-label="Muhasebecinin e-postası"
               placeholder="muhasebeci@ornek.com"
               value={eposta}
               onChange={(e) => setEposta(e.target.value)}
-              className="alan"
+              className="ana-alan min-w-0 flex-1"
             />
-            <button
-              type="button"
-              disabled={bekliyor || seciliFisler.length === 0 || !eposta.trim()}
-              onClick={epostaGonder}
-              className="btn btn-ghost shrink-0 !text-sm"
-            >
-              Paketi hazırla
+            <button type="button" disabled={bos || !eposta.trim()} onClick={epostaGonder} className="ana-hap !min-h-[3rem] shrink-0 disabled:opacity-55">
+              Hazırla
             </button>
           </div>
-          <p className="text-xs leading-relaxed text-fog">
-            Paket iner (fişler + giderler.xlsx + ozet.html) ve posta programı hazır
-            metinle açılır; dosyayı ek olarak eklemen yeterli.
+          <p className="mt-2 text-[12px] leading-relaxed text-[var(--a-ikincil)]">
+            Paket iner ve posta programı hazır metinle açılır; dosyayı ek olarak sen eklersin.
           </p>
-        </div>
-      </div>
+        </details>
+
+        <p className="rp-not justify-center">
+          <span aria-hidden>ⓘ</span>
+          <span>Paylaşmadan önce kontrol et. Uygulama kendiliğinden mesaj göndermez.</span>
+        </p>
+      </section>
     </div>
   );
 }

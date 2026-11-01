@@ -79,12 +79,14 @@ export function yonIlleri(yonler: string[]): string[] {
  */
 export function konumKosulu(
   konum: string | null,
-  yonler: string[] = []
+  yonler: string[] = [],
+  /** Çıkış için aday il çapı (il merkezi km). Varsayılan bildirimlerle aynı; Yük Bul geniş aday alıp ilçe mesafesiyle süzer */
+  cikisKm?: number
 ): Prisma.YukIlaniWhereInput {
   if (!konum && yonler.length === 0) return {};
   const yon: Prisma.YukIlaniWhereInput =
     yonler.length > 0 ? { varisIl: { in: yonIlleri(yonler) } } : {};
-  const cikis: Prisma.YukIlaniWhereInput = konum ? { cikisIl: { in: yakinIller(konum) } } : {};
+  const cikis: Prisma.YukIlaniWhereInput = konum ? { cikisIl: { in: yakinIller(konum, cikisKm) } } : {};
   // İstisna yok: dönüş eşleşmesi de konumun çevresinden çıkmalı (yoksa
   // Düzce'deyken eski Ankara aramasının ilanları sızıyordu).
   return { AND: [cikis, yon] };

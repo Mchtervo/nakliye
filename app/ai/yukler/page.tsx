@@ -22,6 +22,10 @@ import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
 import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import type { Prisma } from "@prisma/client";
 import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
+import { yakinCevredeMi, yakinlikYazisi, yuklemeYakinligi } from "@/lib/yakinlik";
+
+/** Yakın çevre için aday çıkış illeri (il merkezi km); asıl süzme ilçe mesafesiyle */
+const ADAY_IL_KM = 110;
 import { aktifYolculuklar, yakinIller } from "@/lib/donus";
 
 export const dynamic = "force-dynamic";
@@ -290,7 +294,7 @@ export default async function AiYuklerSayfasi({
       rotaKosul,
       tazelikKosul,
       numaraKosul,
-      konumFiltresi ? konumKosulu(konum, yonler) : {},
+      konumFiltresi ? konumKosulu(konum, yonler, ADAY_IL_KM) : {},
     ],
   };
   const tekSehirArama = Boolean(
@@ -321,7 +325,7 @@ export default async function AiYuklerSayfasi({
             sayacTazelik,
             tercihKosulu(tercih, { webDahil: true }),
             // Liste konuma göre süzülüyorsa sayaç da aynı ilanları saysın
-            konumFiltresi ? konumKosulu(konum, yonler) : {},
+            konumFiltresi ? konumKosulu(konum, yonler, ADAY_IL_KM) : {},
           ],
         },
       }),
@@ -370,7 +374,10 @@ export default async function AiYuklerSayfasi({
           include: { kaynak: { select: { ad: true, tur: true } } },
         })
       : null;
-  const ilanlar = odakEk ? [odakEk, ...ilanlarHam] : ilanlarHam;
+  // Yakın çevre: aday iller geniş alınır, yükleme noktası ~70 km içinde olanlar kalır (yalnız görüntü)
+  const ilanlar = (odakEk ? [odakEk, ...ilanlarHam] : ilanlarHam).filter(
+    (i) => !konumFiltresi || !konum || i.id === odak || yakinCevredeMi(konum, i)
+  );
 
   const gorusmeMap = new Map<number, string>();
   // Yöneticinin WhatsApp görüşmeleri üyeye gösterilmez
@@ -592,6 +599,8 @@ export default async function AiYuklerSayfasi({
           waNot: gorusmeMap.get(ilan.id) ?? null,
           // Telegram kimliği yöneticinin hesabıyla mesaj için: üyede yok
           gonderenUserId: uye ? null : ilan.gonderenUserId,
+          uye,
+          yakinlik: konum ? yakinlikYazisi(konum, yuklemeYakinligi(konum, ilan)) : null,
           guvenSkoru: ilan.guvenSkoru,
           hamMetin: ilan.hamMetin,
           createdAt: ilan.createdAt,

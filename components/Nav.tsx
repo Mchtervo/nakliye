@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -163,6 +165,17 @@ const DAHA_GRUPLAR: DahaGrup[] = [
         ),
       },
       {
+        href: "/krediler",
+        ad: "Krediler",
+        aciklama: "Taksit ve kalan borç",
+        renk: "#0a84ff",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" />
+          </svg>
+        ),
+      },
+      {
         href: "/veresiye",
         ad: "Veresiye defteri",
         aciklama: "İstasyon borçları",
@@ -213,6 +226,17 @@ const DAHA_GRUPLAR: DahaGrup[] = [
         ),
       },
       {
+        href: "/analiz",
+        ad: "İşletme analizi",
+        aciklama: "Sonuç ve rotalar",
+        renk: "#5e5ce6",
+        ikon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M4 16l5-5 4 4 7-7M15 8h5v5" />
+          </svg>
+        ),
+      },
+      {
         href: "/raporlar",
         ad: "Raporlar",
         aciklama: "Aylık özet",
@@ -241,9 +265,9 @@ const DAHA_GRUPLAR: DahaGrup[] = [
         ),
       },
       {
-        href: "/ai/musteriler",
-        ad: "Müşteri havuzu",
-        aciklama: "Sık aranan firmalar",
+        href: "/musteriler",
+        ad: "Müşteriler",
+        aciklama: "Yük sahibi ve komisyoncu",
         renk: "#64d2ff",
         ikon: (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -270,7 +294,7 @@ const DAHA_GRUPLAR: DahaGrup[] = [
 ];
 
 /** Yalnız yöneticinin gördüğü bağlantılar (sayfalar middleware ile de kapalı). */
-const YONETICI_YOLLARI = new Set(["/ai", "/ai/musteriler", "/ayarlar", "/ayarlar#telefon-tuslari"]);
+const YONETICI_YOLLARI = new Set(["/ai", "/ayarlar", "/ayarlar#telefon-tuslari"]);
 
 const YONETIM_OGE: NavOge = {
   href: "/yonetim",
@@ -287,8 +311,8 @@ const YONETIM_OGE: NavOge = {
 
 const PROFIL_OGE: NavOge = {
   href: "/profil",
-  ad: "Profilim",
-  aciklama: "Araç, bilgiler, şifre",
+  ad: "Kişisel ayarlar",
+  aciklama: "Tercihler, hesap, şifre",
   renk: "#5e5ce6",
   ikon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -484,6 +508,8 @@ function HucreListesi({
   );
 }
 
+const MENUSUZ = ["/giris", "/kayit", "/kosullar", "/sifre-unuttum", "/kurulum"];
+
 export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
   const gruplar = dahaGruplari(rol);
   const pathname = usePathname();
@@ -515,8 +541,17 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
     pathname === "/para" ||
     pathname.startsWith("/firmalar/") ||
     pathname === "/kartlar" ||
+    pathname === "/arac" ||
+    pathname === "/ozet" ||
+    pathname === "/raporlar" ||
+    pathname === "/kdv" ||
+    pathname === "/muhasebeci" ||
     pathname === "/profil" ||
-    pathname === "/yonetim";
+    pathname === "/musteriler" ||
+    pathname === "/analiz" ||
+    pathname === "/krediler" ||
+    pathname === "/yonetim" ||
+    pathname.startsWith("/yonetim/");
   const dahaAktif = DAHA_DUZ.some((l) => aktifMi(l.href));
   const dockIndeks = DOCK.findIndex((d) => aktifMi(d.href));
   const gostergeIndeks = sheet === "daha" || (dockIndeks < 0 && dahaAktif) ? 4 : dockIndeks;
@@ -570,25 +605,33 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
   );
 
   // Giriş ekranında menü yok: oturum olmadan her bağlantı tekrar girişe döner.
-  if (pathname === "/giris" || pathname.startsWith("/giris/")) return null;
+  // Giriş, kayıt, şifre ve ilk kurulum: menüsüz tam ekran
+  if (MENUSUZ.some((y) => pathname === y || pathname.startsWith(`${y}/`))) return null;
 
+  // Açık tasarımlı sayfalarda yan menü de beyaz zemin + lacivert / mavi vurgu
   const yanMenuSinifi = (aktif: boolean) =>
     `dokun relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] transition-colors duration-200 ${
-      aktif
-        ? "bg-white/[0.08] font-semibold text-white before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-amber"
-        : "text-white/60 hover:bg-white/[0.05] hover:text-white"
+      ana
+        ? aktif
+          ? "bg-[#eef0ff] font-bold text-[#3730a3] before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#4f46e5]"
+          : "text-[#4b5375] hover:bg-[#f3f4fb] hover:text-[#0e1534]"
+        : aktif
+          ? "bg-white/[0.08] font-semibold text-white before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-amber"
+          : "text-white/60 hover:bg-white/[0.05] hover:text-white"
     }`;
+  const yanIkonSinifi = (aktif: boolean) =>
+    `[&_svg]:h-5 [&_svg]:w-5 ${ana ? (aktif ? "text-[#4f46e5]" : "text-[#8a90ad]") : aktif ? "text-amber" : "text-white/50"}`;
 
   return (
     <div className="contents">
       {/* Masaüstü / iPad yan menü */}
-      <aside className="fixed inset-y-3 left-3 z-30 hidden w-[16rem] flex-col rounded-[1.4rem] bg-[#1c1c1e]/90 px-3 py-4 backdrop-blur-2xl md:flex">
+      <aside className={`fixed inset-y-3 left-3 z-30 hidden w-[16rem] flex-col rounded-[1.4rem] px-3 py-4 backdrop-blur-2xl md:flex ${ana ? "yan-acik" : "bg-[#1c1c1e]/90"}`}>
         <div className="mb-5 flex items-center justify-between gap-2 px-2">
           <Link href="/" className="flex min-w-0 items-center gap-3">
-            <LogoIkon />
+            {ana ? <Image src="/ana/logo-2.png" alt="" width={40} height={36} className="h-9 w-10 shrink-0" /> : <LogoIkon />}
             <span className="min-w-0 leading-tight">
-              <span className="block truncate text-[17px] font-semibold">Nakliye Defteri</span>
-              <span className="block truncate text-[13px] text-fog">{konumAdi}</span>
+              <span className={`block truncate text-[17px] ${ana ? "font-extrabold text-[#0e1534]" : "font-semibold"}`}>Nakliye Defteri</span>
+              <span className={`block truncate text-[13px] ${ana ? "font-semibold text-[#6b7290]" : "text-fog"}`}>{konumAdi}</span>
             </span>
           </Link>
           <BildirimZili />
@@ -599,7 +642,7 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
             const aktif = aktifMi(l.href);
             return (
               <NavLink key={l.href} href={l.href} className={yanMenuSinifi(aktif)}>
-                <span className={`[&_svg]:h-5 [&_svg]:w-5 ${aktif ? "text-amber" : "text-white/50"}`}>{l.ikon}</span>
+                <span className={yanIkonSinifi(aktif)}>{l.ikon}</span>
                 {l.ad}
               </NavLink>
             );
@@ -607,14 +650,14 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
 
           {gruplar.map((grup) => (
             <div key={grup.baslik} className="mt-4">
-              <p className="mb-1 px-2.5 text-[13px] font-semibold text-fog">{grup.baslik}</p>
+              <p className={`mb-1 px-2.5 text-[13px] font-semibold ${ana ? "text-[#8a90ad]" : "text-fog"}`}>{grup.baslik}</p>
               {grup.ogeler
                 .filter((l) => l.href !== "/giderler/yeni")
                 .map((l) => {
                   const aktif = aktifMi(l.href);
                   return (
                     <NavLink key={l.href} href={l.href} prefetch={null} className={yanMenuSinifi(aktif)}>
-                      <span className={`[&_svg]:h-5 [&_svg]:w-5 ${aktif ? "text-amber" : "text-white/50"}`}>{l.ikon}</span>
+                      <span className={yanIkonSinifi(aktif)}>{l.ikon}</span>
                       {l.ad}
                     </NavLink>
                   );
@@ -626,7 +669,7 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
           </div>
         </nav>
 
-        <div className="mt-3 rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-3.5">
+        <div className={`mt-3 rounded-2xl p-3.5 ${ana ? "yan-kart" : "border border-white/[0.07] bg-gradient-to-b from-white/[0.06] to-white/[0.02]"}`}>
           <span className="ikon-kare ikon-turuncu !h-9 !w-9 !rounded-xl">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
               <circle cx="11" cy="11" r="6.5" />
@@ -634,12 +677,12 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
             </svg>
           </span>
           <p className="mt-2.5 text-[15px] font-semibold">Yük Avcısı açık</p>
-          <p className="text-[12.5px] leading-snug text-fog">Telegram ve ilan siteleri senin için taranıyor.</p>
+          <p className={`text-[12.5px] leading-snug ${ana ? "text-[#6b7290]" : "text-fog"}`}>Telegram ve ilan siteleri senin için taranıyor.</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <Link href="/yukler/yeni" className="btn btn-amber !min-h-9 !px-2 text-sm">
+            <Link href="/yukler/yeni" className={ana ? "ana-ana-dugme !min-h-9 !px-2 !text-sm" : "btn btn-amber !min-h-9 !px-2 text-sm"}>
               + Sefer
             </Link>
-            <Link href="/giderler/yeni" className="btn btn-ghost !min-h-9 !px-2 text-sm">
+            <Link href="/giderler/yeni" className={ana ? "ana-hap !min-h-9 justify-center" : "btn btn-ghost !min-h-9 !px-2 text-sm"}>
               + Fiş
             </Link>
           </div>

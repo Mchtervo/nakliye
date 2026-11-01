@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
@@ -50,7 +51,10 @@ export default async function RootLayout({
 }>) {
   // Menü üyeye yönetici bölümlerini göstermez (sayfalar middleware ile de kapalı)
   // Hata olursa kısıtlı menü (güvenli taraf)
-  const b = await aktifBaglam().catch(() => null);
+  const b = await aktifBaglam().catch((e) => {
+    unstable_rethrow(e); // kapanmış oturum: giriş ekranına yönlendirme yutulmasın
+    return null;
+  });
   const rol = b === null || b.uyeId !== null ? "uye" : "admin";
   return (
     <html lang="tr" className={`${sans.variable} h-full antialiased`}>

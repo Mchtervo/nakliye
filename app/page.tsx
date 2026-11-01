@@ -25,9 +25,9 @@ function selamlama(simdi: Date): string {
 }
 
 export default async function PanelSayfasi() {
-  // Yeni üye: önce aracını eklesin
+  // Yeni üye: kurulum (araç, şehir) bitmeden ana sayfa açılmaz; yarım kaldıysa oradan sürer
   const b = await aktifBaglam();
-  if (b.uyeId !== null && !(await uyeDurumu(b.uyeId))?.arac?.plaka) redirect("/profil?ilk=1");
+  if (b.uyeId !== null && !(await uyeDurumu(b.uyeId))?.kurulumBitti) redirect("/kurulum");
 
   const simdi = new Date();
   const [yukler, giderler, bekleyenYukler, kasaToplam, yeniIlan, aylar] = await Promise.all([

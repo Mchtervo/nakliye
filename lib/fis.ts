@@ -1,10 +1,30 @@
 import { mkdir, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { uploadDir } from "@/lib/yollar";
+import { dataDir, uploadDir } from "@/lib/yollar";
+import { aktifBaglam } from "@/lib/baglam";
 import { FIS_BUCKET, supabaseAdmin, supabaseHazirMi } from "@/lib/supabase";
 
 export const MAX_FIS_BOYUT = 8 * 1024 * 1024; // 8 MB
+
+/**
+ * Üye fişleri: herkese açık depoya değil, üyeye özel klasöre yazılır ve
+ * yalnız /api/dosya/<ad> ile, o üyenin oturumuyla okunur.
+ */
+const UYE_DOSYA_ONEK = "/api/dosya/";
+
+function uyeDosyaKlasoru(uyeId: number): string {
+  return path.join(dataDir(), "uye-dosya", String(uyeId));
+}
+
+/** Bu oturumun kendi özel klasöründeki dosya (başka üyenin klasörüne çıkılamaz). */
+export async function uyeDosyaYolu(ad: string): Promise<string | null> {
+  const b = await aktifBaglam();
+  if (b.uyeId === null) return null;
+  const temiz = path.basename(ad || "");
+  if (!temiz || temiz.startsWith(".") || temiz.includes("..")) return null;
+  return path.join(uyeDosyaKlasoru(b.uyeId), temiz);
+}
 
 const IZINLI_TIPLER: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -65,6 +85,14 @@ export async function fisKaydet(
   const dosyaAdi = `${Date.now()}-${randomUUID().slice(0, 8)}${uzanti}`;
   const buffer = Buffer.from(await dosya.arrayBuffer());
 
+  const b = await aktifBaglam();
+  if (b.uyeId !== null) {
+    const klasor = uyeDosyaKlasoru(b.uyeId);
+    await mkdir(klasor, { recursive: true });
+    await writeFile(path.join(klasor, dosyaAdi), buffer);
+    return { yol: `${UYE_DOSYA_ONEK}${dosyaAdi}` };
+  }
+
   if (supabaseHazirMi()) {
     const sbSonuc = await supabaseFisKaydet(buffer, dosyaAdi, uzanti);
     if (!("hata" in sbSonuc)) return sbSonuc;
@@ -92,6 +120,12 @@ export async function fisKaydet(
 
 export async function fisSil(yol: string | null | undefined): Promise<void> {
   if (!yol) return;
+
+  if (yol.startsWith(UYE_DOSYA_ONEK)) {
+    const tam = await uyeDosyaYolu(yol.slice(UYE_DOSYA_ONEK.length));
+    if (tam) await unlink(tam).catch(() => null);
+    return;
+  }
 
   if (yol.startsWith("http://") || yol.startsWith("https://")) {
     if (!supabaseHazirMi()) return;
@@ -123,6 +157,17 @@ export async function fisSil(yol: string | null | undefined): Promise<void> {
 export async function fisBaytOku(
   yol: string
 ): Promise<{ veri: Buffer; uzanti: string } | null> {
+  if (yol.startsWith(UYE_DOSYA_ONEK)) {
+    const tam = await uyeDosyaYolu(yol.slice(UYE_DOSYA_ONEK.length));
+    if (!tam) return null;
+    try {
+      const { readFile } = await import("node:fs/promises");
+      return { veri: await readFile(tam), uzanti: path.extname(tam) || ".jpg" };
+    } catch {
+      return null;
+    }
+  }
+
   if (yol.startsWith("http://") || yol.startsWith("https://")) {
     try {
       const yanit = await fetch(yol);

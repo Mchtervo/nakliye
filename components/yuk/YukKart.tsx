@@ -5,7 +5,7 @@ import { AnimatePresence, m } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { ilanDurumGuncelle, ilanSil, ilanYanlisNumara } from "@/app/ai-actions";
+import { ilanDurumGuncelle, ilanSikayetEt, ilanSil, ilanYanlisNumara } from "@/app/ai-actions";
 import BilgiSorButonu from "@/components/BilgiSorButonu";
 import { aracBelirsizMi, aracTipiAdi } from "@/lib/arac";
 import { fiyatGorunumu, gecenSure } from "@/lib/ilanGorunum";
@@ -28,6 +28,10 @@ export type IlanKartKar = {
 
 export type IlanKartVeri = {
   id: number;
+  /** Üye görünümü: kara liste yok, ilan yöneticiye bildirilir */
+  uye?: boolean;
+  /** Seçili konuma yükleme noktasının uzaklığı (yalnız görüntü) */
+  yakinlik?: string | null;
   durum: string;
   nereden: string | null;
   nereye: string | null;
@@ -125,6 +129,12 @@ const IK: Record<string, React.ReactNode> = {
     </>
   ),
   bina: <path d="M4 21V5l8-2v18M12 21h8V9l-8-2M7 8h2M7 12h2M7 16h2M15 12h2M15 16h2" />,
+  konum: (
+    <>
+      <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z" />
+      <circle cx="12" cy="10" r="2.4" />
+    </>
+  ),
   kutu: <path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5zM3.5 7.5 12 12l8.5-4.5M12 12v9" />,
   soru: <path d="M4 5h16v11H9l-5 4zM9 9.5h6M9 12.5h4" />,
   isaret: <path d="M6 3h12v18l-6-4-6 4z" />,
@@ -162,6 +172,51 @@ function Kalp({ dolu }: { dolu: boolean }) {
 }
 
 /** Ana listedeki ilan kartı; "İncele" detay panelini açar. */
+const SIKAYET_NEDEN = [
+  { kod: "YANLIS_NUMARA", ad: "Yanlış numara" },
+  { kod: "SAHTE", ad: "Sahte / dolandırıcılık" },
+  { kod: "YANLIS_BILGI", ad: "Yanlış bilgi" },
+  { kod: "DIGER", ad: "Diğer" },
+];
+
+/** Üye: ilanı yöneticiye bildirir; yalnız kendi listesinden düşer. */
+function SorunBildir({ ilanId, bitti }: { ilanId: number; bitti: () => void }) {
+  const [acik, setAcik] = useState(false);
+  const [bekliyor, baslat] = useTransition();
+  const [hata, setHata] = useState<string | null>(null);
+  if (!acik)
+    return (
+      <button type="button" onClick={() => setAcik(true)} className="ana-hap">
+        Sorun bildir
+      </button>
+    );
+  return (
+    <div className="w-full space-y-2 rounded-2xl bg-[#f6f7fb] p-3" role="group" aria-label="Sorun bildir">
+      <p className="text-[13px] font-bold">Sorun ne? Yöneticiye iletilir.</p>
+      <div className="flex flex-wrap gap-2">
+        {SIKAYET_NEDEN.map((n) => (
+          <button
+            key={n.kod}
+            type="button"
+            disabled={bekliyor}
+            onClick={() =>
+              baslat(async () => {
+                const r = await ilanSikayetEt(ilanId, n.kod).catch(() => ({ hata: "Bağlantı hatası.", tamam: false }));
+                if (r.tamam) bitti();
+                else setHata(r.hata);
+              })
+            }
+            className="ana-hap"
+          >
+            {n.ad}
+          </button>
+        ))}
+      </div>
+      {hata && <p className="text-[12.5px] font-semibold text-[#dc2626]">{hata}</p>}
+    </div>
+  );
+}
+
 export default function YukKart({ ilan, gorunum = "liste" }: { ilan: IlanKartVeri; gorunum?: "liste" | "takip" | "donus" }) {
   const router = useRouter();
   const [bekliyor, baslat] = useTransition();
@@ -173,7 +228,10 @@ export default function YukKart({ ilan, gorunum = "liste" }: { ilan: IlanKartVer
     setDurum(ilan.durum);
   }
 
-  const taze = tarihi(ilan.sonGorulme) ?? tarihi(ilan.createdAt)!;
+  // İlk paylaşım esas alınır; aynı ilan sonradan tekrar görüldüyse ayrıca yazılır (eski ilan yeni görünmesin)
+  const taze = tarihi(ilan.createdAt)!;
+  const sonGorulme = tarihi(ilan.sonGorulme);
+  const tekrar = sonGorulme && sonGorulme.getTime() - taze.getTime() > 30 * 60 * 1000 ? sonGorulme : null;
   const fiyat = fiyatParcalari(ilan);
   const cikis = ilan.nereden || ilan.cikisIl || "?";
   const varis = ilan.nereye || ilan.varisIl || null;
@@ -206,10 +264,14 @@ export default function YukKart({ ilan, gorunum = "liste" }: { ilan: IlanKartVer
               {gorunum !== "liste" && rozet ? (
                 <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${rozet.sinif}`}>{rozet.yazi}</span>
               ) : (
-                <span className="shrink-0 pt-0.5 text-[11.5px] text-[var(--a-ikincil)]">{gecenSure(taze)}</span>
+                <span className="shrink-0 pt-0.5 text-right text-[11.5px] leading-tight text-[var(--a-ikincil)]">
+                  {gecenSure(taze)}
+                  {tekrar && <span className="block text-[10.5px]">tekrar {gecenSure(tekrar)}</span>}
+                </span>
               )}
             </span>
             {bilgi && <span className="mt-0.5 block truncate text-[13px] text-[var(--a-ikincil)]">{bilgi}</span>}
+            {ilan.yakinlik && <span className="mt-0.5 block truncate text-[12px] font-semibold text-[#4f46e5]">◎ {ilan.yakinlik}</span>}
             {fiyat.tutar ? (
               <span className="mt-2 block text-[1.45rem] font-extrabold leading-none tracking-[-0.02em] text-[#16a34a]">
                 {fiyat.tutar}
@@ -223,7 +285,7 @@ export default function YukKart({ ilan, gorunum = "liste" }: { ilan: IlanKartVer
               <span className="mt-1 block truncate text-[13px] font-medium text-[#3b4262]">{ilan.firmaAdi}</span>
             )}
             {gorunum !== "liste" && (
-              <span className="mt-0.5 block text-[11.5px] text-[var(--a-ikincil)]">◷ {gecenSure(taze)}</span>
+              <span className="mt-0.5 block text-[11.5px] text-[var(--a-ikincil)]">◷ {gecenSure(taze)}{tekrar ? ` · tekrar görüldü ${gecenSure(tekrar)}` : ""}</span>
             )}
           </span>
         </button>
@@ -332,7 +394,10 @@ function IlanDetay({
 
   if (!hazir) return null;
 
-  const taze = tarihi(ilan.sonGorulme) ?? tarihi(ilan.createdAt)!;
+  // İlk paylaşım esas alınır; aynı ilan sonradan tekrar görüldüyse ayrıca yazılır (eski ilan yeni görünmesin)
+  const taze = tarihi(ilan.createdAt)!;
+  const sonGorulme = tarihi(ilan.sonGorulme);
+  const tekrar = sonGorulme && sonGorulme.getTime() - taze.getTime() > 30 * 60 * 1000 ? sonGorulme : null;
   const fiyat = fiyatParcalari(ilan);
   const cikis = ilan.nereden || ilan.cikisIl || "?";
   const varis = ilan.nereye || ilan.varisIl || null;
@@ -353,7 +418,8 @@ function IlanDetay({
     ilan.aracUzunluk != null
       ? { ikon: "uzunluk", deger: `${ilan.aracUzunluk.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} m`, ad: "Kasa uzunluğu" }
       : null,
-    { ikon: "takvim", deger: bugun ? "Bugün" : taze.toLocaleDateString("tr-TR"), ad: `Paylaşıldı · ${gecenSure(taze)}` },
+    { ikon: "takvim", deger: bugun ? "Bugün" : taze.toLocaleDateString("tr-TR"), ad: `İlk paylaşıldı · ${gecenSure(taze)}${tekrar ? ` · son görüldü ${gecenSure(tekrar)}` : ""}` },
+    ilan.yakinlik ? { ikon: "konum", deger: ilan.yakinlik, ad: "Yükleme yeri uzaklığı (kuş uçuşu, yaklaşık)" } : null,
     ilan.firmaAdi ? { ikon: "bina", deger: ilan.firmaAdi, ad: "Yük sahibi" } : null,
     ilan.yukTipi ? { ikon: "kutu", deger: ilan.yukTipi, ad: "Yük cinsi" } : null,
   ].filter(Boolean) as { ikon: string; deger: string; ad: string }[];
@@ -583,7 +649,8 @@ function IlanDetay({
                     Geç
                   </button>
                 )}
-                {ilan.telefon && (
+                {ilan.uye && <SorunBildir ilanId={ilan.id} bitti={() => { kapat(); router.refresh(); }} />}
+                {ilan.telefon && !ilan.uye && (
                   <button
                     type="button"
                     disabled={islem}
@@ -613,7 +680,7 @@ function IlanDetay({
                   }}
                   className="ana-hap !text-[#dc2626]"
                 >
-                  Sil
+                  {ilan.uye ? "Listemden kaldır" : "Sil"}
                 </button>
               </div>
             </div>

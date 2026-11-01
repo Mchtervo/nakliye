@@ -3,12 +3,13 @@ import Link from "next/link";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { belgeAdi, kalanGun } from "@/lib/belge";
 import { kartlarDurumu } from "@/lib/krediKarti";
+import { yaklasanTaksitler } from "@/lib/kredi";
 import { tlYazKisa } from "@/lib/para";
 import { prisma } from "@/lib/prisma";
 import { kmOzeti } from "@/lib/seferKm";
 import { veresiyeDurumu } from "@/lib/veresiye";
 
-type Tur = "kart" | "belge" | "bakim" | "veresiye";
+type Tur = "kart" | "belge" | "bakim" | "veresiye" | "kredi";
 export type YaklasanSatir = { anahtar: string; href: string; baslik: string; deger: string; ek?: string; acil: boolean; tur: Tur };
 
 const IKON: Record<Tur, string> = {
@@ -16,6 +17,7 @@ const IKON: Record<Tur, string> = {
   belge: "/ana/y-belge-2.png",
   bakim: "/ana/y-bakim-2.png",
   veresiye: "/ana/y-veresiye-2.png",
+  kredi: "/ana/y-kart-2.png",
 };
 
 const gunYazi = (g: number) => (g < 0 ? `${-g} gün geçti` : g === 0 ? "bugün" : `${g} gün`);
@@ -45,14 +47,26 @@ function Oge({ s }: { s: YaklasanSatir }) {
 export default async function Yaklasanlar() {
   const simdi = new Date();
   const tercih = await aiTercihleriOku().catch(() => null);
-  const [kartlar, belgeler, km, veresiye] = await Promise.all([
+  const [kartlar, belgeler, km, veresiye, taksitler] = await Promise.all([
     kartlarDurumu(simdi).catch(() => []),
     prisma.belge.findMany({ orderBy: { bitis: "asc" } }).catch(() => []),
     kmOzeti(simdi, tercih?.anaUs || "Ankara").catch(() => null),
     veresiyeDurumu().catch(() => []),
+    yaklasanTaksitler(7, simdi).catch(() => []),
   ]);
 
   const satirlar: YaklasanSatir[] = [];
+  for (const t of taksitler) {
+    satirlar.push({
+      anahtar: `t${t.id}`,
+      href: "/krediler",
+      baslik: `${t.krediAd} · ${t.sira}. taksit`,
+      deger: tlYazKisa(t.tutar),
+      ek: gunYazi(t.kalanGun),
+      acil: t.kalanGun <= 1,
+      tur: "kredi",
+    });
+  }
   for (const k of kartlar) {
     if (k.kalan <= 0 || k.kalanGun > 5) continue;
     satirlar.push({

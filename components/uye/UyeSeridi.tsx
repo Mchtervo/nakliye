@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { yoneticiyeDon } from "@/app/uye-actions";
 import { aktifBaglam } from "@/lib/baglam";
 import { uyeDurumu } from "@/lib/uyeProfil";
@@ -11,7 +12,8 @@ export default async function UyeSeridi() {
   let b;
   try {
     b = await aktifBaglam();
-  } catch {
+  } catch (e) {
+    unstable_rethrow(e);
     return null;
   }
   if (b.uyeId === null) return null;
@@ -31,7 +33,7 @@ export default async function UyeSeridi() {
         </form>
       )}
       {d.eksikler.length > 0 && (
-        <Link href="/profil" className="uye-serit-satir bg-[#f97316] text-white">
+        <Link href={d.kurulumBitti ? "/profil" : "/kurulum"} className="uye-serit-satir uye-serit-eksik bg-[#f97316] text-white">
           <span className="min-w-0 truncate">
             <b>Eksik bilgilerin var:</b> {d.eksikler.join(", ")}
           </span>

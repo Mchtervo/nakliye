@@ -5,6 +5,8 @@
  * (Ağustos: 195 bin TL yakıt, 0 sefer).
  */
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import { aktifArac, aracKayitKosulu } from "@/lib/aktifArac";
 
 /** Ortalamadan bu oranda fazla tüketim → uyarı */
 export const FAZLA_TUKETIM = 1.15;
@@ -45,8 +47,11 @@ function aralik(liste: Dolum[], litreFiyati: number | null) {
 }
 
 export async function yakitVerimi(): Promise<YakitVerimi> {
+  // Seçili aracın dolumları (eski kayıtlar ilk araçta)
+  const arac = await aktifArac();
+  const aracKosul = (arac ? await aracKayitKosulu(arac.id) : {}) as Prisma.GiderWhereInput;
   const ham = await prisma.gider.findMany({
-    where: { kategori: "YAKIT", km: { not: null } },
+    where: { AND: [{ kategori: "YAKIT", km: { not: null } }, aracKosul] },
     orderBy: [{ km: "desc" }],
     take: SON_DOLUM,
     select: { id: true, tarih: true, km: true, litre: true, toplamTutar: true },
@@ -97,7 +102,7 @@ export async function yakitVerimi(): Promise<YakitVerimi> {
  * Daha yeni bir gösterge girişi varsa dokunmaz.
  */
 export async function yakittanGostergeYaz(km: number, tarih: Date): Promise<void> {
-  const arac = await prisma.arac.findFirst({ orderBy: { id: "asc" } });
+  const arac = await aktifArac();
   if (!arac) {
     await prisma.arac.create({ data: { kmSayac: km, kmTarih: tarih } });
     return;

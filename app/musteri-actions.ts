@@ -16,6 +16,7 @@ export async function musteriNotKaydet(
   const r = await musteriNotEkle(tel, metin);
   if (!r.ok) return { hata: r.hata || "Kayıt başarısız" };
   revalidatePath("/ai/musteriler");
+  revalidatePath("/musteriler");
   return { ok: true };
 }
 
@@ -28,5 +29,6 @@ export async function musteriIsaretle(telefon: string): Promise<{
   if (!tel) return { ok: false, hata: "Telefon geçersiz" };
   const r = await musteriIsaretToggle(tel);
   revalidatePath("/ai/musteriler");
+  revalidatePath("/musteriler");
   return { ok: true, isaretli: r.isaretli };
 }

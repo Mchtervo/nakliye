@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { uploadDir } from "@/lib/yollar";
+import { cookies } from "next/headers";
+import { GORUNUM_COOKIE, OTURUM_COOKIE, etkinOturum } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -19,6 +21,11 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ dosya: string }> }
 ) {
+  // Yöneticinin fişleri: yalnız yönetici oturumu (üye ve oturumsuz istek açamaz)
+  const jar = await cookies();
+  const o = await etkinOturum(jar.get(OTURUM_COOKIE)?.value, jar.get(GORUNUM_COOKIE)?.value);
+  if (o?.rol !== "admin") return new NextResponse("Bulunamadı", { status: 404 });
+
   const { dosya } = await ctx.params;
   const ad = path.basename(dosya || "");
   if (!ad || ad.includes("..") || ad === ".gitkeep") {
@@ -38,7 +45,7 @@ export async function GET(
     status: 200,
     headers: {
       "Content-Type": MIME[uzanti] || "application/octet-stream",
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": "private, max-age=31536000, immutable",
     },
   });
 }

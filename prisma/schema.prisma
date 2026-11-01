@@ -35,6 +35,8 @@ model Yuk {
   odemeler    Odeme[]
   /// Elle girilen yüklü km; boşsa nereden→nereye tahmini kullanılır.
   km          Int?
+  /// Seferi yapan araç (eski kayıtlarda boş = ilk araç)
+  aracId      Int?
   createdAt   DateTime @default(now())
 }
 
@@ -51,6 +53,19 @@ model Arac {
   sonBakimKm     Int?
   /// Gönderilen son bakım uyarısı: 0 yok, 1 ≤1000 km, 2 ≤500 km, 3 geçti
   bakimUyari     Int       @default(0)
+  /// Araç sınıfı: TIR | KAMYON | KAMYONET | PANELVAN | DIGER (gövde tipinden ayrı)
+  sinif          String?
+  /// Kasa / dorse tipi: TENTELI | KAPALI | FRIGO | ACIK | DAMPER | …
+  kasaTipi       String?
+  /// Üyenin girdiği taşıma bilgileri (boşsa bilinmiyor; örnek değer yazılmaz)
+  kapasiteTon    Float?
+  kasaUzunlukM   Float?
+  kasaGenislikM  Float?
+  kasaYukseklikM Float?
+  /// Aracın şu an bulunduğu il
+  konumIl        String?
+  /// Seçili (aktif) araç; yeni sefer/gider ve km tahmini bu araca bağlanır
+  aktif          Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
@@ -122,6 +137,8 @@ model Gider {
   km             Int?
   odeme          String    @default("PESIN") // PESIN | VERESIYE
   veresiyeYer    String? // veresiye alınan istasyon / dükkân
+  /// Gideri yapan araç (eski kayıtlarda boş = ilk araç)
+  aracId         Int?
   createdAt      DateTime  @default(now())
 }
 
@@ -452,4 +469,93 @@ model Uye {
   aktif        Boolean   @default(true)
   sonGiris     DateTime?
   createdAt    DateTime  @default(now())
+  /// SMS koduyla doğrulandığı an (SMS sağlayıcısı yoksa boş kalır)
+  telefonDogrulandi DateTime?
+  /// İlk kurulumda tamamlanan son adım (0: yalnız hesap); yarım kalan kayıt buradan sürer
+  kurulumAdim  Int       @default(0)
+  kurulumBitti DateTime?
+  /// Kurulumda verilen cevaplar (defter hazır olunca araca aktarılır)
+  kurulumTaslak Json?
+  /// Artınca eski oturumların hepsi geçersiz olur (tüm cihazlardan çıkış, şifre değişimi)
+  oturumSurum  Int       @default(0)
+
+  @@index([telefon])
+}
+
+/// Telefon doğrulama / şifre sıfırlama kodu (yalnız ana şemada). Kod düz saklanmaz.
+model TelefonKodu {
+  id          Int       @id @default(autoincrement())
+  uyeId       Int
+  /// DOGRULAMA | SIFRE
+  amac        String
+  kodHash     String
+  sonKullanma DateTime
+  deneme      Int       @default(0)
+  kullanildi  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([uyeId, amac, createdAt])
+}
+
+/// Yönetici işlem kaydı (yalnız ana şemada; üyelere gösterilmez)
+model YonetimKaydi {
+  id        Int      @id @default(autoincrement())
+  islem     String
+  uyeId     Int?
+  ayrinti   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Üyenin ilan şikâyeti (yalnız ana şemada). Yönetici kaldırır ya da yok sayar.
+model IlanSikayet {
+  id        Int       @id @default(autoincrement())
+  ilanId    Int
+  uyeId     Int
+  /// YANLIS_NUMARA | SAHTE | YANLIS_BILGI | DIGER
+  neden     String
+  not       String?
+  /// ACIK | KALDIRILDI | YOKSAYILDI
+  durum     String    @default("ACIK")
+  kapandi   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([ilanId, uyeId])
+  @@index([durum, createdAt])
+}
+
+/// Kredi planı: anapara, taksitler; taksit ödenince tek "Kredi ödemesi" gideri yazılır / bağlanır.
+model Kredi {
+  id         Int            @id @default(autoincrement())
+  ad         String
+  kurum      String?
+  /// kuruş
+  anapara    Int
+  baslangic  DateTime
+  notlar     String?
+  kapandi    DateTime?
+  taksitler  KrediTaksit[]
+  createdAt  DateTime       @default(now())
+}
+
+model KrediTaksit {
+  id         Int       @id @default(autoincrement())
+  krediId    Int
+  kredi      Kredi     @relation(fields: [krediId], references: [id], onDelete: Cascade)
+  sira       Int
+  vade       DateTime
+  /// kuruş: taksit tutarı = anapara payı + faiz/masraf payı
+  tutar      Int
+  anaparaPay Int
+  faizPay    Int
+  odendi     DateTime?
+  /// Ödemeyi temsil eden gider (çift sayım olmasın)
+  giderId    Int?
+  /// Gönderilen son hatırlatma: 0 yok, 1 ≤3 gün, 2 ≤1 gün, 3 bugün, 4 geçti
+  uyari      Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([vade])
+  @@index([krediId, sira])
 }

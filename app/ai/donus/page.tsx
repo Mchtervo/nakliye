@@ -1,3 +1,4 @@
+import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { kurustanGiris, tarihYaz, tlYaz } from "@/lib/para";
@@ -9,6 +10,7 @@ import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
 export const dynamic = "force-dynamic";
 
 export default async function DonusYukuSayfasi() {
+  await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const talepler = await prisma.donusTalebi.findMany({
     where: { aktif: true },
     orderBy: { createdAt: "desc" },

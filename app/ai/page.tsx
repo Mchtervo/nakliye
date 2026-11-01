@@ -1,3 +1,4 @@
+import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
@@ -6,6 +7,7 @@ import { tlYaz } from "@/lib/para";
 export const dynamic = "force-dynamic";
 
 export default async function AiMerkeziSayfasi() {
+  await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const [yeniIlan, donusEslesme, acikTalep, adayFirma, sonAnaliz, kaynakSayisi] =
     await Promise.all([
       prisma.yukIlani.count({ where: { durum: "YENI" } }),

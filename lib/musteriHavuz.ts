@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { anaPrisma } from "@/lib/prismaAna";
 import { ilBul } from "@/lib/iller";
 import { koridorIlKumesi } from "@/lib/koridor";
 import { aiTercihleriOku } from "@/lib/ayarlar";
@@ -149,7 +150,8 @@ export async function musteriHavuzuOku(opts?: {
   const tercih = await aiTercihleriOku();
   const koridor = new Set(koridorIlKumesi(tercih.koridorIller));
 
-  const ilanlar = await prisma.yukIlani.findMany({
+  // İlanlar ortak listeden salt okunur; not ve işaretler kullanıcının kendi defterinde
+  const ilanlar = await anaPrisma.yukIlani.findMany({
     where: {
       telefon: { not: null },
       createdAt: { gte: sinir },

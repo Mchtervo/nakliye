@@ -1,3 +1,4 @@
+import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { aiTercihleriOku } from "@/lib/ayarlar";
@@ -30,6 +31,7 @@ export default async function AdayFirmalarSayfasi({
 }: {
   searchParams: Promise<{ sekme?: string }>;
 }) {
+  await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const sp = await searchParams;
   const sekme = SEKMELER.some((s) => s.kod === sp.sekme) ? sp.sekme! : "YENI";
 

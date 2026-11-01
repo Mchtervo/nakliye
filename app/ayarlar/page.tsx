@@ -1,3 +1,4 @@
+import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { cikisYap } from "@/app/auth-actions";
 import SifreDegistirForm from "@/components/SifreDegistirForm";
@@ -64,6 +65,7 @@ function DurumRozeti({ tamam, ad }: { tamam: boolean; ad: string }) {
 }
 
 export default async function AyarlarSayfasi() {
+  await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const ay = bugunAy();
 
   // Kayıtlı site tarayıcılarını IlanKaynagi'na senkronla (Ayarlar listesinde görünsün)

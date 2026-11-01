@@ -18,10 +18,10 @@ const BITISIK: Record<string, string[]> = {
 const TALEP_OMUR_MS = 4 * 24 * 60 * 60 * 1000;
 
 /** İl + 65 km içindeki iller (Düzce → Bolu, Sakarya; İstanbul → Kocaeli). */
-export function yakinIller(il: string): string[] {
+export function yakinIller(il: string, sinirKm = YAKIN_KM): string[] {
   const yakin = ILLER.filter((x) => x !== il)
     .map((x) => ({ x, km: ilMesafesiKm(il, x) }))
-    .filter((y): y is { x: (typeof ILLER)[number]; km: number } => y.km !== null && y.km <= YAKIN_KM)
+    .filter((y): y is { x: (typeof ILLER)[number]; km: number } => y.km !== null && y.km <= sinirKm)
     .sort((a, b) => a.km - b.km)
     .map((y) => y.x as string);
   const bitisik = (BITISIK[il] ?? []).filter((x) => !yakin.includes(x));

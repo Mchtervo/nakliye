@@ -1,5 +1,7 @@
 "use server";
 
+import { yoneticiIslemi } from "@/lib/yetki";
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { aktifBaglam } from "@/lib/baglam";
@@ -24,6 +26,7 @@ export type AiSonuc = { hata: string } | { bilgi: string } | null;
 
 /** Ayarlar: Telegram test bildirimi. */
 export async function testBildirimGonder(): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const { aiTercihleriOku } = await import("@/lib/ayarlar");
   const { telegramGonder, telegramKullanilabilir, htmlKacis } = await import(
     "@/lib/bildirim/telegram"
@@ -76,6 +79,7 @@ export async function testBildirimGonder(): Promise<AiSonuc> {
 
 /** Ayarlar: Web Push test bildirimi. */
 export async function testPushGonder(): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const { aiTercihleriOku } = await import("@/lib/ayarlar");
   const { pushGonder, pushKullanilabilir } = await import("@/lib/bildirim/push");
   const { prisma } = await import("@/lib/prisma");
@@ -119,6 +123,7 @@ export async function testPushGonder(): Promise<AiSonuc> {
 
 /** AI_KAPALI iken 1 adet 10'luk test hakkı (30 dk). tavanUsd varsayılan $0.05. */
 export async function aiTestIzniVer(tavanUsd = 0.05): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const { bitisMs, tavanUsd: tavan } = await testIzniVer(30, tavanUsd);
   const durum = await testIzniDurum();
   revalidatePath("/ayarlar");
@@ -193,6 +198,7 @@ export async function ilanMesajHazirla(
   | { ok: true; metin: string; cache: boolean; waUrl: string | null }
   | { ok: false; hata: string }
 > {
+  await yoneticiIslemi();
   if (!Number.isInteger(id) || id <= 0) {
     return { ok: false, hata: "Geçersiz ilan." };
   }
@@ -325,6 +331,7 @@ export async function ilanSil(id: number): Promise<void> {
 }
 
 export async function eskiIlanlariTemizle(): Promise<void> {
+  await yoneticiIslemi();
   if (await uyeMi()) return;
   // 6 saati geçen ilanları siler
   const { eskiIlanlariArsivle } = await import("@/lib/ilanTazelik");
@@ -348,6 +355,7 @@ export async function kaynakEkle(
   _oncekiDurum: AiSonuc,
   formData: FormData
 ): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const tur = metinOku(formData.get("tur")) as KaynakTuru;
   if (tur !== "WEB" && tur !== "AI_ARAMA") {
     return { hata: "Kaynak türü geçersiz." };
@@ -384,6 +392,7 @@ export async function waDavetEkle(
   _oncekiDurum: AiSonuc,
   formData: FormData
 ): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const { whatsappLinkleri, whatsappDavetiniKaydet } = await import(
     "@/lib/kaynaklar/whatsapp"
   );
@@ -410,6 +419,7 @@ export async function waDavetEkle(
 }
 
 export async function kaynakDurumDegistir(id: number): Promise<void> {
+  await yoneticiIslemi();
   const kaynak = await prisma.ilanKaynagi.findUnique({ where: { id } });
   if (!kaynak) return;
 
@@ -423,6 +433,7 @@ export async function kaynakDurumDegistir(id: number): Promise<void> {
 
 /** ADAY / PASIF grubu elle takibe al. */
 export async function kaynakTakibeAl(id: number): Promise<void> {
+  await yoneticiIslemi();
   if (!Number.isInteger(id) || id <= 0) return;
   await prisma.ilanKaynagi
     .update({
@@ -434,6 +445,7 @@ export async function kaynakTakibeAl(id: number): Promise<void> {
 }
 
 export async function kaynakSil(id: number): Promise<void> {
+  await yoneticiIslemi();
   await prisma.ilanKaynagi.delete({ where: { id } }).catch(() => null);
   revalidatePath("/ayarlar");
 }
@@ -442,6 +454,7 @@ export async function aiTercihKaydet(
   _oncekiDurum: AiSonuc,
   formData: FormData
 ): Promise<AiSonuc> {
+  await yoneticiIslemi();
   /** Hepsi ya hiçbiri — hata varsa DB'ye hiç yazma. */
   const kaydedilmedi = (alan: string) =>
     `${alan} hatalı — hiçbir ayar kaydedilmedi.`;
@@ -770,6 +783,7 @@ export async function adayFirmaAra(
   _oncekiDurum: AiSonuc,
   formData: FormData
 ): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const sehirHam = metinOku(formData.get("sehir"));
   const sehir = ilBul(sehirHam);
   if (!sehir) return { hata: "Geçerli bir şehir gir. Örnek: Ankara" };
@@ -798,18 +812,21 @@ export async function adayFirmaDurumGuncelle(
   id: number,
   durum: string
 ): Promise<void> {
+  await yoneticiIslemi();
   if (!ADAY_DURUMLARI.includes(durum)) return;
   await prisma.adayFirma.update({ where: { id }, data: { durum } }).catch(() => null);
   revalidatePath("/ai/firmalar");
 }
 
 export async function adayFirmaSil(id: number): Promise<void> {
+  await yoneticiIslemi();
   await prisma.adayFirma.delete({ where: { id } }).catch(() => null);
   revalidatePath("/ai/firmalar");
 }
 
 /** Aday firmayı gerçek cari listesine taşır. */
 export async function adayFirmayiCariyeEkle(id: number): Promise<void> {
+  await yoneticiIslemi();
   const aday = await prisma.adayFirma.findUnique({ where: { id } });
   if (!aday) return;
 
@@ -830,6 +847,7 @@ export async function adayFirmayiCariyeEkle(id: number): Promise<void> {
 }
 
 export async function analiziYenile(): Promise<void> {
+  await yoneticiIslemi();
   await gunlukAnaliziUret(false);
   revalidatePath("/ai/analiz");
 }
@@ -907,6 +925,7 @@ export async function yolculukBaslatForm(
  * AI_KAPALI ise kuyrukta bekler; OpenAI çağrısı yapmaz.
  */
 export async function eskiHamMesajlariYenidenIsle(): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const sinir = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const sonuc = await prisma.hamMesaj.updateMany({
     where: {
@@ -933,6 +952,7 @@ export async function eskiHamMesajlariYenidenIsle(): Promise<AiSonuc> {
 
 /** Eski server action — uzun sürerse sayfa düşer; panel artık API kullanır. */
 export async function aiTestOnMesaj(): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const sonuc = await aiTestOnMesajCalistir();
   revalidatePath("/ayarlar");
   revalidatePath("/ai/yukler");
@@ -941,6 +961,7 @@ export async function aiTestOnMesaj(): Promise<AiSonuc> {
 
 /** Günlük bütçe kesmesini elle aç (limit yarın sıfırlanana kadar dikkat). */
 export async function aiButceKesiminiAc(): Promise<AiSonuc> {
+  await yoneticiIslemi();
   await butceKesiminiAc();
   revalidatePath("/ayarlar");
   return { bilgi: "Bütçe kesmesi kaldırıldı. Günlük limit hâlâ geçerli." };
@@ -948,6 +969,7 @@ export async function aiButceKesiminiAc(): Promise<AiSonuc> {
 
 /** Günlük AI limitini (USD) Ayarlar ekranından değiştir; kesik bütçe limit altındaysa kendiliğinden açılır. */
 export async function aiGunlukLimitKaydet(usdYazi: string): Promise<AiSonuc> {
+  await yoneticiIslemi();
   const usd = Number(usdYazi.replace(",", ".").replace(/[^0-9.]/g, ""));
   if (!Number.isFinite(usd) || usd < 0.1 || usd > 50) return { hata: "Limit 0,1 ile 50 $ arasında olmalı." };
   await prisma.ayar.upsert({
@@ -961,7 +983,32 @@ export async function aiGunlukLimitKaydet(usdYazi: string): Promise<AiSonuc> {
 
 /** Ayarlar: susturulan grubu geri aç (bir daha otomatik susturulmaz). */
 export async function sessizKaynagiAc(id: number): Promise<void> {
+  await yoneticiIslemi();
   const { sessizligiKaldir } = await import("@/lib/kaynaklar/verimsizKaynak");
   await sessizligiKaldir(id);
   revalidatePath("/ayarlar");
+}
+
+export type SikayetSonuc = { hata: string | null; tamam: boolean };
+
+/** Üye: ortak ilanı yöneticiye bildir (aynı ilana bir kez). Kendi listesinden de gizlenir. */
+export async function ilanSikayetEt(ilanId: number, neden: string, not?: string): Promise<SikayetSonuc> {
+  const { aktifBaglam } = await import("@/lib/baglam");
+  const { anaPrisma } = await import("@/lib/prismaAna");
+  const b = await aktifBaglam();
+  if (b.uyeId === null || b.yoneticiGoruyor) return { hata: "Bildirim yalnız üye hesabından yapılır.", tamam: false };
+  if (!["YANLIS_NUMARA", "SAHTE", "YANLIS_BILGI", "DIGER"].includes(neden)) return { hata: "Nedeni seç.", tamam: false };
+  if (!Number.isInteger(ilanId) || !(await anaPrisma.yukIlani.findUnique({ where: { id: ilanId }, select: { id: true } }))) {
+    return { hata: "İlan bulunamadı.", tamam: false };
+  }
+  await anaPrisma.ilanSikayet.upsert({
+    where: { ilanId_uyeId: { ilanId, uyeId: b.uyeId } },
+    create: { ilanId, uyeId: b.uyeId, neden, not: not?.trim().slice(0, 300) || null },
+    update: {},
+  });
+  // Bildiren üyenin listesinden düşer (diğer üyelerin durumu değişmez)
+  const { uyeIlanDurumYaz } = await import("@/lib/uyeIlan");
+  await uyeIlanDurumYaz(ilanId, "ELENDI");
+  revalidatePath("/ai/yukler");
+  return { hata: null, tamam: true };
 }

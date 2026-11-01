@@ -1,3 +1,4 @@
+import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { musteriHavuzuOku } from "@/lib/musteriHavuz";
 import MusteriKart from "@/components/MusteriKart";
@@ -15,6 +16,7 @@ export default async function MusteriHavuzSayfasi({
 }: {
   searchParams: Promise<{ sekme?: string }>;
 }) {
+  await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const sp = await searchParams;
   const sekme = SEKMELER.some((s) => s.kod === sp.sekme)
     ? (sp.sekme as string)
