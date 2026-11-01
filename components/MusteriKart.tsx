@@ -5,7 +5,7 @@ import {
   musteriIsaretle,
   musteriNotKaydet,
 } from "@/app/musteri-actions";
-import { telefonGorunum, type MusteriSinif } from "@/lib/musteriHavuz";
+import { telefonGorunum, type MusteriSinif } from "@/lib/musteriBicim";
 import { whatsappMesajUrl } from "@/lib/whatsapp";
 import { gecenSure } from "@/lib/ilanGorunum";
 

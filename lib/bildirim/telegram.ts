@@ -1,3 +1,5 @@
+import { aktifBaglam } from "@/lib/baglam";
+
 const API_KOK = "https://api.telegram.org";
 
 export function telegramKullanilabilir(): boolean {
@@ -38,6 +40,10 @@ export async function telegramGonder(
 ): Promise<TelegramSonuc> {
   if (!telegramKullanilabilir()) {
     return { basarili: false, hata: "TELEGRAM_BOT_TOKEN tanımlı değil." };
+  }
+  // Bot yöneticinin sohbetine yazar: üye isteğinden asla gönderilmez
+  if ((await aktifBaglam()).uyeId !== null) {
+    return { basarili: false, hata: "Üye hesabında Telegram bildirimi kapalı." };
   }
 
   const govde: Record<string, unknown> = {

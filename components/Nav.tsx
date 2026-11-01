@@ -269,7 +269,44 @@ const DAHA_GRUPLAR: DahaGrup[] = [
   },
 ];
 
-const DAHA_DUZ = DAHA_GRUPLAR.flatMap((g) => g.ogeler);
+/** Yalnız yöneticinin gördüğü bağlantılar (sayfalar middleware ile de kapalı). */
+const YONETICI_YOLLARI = new Set(["/ai", "/ai/musteriler", "/ayarlar", "/ayarlar#telefon-tuslari"]);
+
+const YONETIM_OGE: NavOge = {
+  href: "/yonetim",
+  ad: "Yönetim",
+  aciklama: "Üyeler, üye paneline gir",
+  renk: "#5e5ce6",
+  ikon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+};
+
+const PROFIL_OGE: NavOge = {
+  href: "/profil",
+  ad: "Profilim",
+  aciklama: "Araç, bilgiler, şifre",
+  renk: "#5e5ce6",
+  ikon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  ),
+};
+
+function dahaGruplari(rol: "admin" | "uye"): DahaGrup[] {
+  if (rol === "admin") return DAHA_GRUPLAR.map((g) => (g.baslik === "Gelişmiş" ? { ...g, ogeler: [YONETIM_OGE, ...g.ogeler] } : g));
+  return [
+    ...DAHA_GRUPLAR.map((g) => ({ ...g, ogeler: g.ogeler.filter((o) => !YONETICI_YOLLARI.has(o.href)) })).filter((g) => g.ogeler.length > 0),
+    { baslik: "Hesap", ogeler: [PROFIL_OGE] },
+  ];
+}
+
+const DAHA_DUZ = [...DAHA_GRUPLAR.flatMap((g) => g.ogeler), YONETIM_OGE, PROFIL_OGE];
 
 const EKLE_OGELERI: NavOge[] = [
   {
@@ -447,7 +484,8 @@ function HucreListesi({
   );
 }
 
-export default function Nav() {
+export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
+  const gruplar = dahaGruplari(rol);
   const pathname = usePathname();
   const [sheet, setSheet] = useState<SheetTuru | null>(null);
   const [kapaniyor, setKapaniyor] = useState(false);
@@ -476,7 +514,9 @@ export default function Nav() {
     pathname === "/veresiye" ||
     pathname === "/para" ||
     pathname.startsWith("/firmalar/") ||
-    pathname === "/kartlar";
+    pathname === "/kartlar" ||
+    pathname === "/profil" ||
+    pathname === "/yonetim";
   const dahaAktif = DAHA_DUZ.some((l) => aktifMi(l.href));
   const dockIndeks = DOCK.findIndex((d) => aktifMi(d.href));
   const gostergeIndeks = sheet === "daha" || (dockIndeks < 0 && dahaAktif) ? 4 : dockIndeks;
@@ -565,7 +605,7 @@ export default function Nav() {
             );
           })}
 
-          {DAHA_GRUPLAR.map((grup) => (
+          {gruplar.map((grup) => (
             <div key={grup.baslik} className="mt-4">
               <p className="mb-1 px-2.5 text-[13px] font-semibold text-fog">{grup.baslik}</p>
               {grup.ogeler
@@ -644,7 +684,7 @@ export default function Nav() {
 
       {sheet === "daha" && (
         <IosSheet etiket="Tüm menü" kapaniyor={kapaniyor} kapat={kapat}>
-          {DAHA_GRUPLAR.map((grup) => (
+          {gruplar.map((grup) => (
             <div key={grup.baslik} className="mt-4">
               <p className="mb-1.5 px-4 text-[13px] uppercase text-fog">{grup.baslik}</p>
               <HucreListesi ogeler={grup.ogeler} aktifMi={aktifMi} kapat={kapat} />

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { aktifBaglam } from "@/lib/baglam";
 import { ilBul } from "@/lib/iller";
 import { yaklasikKarayoluKm } from "@/lib/ilMesafe";
 import { tlYazKisa } from "@/lib/para";
@@ -168,18 +169,21 @@ export function karOzetYazi(k: KarOzet): {
  * Yuk tablosundan (SADECE OKU) il→il hat ortalamaları.
  * Anahtar: "Ankara|İstanbul"
  */
-let hatCache: {
-  at: number;
-  data: Map<string, { ortalamaKurus: number; ornek: number }>;
-} | null = null;
+// Kişi başına (yönetici / her üye ayrı): bir kişinin ücretleri diğerine geçmesin
+const hatCache = new Map<
+  string,
+  { at: number; data: Map<string, { ortalamaKurus: number; ornek: number }> }
+>();
 
 export async function hatOrtalamalariYukle(): Promise<
   Map<string, { ortalamaKurus: number; ornek: number }>
 > {
   // Sayfa geçişlerinde 800 satır tekrar çekilmesin
   const SIMDI = Date.now();
-  if (hatCache && SIMDI - hatCache.at < 5 * 60_000) {
-    return hatCache.data;
+  const kim = String((await aktifBaglam()).uyeId ?? "ana");
+  const onbellek = hatCache.get(kim);
+  if (onbellek && SIMDI - onbellek.at < 5 * 60_000) {
+    return onbellek.data;
   }
 
   const yukler = await prisma.yuk.findMany({
@@ -209,7 +213,7 @@ export async function hatOrtalamalariYukle(): Promise<
       ornek: v.n,
     });
   }
-  hatCache = { at: SIMDI, data: sonuc };
+  hatCache.set(kim, { at: SIMDI, data: sonuc });
   return sonuc;
 }
 
