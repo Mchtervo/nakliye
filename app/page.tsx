@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { aktifBaglam } from "@/lib/baglam";
-import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
 import { anaPrisma } from "@/lib/prismaAna";
 import { uyeDurumu } from "@/lib/uyeProfil";
 import { prisma } from "@/lib/prisma";
@@ -63,7 +62,7 @@ export default async function PanelSayfasi() {
     // Üyede ortak ilan listesinden sayılır (yöneticinin durumlarına bakmadan)
     (b.uyeId !== null ? anaPrisma : prisma).yukIlani.count({
       where: {
-        ...(b.uyeId !== null ? { guvenSkoru: { gte: SUPHE_SINIRI }, durum: { notIn: ["ARSIV", "ELENDI"] } } : { durum: "YENI" }),
+        ...(b.uyeId !== null ? { durum: { notIn: ["ARSIV", "ELENDI"] } } : { durum: "YENI" }),
         // Yük bul sayfasıyla aynı: son 2 saatte paylaşılan
         sonGorulme: { gte: new Date(simdi.getTime() - YENI_ILAN_MS) },
       },

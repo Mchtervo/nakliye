@@ -47,11 +47,11 @@ export default function YeniUyeForm() {
       )}
       {durum.tamam && !bekliyor && (
         <p role="status" className="rounded-2xl bg-[#dcfce7] px-3 py-2.5 text-center text-[13.5px] font-bold text-[#15803d]">
-          ✓ Üye oluşturuldu; ekranı boş başlar
+          ✓ Üye oluşturuldu; boş defteri birkaç dakika içinde hazır olur
         </p>
       )}
       <button type="submit" disabled={bekliyor} className="ana-ana-dugme w-full !min-h-12 !text-[15px] disabled:opacity-60">
-        {bekliyor ? "Hesap ve boş defter hazırlanıyor…" : "Üye ekle"}
+        {bekliyor ? "Hesap açılıyor…" : "Üye ekle"}
       </button>
     </form>
   );

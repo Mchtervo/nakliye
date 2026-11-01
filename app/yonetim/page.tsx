@@ -74,7 +74,7 @@ export default async function YonetimSayfasi() {
                     </p>
                   </div>
                   <span className={`sf-rozet ${!u.aktif ? "bg-[#eef0f8] text-[#4b5375]" : u.eksikler.length ? "bg-[#fff1dc] text-[#c2410c]" : "bg-[#dcfce7] text-[#15803d]"}`}>
-                    {!u.aktif ? "Kapalı" : u.eksikler.length ? "Eksik bilgi" : "Aktif"}
+                    {!u.aktif ? "Kapalı" : !u.hazir ? "Hazırlanıyor" : u.eksikler.length ? "Eksik bilgi" : "Aktif"}
                   </span>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-[var(--a-cizgi)] pt-2.5 text-[13px]">
@@ -105,7 +105,7 @@ export default async function YonetimSayfasi() {
                 </dl>
                 <div className="mt-3 grid grid-cols-[1.3fr_1fr] gap-2">
                   <form action={uyePanelineGir.bind(null, u.id)}>
-                    <button type="submit" disabled={!u.aktif} className="ana-ana-dugme w-full !min-h-11 !text-[14px] disabled:opacity-50">
+                    <button type="submit" disabled={!u.aktif || !u.hazir} className="ana-ana-dugme w-full !min-h-11 !text-[14px] disabled:opacity-50">
                       Paneline gir
                     </button>
                   </form>

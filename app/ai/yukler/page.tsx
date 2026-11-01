@@ -207,7 +207,7 @@ export default async function AiYuklerSayfasi({
         : sekme === "HEPSI"
           ? { guvenSkoru: { gte: SUPHE_SINIRI }, id: { notIn: uyeGizliIdler } }
           : {
-              guvenSkoru: { gte: SUPHE_SINIRI },
+              // Yöneticinin Yeni sekmesiyle aynı kural (güven eşiği yok)
               ...tercihKosulu(tercih, { webDahil: true }),
               // Yeni: üyenin henüz dokunmadıkları (rota aramasında takiptekiler de görünür)
               id: { notIn: rotaFiltresiVar ? uyeGizliIdler : [...uyeDurum.keys()] },
@@ -317,7 +317,7 @@ export default async function AiYuklerSayfasi({
       ilanDb.yukIlani.count({
         where: {
           AND: [
-            uye ? { guvenSkoru: { gte: SUPHE_SINIRI }, id: { notIn: [...uyeDurum.keys()] } } : { durum: "YENI" },
+            uye ? { id: { notIn: [...uyeDurum.keys()] } } : { durum: "YENI" },
             sayacTazelik,
             tercihKosulu(tercih, { webDahil: true }),
             // Liste konuma göre süzülüyorsa sayaç da aynı ilanları saysın

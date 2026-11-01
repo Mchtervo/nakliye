@@ -51,7 +51,8 @@ export async function uyeOlustur(_onceki: FormSonuc, formData: FormData): Promis
   if (sifre.length < 4) return { hata: "Şifre en az 4 karakter olmalı." };
   if (await anaPrisma.uye.findUnique({ where: { kullaniciAdi } })) return { hata: "Bu kullanıcı adı alınmış." };
   const uye = await anaPrisma.uye.create({ data: { kullaniciAdi, sifreHash: sifreHashle(sifre), ad: metin(formData, "ad") || null } });
-  await uyeSemasiHazirla(uye.id);
+  // Boş defter arka planda kurulur (ilk kurulum birkaç dakika sürebilir); üye ilk girişte hazır olanı kullanır
+  void uyeSemasiHazirla(uye.id).catch((e) => console.error("[uyeOlustur] şema", e));
   revalidatePath("/yonetim");
   return null;
 }
