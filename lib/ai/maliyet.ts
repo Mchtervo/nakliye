@@ -20,6 +20,8 @@ const FIYATLAR: Record<string, ModelFiyat> = {
 
 /** Bilinmeyen modelde terra fiyatı (güvenli taraf). */
 export function modelFiyati(model: string): ModelFiyat {
+  // EVREN (SSB, yurt içi): kendi kredisiyle; dolar harcaması yok
+  if (model.startsWith("evren:")) return { girdi: 0, cikti: 0 };
   return FIYATLAR[model] ?? FIYATLAR["gpt-5.6-terra"];
 }
 

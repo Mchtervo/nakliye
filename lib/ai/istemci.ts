@@ -8,6 +8,9 @@ import { maliyetHesapla, tahminiCagriMikro } from "@/lib/ai/maliyet";
 import { prisma } from "@/lib/prisma";
 
 const API_URL = "https://api.openai.com/v1/responses";
+/** EVREN (SSB) OpenAI uyumlu uç. Model adı "evren:" ile başlarsa buraya gider. */
+const EVREN_URL = "https://evren-llmapi.ssyz.org.tr/v1/responses";
+const EVREN_ONEK = "evren:";
 
 export class AiHatasi extends Error {
   readonly kod: string;
@@ -215,15 +218,18 @@ async function istekAt(
     );
   }
 
-  const anahtar = process.env.OPENAI_API_KEY;
+  const model = String(govde.model || MODEL_HIZLI);
+  const evren = model.startsWith(EVREN_ONEK);
+  const anahtar = evren ? process.env.EVREN_API_KEY : process.env.OPENAI_API_KEY;
   if (!anahtar) {
     throw new AiHatasi(
-      "OPENAI_API_KEY tanımlı değil. Ayarlar > AI bölümündeki adımları izle.",
+      evren
+        ? "EVREN_API_KEY tanımlı değil."
+        : "OPENAI_API_KEY tanımlı değil. Ayarlar > AI bölümündeki adımları izle.",
       "ANAHTAR_YOK"
     );
   }
-
-  const model = String(govde.model || MODEL_HIZLI);
+  const istekGovdesi = evren ? { ...govde, model: model.slice(EVREN_ONEK.length) } : govde;
   const maxCikti = Number(govde.max_output_tokens) || AI_MAX_CIKTI;
   const tahminMikro = tahminiCagriMikro(model, maxCikti);
 
@@ -251,13 +257,13 @@ async function istekAt(
   for (let deneme = 0; deneme < 3; deneme++) {
     const bas = Date.now();
     try {
-      const cevap = await fetch(API_URL, {
+      const cevap = await fetch(evren ? EVREN_URL : API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${anahtar}`,
         },
-        body: JSON.stringify(govde),
+        body: JSON.stringify(istekGovdesi),
         signal: AbortSignal.timeout(zamanAsimiMs),
         cache: "no-store",
       });

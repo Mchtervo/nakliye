@@ -46,6 +46,25 @@ export type GiderFormBaslangic = {
   veresiyeYer: string;
 };
 
+/**
+ * Telefon fotoğrafı 6 MB sınırını aşıp "okunamadı" diyordu: okumaya giden
+ * kopyayı uzun kenar 2000 px JPEG'e küçült. Kaydedilen fotoğrafın aslı değişmez.
+ */
+async function fisKucult(dosya: File): Promise<Blob> {
+  try {
+    const resim = await createImageBitmap(dosya);
+    const oran = Math.min(1, 2000 / Math.max(resim.width, resim.height));
+    const tuval = document.createElement("canvas");
+    tuval.width = Math.round(resim.width * oran);
+    tuval.height = Math.round(resim.height * oran);
+    tuval.getContext("2d")?.drawImage(resim, 0, 0, tuval.width, tuval.height);
+    const blob = await new Promise<Blob | null>((cozum) => tuval.toBlob(cozum, "image/jpeg", 0.85));
+    return blob && blob.size > 0 ? blob : dosya;
+  } catch {
+    return dosya;
+  }
+}
+
 export default function GiderForm({
   bugunTarih,
   baslangic,
@@ -84,7 +103,7 @@ export default function GiderForm({
     setOkuma({ durum: "okuyor", mesaj: "Fiş okunuyor…" });
     try {
       const form = new FormData();
-      form.append("fis", dosya);
+      form.append("fis", await fisKucult(dosya), "fis.jpg");
       const yanit = await fetch("/api/ai/fis-oku", { method: "POST", body: form });
       const veri = (await yanit.json().catch(() => ({}))) as { sonuc?: FisSonucu; hata?: string };
       if (no !== okumaNo.current) return;
