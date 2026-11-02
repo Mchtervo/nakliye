@@ -56,7 +56,7 @@ const DUSUK_ORAN = 0.04;
  */
 const ADAY_MIN = 10;
 const ADAY_ORAN = 0.25;
-const TELEFON = /0?5d{2}[s.-]?d{3}[s.-]?d{2}[s.-]?d{2}/;
+const TELEFON = /0?5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/;
 
 function yukAdayiMi(metin: string, koridor: Set<string>): boolean {
   if (!TELEFON.test(metin)) return false;
@@ -108,8 +108,8 @@ function adKoridorDisiMi(ad: string, koridor: Set<string>): boolean {
 export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<SessizKaynak[]> {
   const bugun = new Date(simdi.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const son = await prisma.ayar.findUnique({ where: { anahtar: SON_KONTROL_ANAHTAR } });
-  // ":aday" eki: aday kuralı geldiği gün liste bir kez yeniden değerlendirilir
-  if (son?.deger === `${bugun}:aday`) return sessizKaynaklar(simdi);
+  // ":aday2" eki: aday kuralı geldiği gün liste bir kez yeniden değerlendirilir
+  if (son?.deger === `${bugun}:aday2`) return sessizKaynaklar(simdi);
 
   const bas = new Date(simdi.getTime() - PENCERE_GUN * GUN_MS);
   const koridor = new Set(koridorIlKumesi((await aiTercihleriOku()).koridorIller));
@@ -158,8 +158,8 @@ export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<Se
   });
   await prisma.ayar.upsert({
     where: { anahtar: SON_KONTROL_ANAHTAR },
-    create: { anahtar: SON_KONTROL_ANAHTAR, deger: `${bugun}:aday` },
-    update: { deger: `${bugun}:aday` },
+    create: { anahtar: SON_KONTROL_ANAHTAR, deger: `${bugun}:aday2` },
+    update: { deger: `${bugun}:aday2` },
   });
 
   const eklenen = liste.filter((s) => !mevcut.some((m) => m.id === s.id));
