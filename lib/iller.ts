@@ -295,7 +295,8 @@ const TAKMA_ADLAR: Record<string, string> = {
   akçadağ: "Malatya", darende: "Malatya", hekimhan: "Malatya",
   arapgir: "Malatya", pütürge: "Malatya",
   kovancılar: "Elazığ", karakoçan: "Elazığ", palu: "Elazığ",
-  maden: "Elazığ", baskil: "Elazığ",
+  // "maden" yok: "DÖKME MADEN YÜKLER" Elazığ sanılıyordu (yük cinsi)
+  baskil: "Elazığ",
   aşkale: "Erzurum", horasan: "Erzurum", oltu: "Erzurum",
   pasinler: "Erzurum", hınıs: "Erzurum", tortum: "Erzurum",
   yakutiye: "Erzurum", palandöken: "Erzurum", aziziye: "Erzurum",
@@ -315,6 +316,15 @@ const TAKMA_ADLAR: Record<string, string> = {
   yüksekova: "Hakkari", şemdinli: "Hakkari", çukurca: "Hakkari",
   solhan: "Bingöl", karlıova: "Bingöl", adaklı: "Bingöl",
   pertek: "Tunceli", çemişgezek: "Tunceli", mazgirt: "Tunceli",
+  // --- Yük ilanında sık geçen mahalle / sanayi bölgesi (başka ilde aynı adı olmayanlar) ---
+  esenboğa: "Ankara", elvankent: "Ankara", hasanoğlan: "Ankara",
+  tavşancıl: "Kocaeli", tütünçiftlik: "Kocaeli", köseköy: "Kocaeli",
+  arslanbey: "Kocaeli", geposb: "Kocaeli",
+  kısıkköy: "İzmir", ulukent: "İzmir", ansızca: "İzmir", ayrancılar: "İzmir",
+  görükle: "Bursa", akçalar: "Bursa",
+  esenkent: "İstanbul", yakuplu: "İstanbul", kemerburgaz: "İstanbul",
+  muratbey: "İstanbul", sarıgazi: "İstanbul",
+  eşmekaya: "Aksaray", hotamış: "Konya", mustafabeyli: "Adana",
 };
 
 /**
