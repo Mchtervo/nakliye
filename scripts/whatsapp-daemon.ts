@@ -34,6 +34,8 @@ import {
   gonderenTelefonu,
   katilimHakkiKullan,
   katilimHakkiVarMi,
+  hizSiniriHatasiMi,
+  katilimiBugunDurdur,
   siradakiDavet,
   siradakiKanalDavet,
   whatsappDavetleriniHasatEt,
@@ -390,6 +392,11 @@ async function kanallaraGir(sock: WASocket): Promise<void> {
     log(`Kanal takip: ${ad || meta.id}`);
   } catch (e) {
     const mesaj = e instanceof Error ? e.message : String(e);
+    if (hizSiniriHatasiMi(mesaj)) {
+      await katilimiBugunDurdur("kanal");
+      uyari("WhatsApp hız sınırı — bugün kanal takibi durdu:", mesaj.slice(0, 160));
+      return;
+    }
     await davetKapat(aday.id, "WA kanal", `Takip edilemedi: ${mesaj}`);
     uyari("Kanal takip edilemedi:", mesaj.slice(0, 160));
   }
@@ -429,6 +436,12 @@ async function davetlereGir(sock: WASocket) {
       return;
     } catch (e) {
       const mesaj = e instanceof Error ? e.message : String(e);
+      // Hız sınırı: davet bozuk değil, sırada kalsın; bugün başka gruba girme
+      if (hizSiniriHatasiMi(mesaj)) {
+        await katilimiBugunDurdur("grup");
+        uyari("WhatsApp hız sınırı — bugün grup katılımı durdu:", mesaj.slice(0, 160));
+        return;
+      }
       await davetKapat(aday.id, "WA davet", `Girilemedi: ${mesaj}`);
       uyari("Davet girilemedi:", mesaj.slice(0, 160));
       return;

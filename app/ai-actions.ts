@@ -399,7 +399,7 @@ export async function waDavetEkle(
   const metin = String(formData.get("linkler") ?? "");
   const linkler = whatsappLinkleri(metin);
   if (linkler.length === 0) {
-    return { hata: "Link bulunamadı. chat.whatsapp.com/... ile başlayan linkleri yapıştır." };
+    return { hata: "Link bulunamadı. Grup (chat.whatsapp.com/...) veya kanal (whatsapp.com/channel/...) linklerini yapıştır." };
   }
   let yeni = 0;
   let mevcut = 0;
@@ -414,7 +414,7 @@ export async function waDavetEkle(
   }
   revalidatePath("/ayarlar");
   return {
-    bilgi: `${yeni} yeni link sıraya alındı${mevcut ? `, ${mevcut} tanesi zaten vardı` : ""}. Numara günde en fazla 4 gruba girer; önce bunlar.`,
+    bilgi: `${yeni} yeni link sıraya alındı${mevcut ? `, ${mevcut} tanesi zaten vardı` : ""}. Numara günde en fazla 8 gruba girer, 25 kanal takip eder; elle eklenenler önce.`,
   };
 }
 

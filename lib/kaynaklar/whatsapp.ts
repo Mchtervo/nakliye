@@ -136,13 +136,29 @@ export async function bilinenDavetleriYaz(): Promise<void> {
 }
 
 /**
- * Sanal numara bir günde en fazla 4 gruba girer; fazlası yasak yer.
- * Kanal takibi gruba girmek kadar riskli değil, ayrı ve daha geniş kota.
+ * Günlük katılım kotası. Grup girişleri okuyucuda 30 dk arayla denenir
+ * (8 grup gün içine yayılır); WhatsApp hız sınırı uyarısı gelirse o gün
+ * katılım durur (katilimiBugunDurdur). Kanal takibi daha az riskli.
+ * 4 grup / 10 kanal ile 190+ bekleyen link ~47 gün sürüyordu.
  */
 const KATILIM = {
-  grup: { anahtar: "whatsapp_katilim_sayac", gunluk: 4 },
-  kanal: { anahtar: "whatsapp_kanal_takip_sayac", gunluk: 10 },
+  grup: { anahtar: "whatsapp_katilim_sayac", gunluk: 8 },
+  kanal: { anahtar: "whatsapp_kanal_takip_sayac", gunluk: 25 },
 } as const;
+
+export const KATILIM_GUNLUK = { grup: KATILIM.grup.gunluk, kanal: KATILIM.kanal.gunluk };
+
+/** WhatsApp "çok hızlı / sınır" yanıtı mı (davet bozuk değil, beklemek gerek). */
+export function hizSiniriHatasiMi(mesaj: string): boolean {
+  return /rate|overlimit|over-limit|429|too many|limit/i.test(mesaj);
+}
+
+/** Hız sınırı uyarısında o günün kotasını doldurur: yarın kaldığı yerden devam. */
+export async function katilimiBugunDurdur(tip: WhatsappLinkTip = "grup"): Promise<void> {
+  const { anahtar, gunluk } = KATILIM[tip];
+  const deger = JSON.stringify({ gun: bugunTr(), adet: gunluk, durduruldu: true });
+  await prisma.ayar.upsert({ where: { anahtar }, update: { deger }, create: { anahtar, deger } });
+}
 
 function bugunTr(): string {
   return new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -308,7 +324,7 @@ export async function whatsappDavetiniKaydet(
       sonHata:
         tip === "kanal"
           ? "Sırada — kanal takibi"
-          : "Sırada — numara günde en fazla 4 gruba kendi girer",
+          : "Sırada — numara günde en fazla 8 gruba kendi girer",
     },
   });
   return "yeni";
