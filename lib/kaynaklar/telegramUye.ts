@@ -56,6 +56,7 @@ import {
 } from "@/lib/kaynaklar/onDedup";
 import { guvenliKirp } from "@/lib/metin";
 import { ilanlariKaydet, type KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
+import { PARCA_YUK_ANAHTAR, parcaYukMu } from "@/lib/kaynaklar/parcaYuk";
 import { WHATSAPP_GRUP, whatsappDavetleriniHasatEt } from "@/lib/kaynaklar/whatsapp";
 
 export const TELEGRAM_UYE = "TELEGRAM_UYE";
@@ -1026,11 +1027,16 @@ export async function kuyrugunuCoz(
   let aracElenen = 0;
   let uzakElenen = 0;
   let tonajElenen = 0;
+  let parcaElenen = 0;
+  // Parça yük şimdilik alınmaz; Ayar "ai_parca_yuk_getir" = "1" ise alınır
+  const parcaGetir =
+    (await prisma.ayar.findUnique({ where: { anahtar: PARCA_YUK_ANAHTAR } }))?.deger === "1";
   let kayitRotaYok = 0;
   let kayitHatasi = 0;
   const kaydaAdayMesaj = new Set<number>();
   const tonajMesaj = new Set<number>();
   const aracMesaj = new Set<number>();
+  const parcaMesaj = new Set<number>();
   const bolgeMesaj = new Set<number>();
   const cikisMesaj = new Set<number>();
   const istiap = tercih.maliyet.tonaj;
@@ -1058,6 +1064,26 @@ export async function kuyrugunuCoz(
       );
       tonajElenen += 1;
       tonajMesaj.add(anahtar);
+      continue;
+    }
+    // Parça yük → kaydet ELENDI (kayıtta dursun, listeye ve bildirime girmesin)
+    if (!parcaGetir && ilan.cikisIl && parcaYukMu(ilan, hamMetin)) {
+      await ilanlariKaydet(
+        kaynaklar.get(anahtar) ?? null,
+        [
+          {
+            ilan: { ...ilan, guvenSkoru: Math.min(ilan.guvenSkoru, 40) },
+            hamMetin: `[parça yük] ${hamMetin}`,
+            gonderenUserId: gonderenler.get(anahtar) ?? null,
+            kaynakMesajId: kaynakMesajlar.get(anahtar) ?? null,
+            hamMesajId: anahtar,
+          },
+        ],
+        { durum: "ELENDI" }
+      );
+      parcaElenen += 1;
+      parcaMesaj.add(anahtar);
+      console.log(`[kuyruk] parcaYuk→ELENDI ham=#${anahtar} ${ilan.cikisIl}→${ilan.varisIl || "?"}`);
       continue;
     }
     if (!ilanKaydaUygunMu(ilan, tercih, koridorSet, hamMetin)) {
@@ -1133,6 +1159,7 @@ export async function kuyrugunuCoz(
   if (aracElenen > 0) await elemeArtir({ ARAC_TIP: aracElenen });
   if (uzakElenen > 0) await elemeArtir({ BOLGE_ROTA: uzakElenen });
   if (tonajElenen > 0) await elemeArtir({ TONAJ_ASIMI: tonajElenen });
+  if (parcaElenen > 0) await elemeArtir({ PARCA_YUK: parcaElenen });
 
   const yeniler: KaydedilenIlan[] = [];
   for (const [kaynakId, bulunanlar] of kaynagaGore) {
@@ -1202,6 +1229,9 @@ export async function kuyrugunuCoz(
     } else if (tonajMesaj.has(id)) {
       hata = "Tonaj aşımı → ELENDI kaydı";
       ata(id, "tonajRed");
+    } else if (parcaMesaj.has(id)) {
+      hata = "Parça yük → ELENDI kaydı";
+      ata(id, "aracRed");
     } else if (aracMesaj.has(id)) {
       hata = "Araç tipi → ELENDI kaydı (Şüpheli)";
       ata(id, "aracRed");
