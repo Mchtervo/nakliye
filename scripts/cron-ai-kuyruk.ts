@@ -5,7 +5,8 @@
  */
 import { prisma } from "@/lib/prisma";
 import { kuyrugaBakim, kuyrugunuCoz } from "@/lib/kaynaklar/telegramUye";
-import { aiKapaliMi } from "@/lib/ai/istemci";
+import { AiHatasi, aiKapaliMi } from "@/lib/ai/istemci";
+import { krediBekleniyorMu, krediBittiIsaretle, krediGeriGeldi } from "@/lib/ai/krediDurumu";
 import { butceKesikHatirlat, butceMusaitMi } from "@/lib/ai/butce";
 
 async function main() {
@@ -18,6 +19,12 @@ async function main() {
   if (!(await butceMusaitMi())) {
     const kalan = await prisma.hamMesaj.count({ where: { islendi: false } });
     await butceKesikHatirlat(kalan);
+    return;
+  }
+
+  // Kredi bittiyse 15 dakikada bir dene; arada liste de silinmesin (yenileme gelmiyor)
+  if (await krediBekleniyorMu()) {
+    console.log("[cron-ai-kuyruk] OpenAI kredisi bitti — bekleniyor.");
     return;
   }
 
@@ -57,7 +64,21 @@ async function main() {
     console.warn("[cron-ai-kuyruk] sessiz kaynak", e);
   }
 
-  const rapor = await kuyrugunuCoz(22);
+  let rapor: Awaited<ReturnType<typeof kuyrugunuCoz>>;
+  try {
+    rapor = await kuyrugunuCoz(22);
+  } catch (e) {
+    if (e instanceof AiHatasi && e.kod === "KREDI_BITTI") {
+      await krediBittiIsaretle();
+      console.warn("[cron-ai-kuyruk] OpenAI kredisi bitti — mesajlar beklemede.");
+      return;
+    }
+    throw e;
+  }
+  if ((rapor.cagriSayisi ?? 0) > 0) {
+    const geri = await krediGeriGeldi();
+    if (geri > 0) console.log(`[cron-ai-kuyruk] kredi geldi: ${geri} mesaj yeniden sırada`);
+  }
   console.log(
     JSON.stringify({
       islenen: rapor.islenen,

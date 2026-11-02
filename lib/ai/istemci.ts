@@ -24,6 +24,7 @@ export function aiSertDurdurma(hata: unknown): boolean {
     hata instanceof AiHatasi &&
     (hata.kod === "TEST_TAVAN" ||
       hata.kod === "BUTCE_DOLDU" ||
+      hata.kod === "KREDI_BITTI" ||
       hata.kod === "AI_KAPALI" ||
       hata.kod === "TEST_IZIN_YOK")
   );
@@ -265,6 +266,10 @@ async function istekAt(
 
       if (!cevap.ok) {
         const govdeMetni = await cevap.text().catch(() => "");
+        // Kredi bitti: geçici değil, tekrar denemek deneme hakkını yakar
+        if (cevap.status === 429 && /insufficient_quota|credit_balance_exhausted/.test(govdeMetni)) {
+          throw new AiHatasi("OpenAI kredisi bitti — ilan çözümü durdu.", "KREDI_BITTI");
+        }
         if (cevap.status === 429 || cevap.status >= 500) {
           sonGecici = new AiHatasi(
             `OpenAI geçici hata (${cevap.status}).`,
