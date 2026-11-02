@@ -930,6 +930,54 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
   return { ilanlar, bolgeElenen, bolgeKirilim, modelCikti, ele };
 }
 
+const FIRMA_KELIME = /\b(lojistik|nakliyat|nakliye|tasimacilik|ltd|sti|tic|san|insaat|firma)\b/;
+const INER_KELIME = /\b(iner|indirir|indirme|bosaltir|bosaltma|teslim|teslimat)\b/;
+const YUKLER_KELIME = /\b(yukler|yuklenir|yuklenecek|yukleme|yuklemeli|cikisli|cikis|sarar)\b/;
+
+/**
+ * Ok/tire olmadan alt alta yazılmış rota: "KOCAELİ GEBZE 📍\nANKARA TEMELLİ 📍".
+ * AI bunu iki ayrı varışsız çıkış sanıyor. Kısa mesajda yalnız iki kısa yer
+ * satırı varsa (rakam, firma adı, satır içi ok/tire yok) ilki çıkış, ikincisi
+ * varış; "MENEMEN İNER / BURSA YÜKLER" gibi ters yazımda yön çevrilir.
+ */
+export function altAltaRota(
+  metin: string
+): { nereden: string; cikisIl: string; nereye: string; varisIl: string } | null {
+  if (metin.length >= 400) return null;
+  // Yurt dışı rota (yabancı ülke adı geçince ikinci yer satırı varış olmayabilir)
+  if ((metin.match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) ?? []).some((b) => b !== "🇹🇷")) return null;
+  if (/\b(romanya|gurcistan|bulgaristan|azerbaycan|rusya|iran|irak|suriye|yunanistan|yurtdisi|ihracat|is ilan\w*)\b/.test(sadelestir(metin))) return null;
+  const satirlar = metin
+    .replace(/\|/g, "\n")
+    .replace(/([📍🚛🚚⛔✨⭐🟡🔴🏀✈️▶️👉•●▪✅🔸])/gu, "\n$1")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const yerler: { satir: string; sade: string; il: string }[] = [];
+  for (const satir of satirlar) {
+    const iller = [...new Set(illeriBul(satir))];
+    if (iller.length === 0) continue;
+    const sade = sadelestir(satir);
+    if (
+      iller.length > 1 ||
+      sade.length > 40 ||
+      /\d/.test(sade) ||
+      FIRMA_KELIME.test(sade) ||
+      /[-–—>➡→⏩/]/u.test(satir)
+    ) {
+      return null;
+    }
+    yerler.push({ satir: satir.replace(/[^\p{L}\s]/gu, " ").replace(/\s+/g, " ").trim(), sade, il: iller[0] });
+  }
+  if (yerler.length !== 2 || yerler[0].il === yerler[1].il) return null;
+  let [cikis, varis] = yerler;
+  const ilkIner = INER_KELIME.test(cikis.sade);
+  const ikinciYukler = YUKLER_KELIME.test(varis.sade);
+  if (ilkIner && ikinciYukler) [cikis, varis] = [varis, cikis];
+  else if (ilkIner || ikinciYukler) return null;
+  return { nereden: cikis.satir, cikisIl: cikis.il, nereye: varis.satir, varisIl: varis.il };
+}
+
 /**
  * Ham metinden "ANKARA YÜKLEME" satırlarını çıkar (AI kaçırdıysa).
  */
@@ -1130,6 +1178,25 @@ export async function mesajlariCozumle(
     bolgeKirilim = bolgeKirilimTopla(bolgeKirilim, rapor.bolgeKirilim);
     modelCikti += rapor.modelCikti;
     ele = cozumEleTopla(ele, rapor.ele);
+  }
+
+  // Alt alta rota: AI hepsini varışsız çıkış saydıysa ikinci yer satırı varıştır
+  for (const m of gecerli) {
+    const ait = ilanlar.filter((x) => x.anahtar === m.anahtar);
+    if (ait.length === 0 || ait.some((x) => x.ilan.varisIl)) continue;
+    const rota = altAltaRota(m.metin);
+    if (!rota) continue;
+    const telefonlar = new Set<string>();
+    const onarilan: MesajIlani[] = [];
+    for (const x of ait) {
+      const tel = x.ilan.telefon || "";
+      if (telefonlar.has(tel)) continue;
+      telefonlar.add(tel);
+      onarilan.push({ anahtar: m.anahtar, ilan: { ...x.ilan, ...rota, koridorTipi: null } });
+    }
+    for (const x of ait) ilanlar.splice(ilanlar.indexOf(x), 1);
+    ilanlar.push(...onarilan);
+    console.log(`[ilanCozumle] ALT_ALTA_ROTA #${m.anahtar} ${rota.cikisIl}→${rota.varisIl} (${onarilan.length} ilan)`);
   }
 
   if (bolgeElenen > 0 || ele.aiCevapBos > 0 || ele.rotaYok > 0) {
