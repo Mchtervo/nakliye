@@ -47,6 +47,41 @@ const SIFIR_ILAN_MIN_MESAJ = 20;
 /** Bu kadar mesajda isabet %4'ün altındaysa sustur. */
 const DUSUK_MIN_MESAJ = 40;
 const DUSUK_ORAN = 0.04;
+/**
+ * Yük adayı: telefon + koridordaki en az iki il geçen mesaj (AI'siz ucuz ölçü).
+ * Aynı ilan birçok grupta paylaşılınca ilan yalnız ilk yakalayan gruba
+ * yazılıyordu; büyük genel gruplar "ilan getirmiyor" görünüp susturuluyordu.
+ * Aday oranı yüksek grup bu yüzden susturulmaz (ölçüm: 3 günde susturulan
+ * 1420 mesajın 735'i aday çıktı).
+ */
+const ADAY_MIN = 10;
+const ADAY_ORAN = 0.25;
+const TELEFON = /0?5d{2}[s.-]?d{3}[s.-]?d{2}[s.-]?d{2}/;
+
+function yukAdayiMi(metin: string, koridor: Set<string>): boolean {
+  if (!TELEFON.test(metin)) return false;
+  return [...new Set(illeriBul(metin))].filter((il) => koridor.has(il)).length >= 2;
+}
+
+/** Kaynak başına son penceredeki mesaj ve yük adayı sayısı (susturulmuş mesajlar dahil). */
+async function adayOranlari(ids: number[], bas: Date, koridor: Set<string>): Promise<Map<number, { mesaj: number; aday: number }>> {
+  const sonuc = new Map<number, { mesaj: number; aday: number }>();
+  if (ids.length === 0) return sonuc;
+  const mesajlar = await prisma.hamMesaj.findMany({ where: { kaynakId: { in: ids }, createdAt: { gte: bas } }, select: { kaynakId: true, metin: true } });
+  for (const m of mesajlar) {
+    if (!m.kaynakId) continue;
+    const o = sonuc.get(m.kaynakId) ?? { mesaj: 0, aday: 0 };
+    o.mesaj += 1;
+    if (yukAdayiMi(m.metin, koridor)) o.aday += 1;
+    sonuc.set(m.kaynakId, o);
+  }
+  return sonuc;
+}
+
+function adayYuksek(o: { mesaj: number; aday: number } | undefined): boolean {
+  return Boolean(o && o.aday >= ADAY_MIN && o.aday / o.mesaj >= ADAY_ORAN);
+}
+
 /** Grup adı yalnız koridor dışı bölgeyi anıyorsa (Doğu, Güneydoğu, Trakya…). */
 const DIS_BOLGE = /\b(guneydogu|dogu bolgesi|dogu anadolu|dogu karadeniz|trakya)\b/;
 
@@ -73,7 +108,8 @@ function adKoridorDisiMi(ad: string, koridor: Set<string>): boolean {
 export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<SessizKaynak[]> {
   const bugun = new Date(simdi.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const son = await prisma.ayar.findUnique({ where: { anahtar: SON_KONTROL_ANAHTAR } });
-  if (son?.deger === bugun) return sessizKaynaklar(simdi);
+  // ":aday" eki: aday kuralı geldiği gün liste bir kez yeniden değerlendirilir
+  if (son?.deger === `${bugun}:aday`) return sessizKaynaklar(simdi);
 
   const bas = new Date(simdi.getTime() - PENCERE_GUN * GUN_MS);
   const koridor = new Set(koridorIlKumesi((await aiTercihleriOku()).koridorIller));
@@ -90,7 +126,9 @@ export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<Se
   }).then((l) => l.filter((k) => !ist.has(k.id)));
   const ad = new Map(kaynaklar.map((k) => [k.id, k.ad]));
   const bitis = new Date(simdi.getTime() + SURE_GUN * GUN_MS).toISOString();
-  const yeni = new Map<number, SessizKaynak>(mevcut.map((s) => [s.id, s]));
+  const oranlar = await adayOranlari([...new Set([...kaynaklar.map((k) => k.id), ...mevcut.map((m) => m.id)])], bas, koridor);
+  // Verimsiz diye susturulmuş ama yük adayı yüksek gruplar hemen açılır (koridor dışı adlılar kalır)
+  const yeni = new Map<number, SessizKaynak>(mevcut.filter((s) => !(s.sebep.startsWith("7 günde") && adayYuksek(oranlar.get(s.id)))).map((s) => [s.id, s]));
 
   for (const k of kaynaklar) {
     if (!yeni.has(k.id) && adKoridorDisiMi(k.ad, koridor)) {
@@ -101,6 +139,7 @@ export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<Se
     if (!a.kaynakId || !ad.has(a.kaynakId) || yeni.has(a.kaynakId)) continue;
     const ilan = ilanSay.get(a.kaynakId) ?? 0;
     const mesaj = a._count;
+    if (adayYuksek(oranlar.get(a.kaynakId))) continue;
     if ((ilan === 0 && mesaj >= SIFIR_ILAN_MIN_MESAJ) || (mesaj >= DUSUK_MIN_MESAJ && ilan / mesaj < DUSUK_ORAN)) {
       yeni.set(a.kaynakId, {
         id: a.kaynakId,
@@ -119,8 +158,8 @@ export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<Se
   });
   await prisma.ayar.upsert({
     where: { anahtar: SON_KONTROL_ANAHTAR },
-    create: { anahtar: SON_KONTROL_ANAHTAR, deger: bugun },
-    update: { deger: bugun },
+    create: { anahtar: SON_KONTROL_ANAHTAR, deger: `${bugun}:aday` },
+    update: { deger: `${bugun}:aday` },
   });
 
   const eklenen = liste.filter((s) => !mevcut.some((m) => m.id === s.id));

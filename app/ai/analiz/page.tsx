@@ -1,3 +1,4 @@
+import AcikKabuk from "@/components/AcikKabuk";
 import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -28,7 +29,7 @@ function Satir({
   );
 }
 
-export default async function AiAnalizSayfasi() {
+async function AiAnalizSayfasiIcerik() {
   await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const [sonAnaliz, metrikler] = await Promise.all([
     prisma.aiAnaliz.findFirst({ orderBy: { tarih: "desc" } }),
@@ -226,4 +227,9 @@ export default async function AiAnalizSayfasi() {
       )}
     </div>
   );
+}
+
+/** Yeni görünüm: lacivert başlık + açık tema (içerik aynı) */
+export default async function AiAnalizSayfasi(...args: Parameters<typeof AiAnalizSayfasiIcerik>) {
+  return <AcikKabuk>{await AiAnalizSayfasiIcerik(...args)}</AcikKabuk>;
 }

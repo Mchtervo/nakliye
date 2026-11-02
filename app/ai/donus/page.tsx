@@ -1,3 +1,4 @@
+import AcikKabuk from "@/components/AcikKabuk";
 import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +10,7 @@ import { SUPHE_SINIRI } from "@/lib/kaynaklar/filtre";
 
 export const dynamic = "force-dynamic";
 
-export default async function DonusYukuSayfasi() {
+async function DonusYukuSayfasiIcerik() {
   await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const talepler = await prisma.donusTalebi.findMany({
     where: { aktif: true },
@@ -150,4 +151,9 @@ export default async function DonusYukuSayfasi() {
       </div>
     </div>
   );
+}
+
+/** Yeni görünüm: lacivert başlık + açık tema (içerik aynı) */
+export default async function DonusYukuSayfasi(...args: Parameters<typeof DonusYukuSayfasiIcerik>) {
+  return <AcikKabuk>{await DonusYukuSayfasiIcerik(...args)}</AcikKabuk>;
 }

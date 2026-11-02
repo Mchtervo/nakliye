@@ -1,3 +1,4 @@
+import AcikKabuk from "@/components/AcikKabuk";
 import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -6,7 +7,7 @@ import { tlYaz } from "@/lib/para";
 
 export const dynamic = "force-dynamic";
 
-export default async function AiMerkeziSayfasi() {
+async function AiMerkeziSayfasiIcerik() {
   await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const [yeniIlan, donusEslesme, acikTalep, adayFirma, sonAnaliz, kaynakSayisi] =
     await Promise.all([
@@ -185,4 +186,9 @@ export default async function AiMerkeziSayfasi() {
       )}
     </div>
   );
+}
+
+/** Yeni görünüm: lacivert başlık + açık tema (içerik aynı) */
+export default async function AiMerkeziSayfasi(...args: Parameters<typeof AiMerkeziSayfasiIcerik>) {
+  return <AcikKabuk>{await AiMerkeziSayfasiIcerik(...args)}</AcikKabuk>;
 }

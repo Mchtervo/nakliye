@@ -1,3 +1,4 @@
+import AcikKabuk from "@/components/AcikKabuk";
 import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { cikisYap } from "@/app/auth-actions";
@@ -64,7 +65,7 @@ function DurumRozeti({ tamam, ad }: { tamam: boolean; ad: string }) {
   );
 }
 
-export default async function AyarlarSayfasi() {
+async function AyarlarSayfasiIcerik() {
   await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const ay = bugunAy();
 
@@ -559,4 +560,9 @@ export default async function AyarlarSayfasi() {
       </section>
     </div>
   );
+}
+
+/** Yeni görünüm: lacivert başlık + açık tema (içerik aynı) */
+export default async function AyarlarSayfasi(...args: Parameters<typeof AyarlarSayfasiIcerik>) {
+  return <AcikKabuk>{await AyarlarSayfasiIcerik(...args)}</AcikKabuk>;
 }

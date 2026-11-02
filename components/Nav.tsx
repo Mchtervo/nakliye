@@ -531,7 +531,10 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
   const ana =
     pathname === "/" ||
     pathname.startsWith("/ana-onizleme") ||
-    pathname === "/ai/yukler" ||
+    pathname === "/ai" ||
+    pathname.startsWith("/ai/") ||
+    pathname === "/ayarlar" ||
+    pathname === "/ana-ekran" ||
     pathname === "/yukler" ||
     pathname.startsWith("/yukler/") ||
     pathname === "/plan" ||

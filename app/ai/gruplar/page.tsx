@@ -1,3 +1,4 @@
+import AcikKabuk from "@/components/AcikKabuk";
 import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { grupDurumlari } from "@/lib/kaynaklar/telegramUye";
@@ -16,7 +17,7 @@ function isabetSirasi(a: number | null, b: number | null): number {
   return aa - bb;
 }
 
-export default async function GrupKaliteSayfasi() {
+async function GrupKaliteSayfasiIcerik() {
   await yoneticiSayfasi(); // üye adres yazsa da açılmaz
   const sayacGun = await sayacBaslangicGaranti();
   const gruplar = (await grupDurumlari()).filter(
@@ -148,4 +149,9 @@ export default async function GrupKaliteSayfasi() {
       </div>
     </div>
   );
+}
+
+/** Yeni görünüm: lacivert başlık + açık tema (içerik aynı) */
+export default async function GrupKaliteSayfasi(...args: Parameters<typeof GrupKaliteSayfasiIcerik>) {
+  return <AcikKabuk>{await GrupKaliteSayfasiIcerik(...args)}</AcikKabuk>;
 }

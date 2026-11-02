@@ -1,3 +1,4 @@
+import AcikKabuk from "@/components/AcikKabuk";
 import { yoneticiSayfasi } from "@/lib/yetki";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -26,7 +27,7 @@ function whatsappLinki(telefon: string): string | null {
   return `https://wa.me/${tam}`;
 }
 
-export default async function AdayFirmalarSayfasi({
+async function AdayFirmalarSayfasiIcerik({
   searchParams,
 }: {
   searchParams: Promise<{ sekme?: string }>;
@@ -197,4 +198,9 @@ export default async function AdayFirmalarSayfasi({
       )}
     </div>
   );
+}
+
+/** Yeni görünüm: lacivert başlık + açık tema (içerik aynı) */
+export default async function AdayFirmalarSayfasi(...args: Parameters<typeof AdayFirmalarSayfasiIcerik>) {
+  return <AcikKabuk>{await AdayFirmalarSayfasiIcerik(...args)}</AcikKabuk>;
 }
