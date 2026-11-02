@@ -38,6 +38,7 @@ import {
 import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
+import { kesintiMuafBaslangici } from "@/lib/ai/krediDurumu";
 import { ilBul } from "@/lib/iller";
 import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
 import { araciUyuyorMu, ilgilileriSuz } from "@/lib/kaynaklar/filtre";
@@ -769,7 +770,9 @@ export async function kuyrugunuCoz(
   }
 
   // 2 saatten önce paylaşılmış mesaj: iş büyük ihtimalle verildi; AI'ye gitmez.
+  // AI kesintisinde bekleyenler hariç (kesinti bitince bir süre muaf).
   const eskiSinir = new Date(Date.now() - YENI_ILAN_MS);
+  const muafBas = await kesintiMuafBaslangici();
   const eskiAtilan = await prisma.hamMesaj.updateMany({
     where: {
       islendi: false,
@@ -777,6 +780,7 @@ export async function kuyrugunuCoz(
         { mesajZamani: { lt: eskiSinir } },
         { mesajZamani: null, createdAt: { lt: eskiSinir } },
       ],
+      ...(muafBas ? { createdAt: { lt: muafBas } } : {}),
     },
     data: { islendi: true, hata: "2 saatten eski paylaşım — işlenmedi" },
   });

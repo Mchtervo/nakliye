@@ -11,7 +11,22 @@ const YOKLAMA_DK = 15;
 /** Kesinti fark edilmeden önce yanan mesajlar için geriye bakış. */
 const GERI_SAAT = 3;
 
+/** Kesinti bitince bekleyen mesajlar bu süre "2 saatten eski" kuralına takılmaz. */
+const MUAF = "ai_kesinti_muaf";
+const MUAF_SAAT = 2;
+
 type Durum = { bas: string; son: string };
+
+/** Muafiyet sürüyorsa: bu andan sonra gelen mesajlar eski diye atılmaz. */
+export async function kesintiMuafBaslangici(simdi = new Date()): Promise<Date | null> {
+  const k = await prisma.ayar.findUnique({ where: { anahtar: MUAF } });
+  try {
+    const m = k?.deger ? (JSON.parse(k.deger) as { bas: string; bitis: string }) : null;
+    return m && new Date(m.bitis) > simdi ? new Date(m.bas) : null;
+  } catch {
+    return null;
+  }
+}
 
 async function oku(): Promise<Durum | null> {
   const k = await prisma.ayar.findUnique({ where: { anahtar: ANAHTAR } });
@@ -63,6 +78,9 @@ export async function krediGeriGeldi(): Promise<number> {
     data: { islendi: false, denemeSayisi: 0, hata: null },
   });
   await prisma.ayar.delete({ where: { anahtar: ANAHTAR } }).catch(() => null);
+  // Geri alınanlar sıraya girene kadar 2 saati geçmiş olur; atılmasınlar
+  const muaf = JSON.stringify({ bas: bas.toISOString(), bitis: new Date(Date.now() + MUAF_SAAT * 3_600_000).toISOString() });
+  await prisma.ayar.upsert({ where: { anahtar: MUAF }, create: { anahtar: MUAF, deger: muaf }, update: { deger: muaf } });
   await gelenKutusunaEkle({
     baslik: "AI yeniden çalışıyor",
     metin: `OpenAI kredisi geldi. Kesinti sırasında bekleyen ${r.count} mesaj yeniden sıraya alındı.`,

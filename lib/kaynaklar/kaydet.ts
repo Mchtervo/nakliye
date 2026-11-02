@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 import { ilBul, sadelestir } from "@/lib/iller";
 import { guvenliKirp } from "@/lib/metin";
+import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 import { gorusmeKuyrugaAl } from "@/lib/kaynaklar/waGorusme";
 import { numaraAnahtari, yanlisNumaralar } from "@/lib/kaynaklar/yanlisNumara";
 
@@ -283,6 +284,16 @@ export async function ilanlariKaydet(
   const hedefDurum = opts?.durum || "YENI";
   const elendiMi = hedefDurum === "ELENDI";
   const yanlislar = await yanlisNumaralar();
+  // Geç işlenen mesaj (AI kesintisi): ilan paylaşım anıyla yaşlansın, "yeni" diye bildirilmesin
+  const hamIdler = bulunanlar.map((b) => b.hamMesajId).filter((id): id is number => id != null);
+  const gecPaylasim = new Map<number, Date>();
+  if (hamIdler.length > 0) {
+    const gec = await prisma.hamMesaj.findMany({
+      where: { id: { in: hamIdler }, mesajZamani: { lt: new Date(Date.now() - YENI_ILAN_MS) } },
+      select: { id: true, mesajZamani: true },
+    });
+    for (const m of gec) if (m.mesajZamani) gecPaylasim.set(m.id, m.mesajZamani);
+  }
 
   for (const {
     ilan: hamIlan,
@@ -448,7 +459,7 @@ export async function ilanlariKaydet(
           bildirildi: elendiMi,
           dedupHash,
           donusTalebiId,
-          sonGorulme: simdi,
+          sonGorulme: (hamMesajId != null && gecPaylasim.get(hamMesajId)) || simdi,
           gonderenUserId: gonderenUserId || null,
           kaynakMesajId: kaynakMesajId ?? null,
           hamMesajId: hamMesajId ?? null,
