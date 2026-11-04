@@ -29,7 +29,7 @@ export async function ilanModeliDegistir(mod: "EVREN" | "NANO"): Promise<void> {
   await yoneticiIslemi();
   const { ILAN_MODELI_ANAHTAR } = await import("@/lib/ai/ilanCozumle");
   if (mod === "EVREN") {
-    const deger = "evren:deepseek-v4.1-flash";
+    const deger = "evren:gemma-4-31b";
     await prisma.ayar.upsert({ where: { anahtar: ILAN_MODELI_ANAHTAR }, create: { anahtar: ILAN_MODELI_ANAHTAR, deger }, update: { deger } });
   } else {
     await prisma.ayar.deleteMany({ where: { anahtar: ILAN_MODELI_ANAHTAR } });

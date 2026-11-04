@@ -500,7 +500,9 @@ export type CozumFiltre = {
 
 /** Ayar: ilan okuma modeli. "evren:<model>" → önce EVREN (ücretsiz), olmazsa nano. Boş → nano. */
 export const ILAN_MODELI_ANAHTAR = "ai_ilan_modeli";
-const EVREN_ZAMAN_ASIMI_MS = 40_000;
+const EVREN_ZAMAN_ASIMI_MS = 30_000;
+/** EVREN'de mesajlar tek tek gider; aynı anda en çok bu kadarı (gateway'i boğmasın). */
+const EVREN_ESZAMANLI = 4;
 /**
  * Gecikme tavanı: kuyrukta bu kadar dakikadan eski mesaj varsa EVREN denenmez,
  * doğrudan nano (kuyruk birikmesin; hedef: ilan en geç ~10 dk içinde listede).
@@ -521,11 +523,20 @@ async function kuyrukYasiDk(): Promise<number> {
 let ilanModeliOnbellek: { deger: string | null; zaman: number } | null = null;
 
 async function ilanModeli(): Promise<string | null> {
+  if (process.env.AI_ILAN_MODELI) return process.env.AI_ILAN_MODELI;
   if (ilanModeliOnbellek && Date.now() - ilanModeliOnbellek.zaman < 60_000) return ilanModeliOnbellek.deger;
   const k = await prisma.ayar.findUnique({ where: { anahtar: ILAN_MODELI_ANAHTAR } }).catch(() => null);
   const deger = k?.deger?.trim() || null;
   ilanModeliOnbellek = { deger, zaman: Date.now() };
   return deger;
+}
+
+/** EVREN açık ve kuyruk geride değilse true: mesajlar paketlenmeden tek tek işlenir. */
+async function evrenTekTekMi(filtre: CozumFiltre): Promise<boolean> {
+  if (filtre.model) return false;
+  const m = await ilanModeli();
+  if (!m || !m.startsWith("evren:")) return false;
+  return (await kuyrukYasiDk()) < EVREN_MAX_KUYRUK_DK;
 }
 
 /** Net rota sinyali: telefon var ve en az 2 farklı il adı geçiyor. */
@@ -1232,15 +1243,22 @@ export async function mesajlariCozumle(
   let modelCikti = 0;
   let ele = bosCozumEle();
 
-  for (let i = 0; i < paketler.length; i++) {
-    const kaynak =
-      paketler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti";
-    const rapor = await paketKesilmeyeDiren(
-      paketler[i],
-      kapsamIlleri,
-      kaynak,
-      filtre
-    );
+  // EVREN paketli işte yavaş ve gevşek: mesajlar tek tek, birkaçı aynı anda (sıra korunur)
+  const tekTek = await evrenTekTekMi(filtre);
+  const isler = tekTek ? paketler.flatMap((p) => p.map((m) => [m])) : paketler;
+  const raporlar: Awaited<ReturnType<typeof paketKesilmeyeDiren>>[] = new Array(isler.length);
+  let siradaki = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(tekTek ? EVREN_ESZAMANLI : 1, isler.length) }, async () => {
+      while (siradaki < isler.length) {
+        const i = siradaki++;
+        const kaynak = isler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti";
+        raporlar[i] = await paketKesilmeyeDiren(isler[i], kapsamIlleri, kaynak, filtre);
+      }
+    })
+  );
+
+  for (const rapor of raporlar) {
     ilanlar.push(...rapor.ilanlar);
     bolgeElenen += rapor.bolgeElenen;
     bolgeKirilim = bolgeKirilimTopla(bolgeKirilim, rapor.bolgeKirilim);
