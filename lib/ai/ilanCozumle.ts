@@ -528,10 +528,17 @@ async function ilanModeli(): Promise<string | null> {
   return deger;
 }
 
+/** Net rota sinyali: telefon var ve en az 2 farklı il adı geçiyor. */
+function rotaSinyaliVarMi(metin: string): boolean {
+  return telefonVarMi(metin) && new Set(illeriBul(metin)).size >= 2;
+}
+
 /** İlan okuma çağrısı: A/B modeli verildiyse o; değilse ayardaki model (EVREN ise nano yedekli). */
 async function ilanJson<T>(
   filtre: CozumFiltre,
-  secenek: Omit<Parameters<typeof aiJson>[0], "model">
+  secenek: Omit<Parameters<typeof aiJson>[0], "model">,
+  /** EVREN cevabı eksik görünürse (örn. net rotalı mesajdan ilan çıkmadı) aynı iş nano'ya verilir. */
+  gecerli?: (cevap: T) => boolean
 ): Promise<T> {
   if (filtre.model) return aiJson<T>({ ...secenek, model: filtre.model });
   const model = (await ilanModeli()) || MODEL_HIZLI;
@@ -543,13 +550,19 @@ async function ilanJson<T>(
     return aiJson<T>({ ...secenek, model: MODEL_HIZLI });
   }
   // EVREN ücretsiz ama yavaş / arada 503: olmazsa aynı parça nano'ya
+  let evrenCevap: T;
   try {
-    return await aiJson<T>({ ...secenek, model, zamanAsimiMs: EVREN_ZAMAN_ASIMI_MS });
+    evrenCevap = await aiJson<T>({ ...secenek, model, zamanAsimiMs: EVREN_ZAMAN_ASIMI_MS });
   } catch (e) {
     if (aiSertDurdurma(e)) throw e;
     console.warn(`[ilanCozumle] EVREN olmadı (${e instanceof Error ? e.message.slice(0, 80) : e}) → ${MODEL_HIZLI}`);
     return aiJson<T>({ ...secenek, model: MODEL_HIZLI });
   }
+  if (gecerli && !gecerli(evrenCevap)) {
+    console.log(`[ilanCozumle] EVREN eksik cevap (net rotalı mesajdan ilan çıkmadı) → ${MODEL_HIZLI}`);
+    return aiJson<T>({ ...secenek, model: MODEL_HIZLI });
+  }
+  return evrenCevap;
 }
 
 async function tekParcaCozumle(
@@ -572,7 +585,7 @@ async function tekParcaCozumle(
     caba: "none",
     maxCikti: AI_MAX_CIKTI,
     kaynak,
-  });
+  }, (c) => (c.ilanlar?.length ?? 0) > 0 || !rotaSinyaliVarMi(parca));
   console.log(
     `[ilanCozumle] hamCevap ${kaynak}: ` +
       JSON.stringify(cikti).slice(0, 500)
@@ -878,6 +891,9 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     caba: "none",
     maxCikti: AI_MAX_CIKTI,
     kaynak,
+  }, (c) => {
+    const var0 = new Set((c.ilanlar ?? []).map((i) => i.mesajNo));
+    return paket.every((m, sira) => var0.has(sira + 1) || !rotaSinyaliVarMi(m.metin));
   });
   console.log(
     `[ilanCozumle] hamCevap ${kaynak}: ` + JSON.stringify(cikti).slice(0, 500)

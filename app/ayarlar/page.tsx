@@ -32,6 +32,7 @@ import {
 import { elemeSayaclariOku } from "@/lib/kaynaklar/elemeSayac";
 import { aiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
 import AiMaliyetPaneli from "@/components/AiMaliyetPaneli";
+import IlanModeliAnahtari from "@/components/IlanModeliAnahtari";
 import SessizGruplar from "@/components/SessizGruplar";
 import {
   WEB_SITELER,
@@ -86,6 +87,7 @@ async function AyarlarSayfasiIcerik() {
     sayacBaslangic,
     waDavetler,
     waTakip,
+    ilanModeliAyar,
   ] = await Promise.all([
     prisma.ayar.findUnique({ where: { anahtar: "hizli_ara_telefon" } }),
     aiTercihleriOku(),
@@ -100,6 +102,7 @@ async function AyarlarSayfasiIcerik() {
     prisma.ilanKaynagi.count({
       where: { tur: WHATSAPP_GRUP, aktif: true, durum: "AKTIF" },
     }),
+    prisma.ayar.findUnique({ where: { anahtar: "ai_ilan_modeli" } }),
   ]);
 
   const tercihGuncel = { ...tercih, sayacBaslangic };
@@ -198,6 +201,8 @@ async function AyarlarSayfasiIcerik() {
         <YenidenIsleButonu />
 
         <AiMaliyetPaneli ozet={maliyet} />
+
+        <IlanModeliAnahtari evren={Boolean(ilanModeliAyar?.deger?.startsWith("evren:"))} />
 
         <SessizGruplar />
 

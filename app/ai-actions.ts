@@ -24,6 +24,19 @@ import type { KaynakTuru } from "@/lib/kaynaklar/tip";
 
 export type AiSonuc = { hata: string } | { bilgi: string } | null;
 
+/** Ayarlar: ilan okuma modeli (EVREN önce / yalnız nano). Yalnız yönetici. */
+export async function ilanModeliDegistir(mod: "EVREN" | "NANO"): Promise<void> {
+  await yoneticiIslemi();
+  const { ILAN_MODELI_ANAHTAR } = await import("@/lib/ai/ilanCozumle");
+  if (mod === "EVREN") {
+    const deger = "evren:deepseek-v4.1-flash";
+    await prisma.ayar.upsert({ where: { anahtar: ILAN_MODELI_ANAHTAR }, create: { anahtar: ILAN_MODELI_ANAHTAR, deger }, update: { deger } });
+  } else {
+    await prisma.ayar.deleteMany({ where: { anahtar: ILAN_MODELI_ANAHTAR } });
+  }
+  revalidatePath("/ayarlar");
+}
+
 /** Yük ekranı: WhatsApp eşleme kodu dolduysa sunucuya girmeden yenisini iste. */
 export async function whatsappYeniKodIste(): Promise<void> {
   await yoneticiIslemi();
