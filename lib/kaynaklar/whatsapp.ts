@@ -470,3 +470,94 @@ export function gonderenTelefonu(key: {
   }
   return null;
 }
+
+// --- Yurt dışı / kamyonet ağırlıklı gruplardan çıkış ---
+
+const YURT_DISI_KALIP =
+  /\b(romanya|gurcistan|bulgaristan|azerbaycan|baku|tiflis|poti|batum|rusya|moskova|iran|irak|erbil|suriye|yunanistan|almanya|avrupa|ukrayna|kazakistan|ozbekistan|turkmenistan|kirgizistan|tacikistan|afganistan|ihracat|ithalat|transit|gumruk|yurt ?disi|uluslararasi)\b/;
+const KAMYONET_KALIP =
+  /\b(kamyonet|panelvan|panel van|doblo|minivan|pikap|pickup|hafif ticari|kangoo|caddy|fiorino)\b/;
+const CIKIS_GUN = 3;
+const CIKIS_MIN_MESAJ = 15;
+const CIKIS_ORAN = 0.6;
+/** Bu kadardan fazla mesajı AI'den sorunsuz geçtiyse grup işe yarıyor: kalır. */
+const CIKIS_MAX_YARAR = 2;
+const CIKIS_GUNLUK = 2;
+const CIKIS_SAYAC = "whatsapp_cikis_sayac";
+
+export type WaCikisAdayi = { id: number; hedef: string; ad: string; oran: number; mesaj: number; yarar: number };
+
+function yabanciBayrakVar(metin: string): boolean {
+  return (metin.match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) ?? []).some((b) => b !== "🇹🇷");
+}
+
+/**
+ * Son 3 günde mesajlarının çoğu yurt dışı / kamyonet olan ve neredeyse hiç
+ * işe yaramayan WhatsApp grupları. En az 3 gündür takipte olan gruplar.
+ */
+export async function waCikisAdaylari(): Promise<WaCikisAdayi[]> {
+  const bas = new Date(Date.now() - CIKIS_GUN * 86_400_000);
+  const kaynaklar = await prisma.ilanKaynagi.findMany({
+    where: { tur: WHATSAPP_GRUP, aktif: true, durum: "AKTIF", createdAt: { lte: new Date(Date.now() - 86_400_000) } },
+    select: { id: true, hedef: true, ad: true, createdAt: true },
+  });
+  const adaylar: WaCikisAdayi[] = [];
+  for (const k of kaynaklar) {
+    if (!k.hedef.includes("@")) continue;
+    // Adı zaten "yurt dışı" diyorsa 1 gün / 5 mesaj yeter; diğerleri 3 gün / 15 mesaj
+    const adYurtDisi = /\b(yurt ?disi|uluslararasi|international)\b/.test(sadelestir(k.ad));
+    if (!adYurtDisi && k.createdAt > bas) continue;
+    const ms = await prisma.hamMesaj.findMany({
+      where: { kaynakId: k.id, createdAt: { gte: bas } },
+      select: { metin: true, hata: true, islendi: true },
+    });
+    if (ms.length < (adYurtDisi ? 5 : CIKIS_MIN_MESAJ)) continue;
+    const kotu = ms.filter((m) => {
+      const s = sadelestir(m.metin);
+      return YURT_DISI_KALIP.test(s) || yabanciBayrakVar(m.metin) || KAMYONET_KALIP.test(s);
+    }).length;
+    const yarar = ms.filter((m) => m.islendi && m.hata === null).length;
+    const oran = kotu / ms.length;
+    if (oran >= CIKIS_ORAN && yarar <= CIKIS_MAX_YARAR) {
+      adaylar.push({ id: k.id, hedef: k.hedef, ad: k.ad, oran, mesaj: ms.length, yarar });
+    }
+  }
+  return adaylar.sort((a, b) => b.oran - a.oran);
+}
+
+/** Bugün daha kaç gruptan çıkılabilir. */
+export async function waCikisHakki(): Promise<number> {
+  const bugun = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" });
+  const k = await prisma.ayar.findUnique({ where: { anahtar: CIKIS_SAYAC } });
+  try {
+    const d = k?.deger ? (JSON.parse(k.deger) as { gun: string; adet: number }) : null;
+    return CIKIS_GUNLUK - (d?.gun === bugun ? d.adet : 0);
+  } catch {
+    return CIKIS_GUNLUK;
+  }
+}
+
+/** Çıkılan grup pasif olur; davet linki tekrar gelse de girilmez. */
+export async function waCikildiIsaretle(aday: WaCikisAdayi): Promise<void> {
+  const bugun = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" });
+  const kalan = await waCikisHakki();
+  const deger = JSON.stringify({ gun: bugun, adet: CIKIS_GUNLUK - kalan + 1 });
+  await prisma.ayar.upsert({ where: { anahtar: CIKIS_SAYAC }, update: { deger }, create: { anahtar: CIKIS_SAYAC, deger } });
+  await prisma.ilanKaynagi.update({
+    where: { id: aday.id },
+    data: {
+      aktif: false,
+      durum: "PASIF",
+      sonHata: `Çıkıldı: 3 günde ${aday.mesaj} mesajın %${Math.round(aday.oran * 100)}'i yurt dışı/kamyonet`,
+    },
+  });
+}
+
+/** Davetteki grup daha önce çıkılmış (pasif) bir grup mu? */
+export async function waPasifGrupMu(jid: string): Promise<boolean> {
+  const k = await prisma.ilanKaynagi.findUnique({
+    where: { tur_hedef: { tur: WHATSAPP_GRUP, hedef: jid } },
+    select: { durum: true },
+  });
+  return k?.durum === "PASIF";
+}

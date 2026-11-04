@@ -45,6 +45,10 @@ import {
   whatsappTaramaIsaretle,
   yanlisKanalDavetleriniDuzelt,
   yukGrubuAdiMi,
+  waCikildiIsaretle,
+  waCikisAdaylari,
+  waCikisHakki,
+  waPasifGrupMu,
 } from "@/lib/kaynaklar/whatsapp";
 import {
   gelenOzelMesajiIsle,
@@ -414,6 +418,27 @@ function mesajMetni(m: WAMessage): string | null {
   return baslikTel ? `${metin}\nTel: ${baslikTel}` : metin;
 }
 
+/** Yurt dışı / kamyonet ağırlıklı, işe yaramayan gruplardan çık (günde en çok 2). */
+async function gruplardanCik(sock: WASocket) {
+  try {
+    let hak = await waCikisHakki();
+    if (hak <= 0) return;
+    for (const aday of await waCikisAdaylari()) {
+      if (hak <= 0) return;
+      if (aday.hedef.endsWith("@newsletter")) await sock.newsletterUnfollow(aday.hedef);
+      else await sock.groupLeave(aday.hedef);
+      await waCikildiIsaretle(aday);
+      gruplar.delete(aday.hedef);
+      hak -= 1;
+      const oran = Math.round(aday.oran * 100);
+      log(`Gruptan çıkıldı: ${aday.ad} (%${oran} yurt dışı/kamyonet, ${aday.mesaj} mesaj)`);
+      await bildir(`<b>WhatsApp grubundan çıkıldı</b>\n${aday.ad}\n3 günde ${aday.mesaj} mesajın %${oran}'i yurt dışı/kamyonet`);
+    }
+  } catch (e) {
+    uyari("Gruptan çıkılamadı:", e instanceof Error ? e.message.slice(0, 160) : e);
+  }
+}
+
 /** Günde bir grup. Adı yük/nakliye değilse girmez, sonrakine bakar. */
 async function davetlereGir(sock: WASocket) {
   if (!(await katilimHakkiVarMi())) return;
@@ -423,6 +448,10 @@ async function davetlereGir(sock: WASocket) {
     try {
       const bilgi = await sock.groupGetInviteInfo(aday.kod);
       const ad = (bilgi.subject || "").trim();
+      if (bilgi.id && (await waPasifGrupMu(bilgi.id))) {
+        await davetKapat(aday.id, ad || "adsız grup", "Daha önce çıkılmış grup — girilmedi");
+        continue;
+      }
       if (!yukGrubuAdiMi(ad)) {
         await davetKapat(aday.id, ad || "adsız grup", "Yük grubu değil — girilmedi");
         log(`Atlandı (yük grubu değil): ${ad || aday.kod}`);
@@ -622,6 +651,7 @@ async function baglan(): Promise<void> {
       esitlemeZamanlayici = setInterval(() => {
         void gruplariEsitle(sock);
         void davetlereGir(sock);
+        void gruplardanCik(sock);
       }, GRUP_ESITLEME_MS);
       gorusmeZamanlayici = setInterval(() => void gorusmeleriYurut(sock), 60 * 1000);
       kanalZamanlayici = setInterval(() => {
