@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import BildirimZili from "@/components/BildirimZili";
-import { GuncelleDugmesi } from "@/components/Guncelleme";
 import Logo from "@/components/Logo";
 import NavLink from "@/components/NavLink";
 
@@ -667,9 +666,6 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
                 })}
             </div>
           ))}
-          <div className="mt-4">
-            <GuncelleDugmesi className="!px-2.5 !text-[15px]" />
-          </div>
         </nav>
 
         <div className={`mt-3 rounded-2xl p-3.5 ${ana ? "yan-kart" : "border border-white/[0.07] bg-gradient-to-b from-white/[0.06] to-white/[0.02]"}`}>
@@ -736,9 +732,6 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
               <HucreListesi ogeler={grup.ogeler} aktifMi={aktifMi} kapat={kapat} />
             </div>
           ))}
-          <div className="mx-4 mt-4 rounded-xl bg-[#2c2c2e]">
-            <GuncelleDugmesi className="!px-4 !py-3" />
-          </div>
         </IosSheet>
       )}
 
