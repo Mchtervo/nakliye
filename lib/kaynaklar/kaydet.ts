@@ -4,6 +4,7 @@ import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 import { ilBul, sadelestir } from "@/lib/iller";
 import { guvenliKirp } from "@/lib/metin";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
+import { paylasimSay } from "@/lib/paylasimSayac";
 import { gorusmeKuyrugaAl } from "@/lib/kaynaklar/waGorusme";
 import { numaraAnahtari, yanlisNumaralar } from "@/lib/kaynaklar/yanlisNumara";
 
@@ -490,6 +491,11 @@ export async function ilanlariKaydet(
       }
 
       if (elendiMi) continue;
+
+      // Kişi başına kalıcı paylaşım sayacı (ilan 6 saatte silinse de sayı kalır)
+      await paylasimSay(kayit).catch((e) =>
+        console.error(`[kaydet] paylasim sayac #${kayit.id}:`, e instanceof Error ? e.message : e)
+      );
 
       yeniler.push({
         id: kayit.id,

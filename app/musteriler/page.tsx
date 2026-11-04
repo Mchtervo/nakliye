@@ -29,7 +29,7 @@ export default async function MusterilerSayfasi({ searchParams }: { searchParams
       <HareketKok>
         <RaporUst>
           <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-[-0.03em] text-white">Yük sahibi ve komisyoncular</h1>
-          <p className="mt-0.5 text-[13.5px] text-[#c7cffd]">Son 60 günün ilanlarından</p>
+          <p className="mt-0.5 text-[13.5px] text-[#c7cffd]">En çok ilan paylaşandan başlayarak</p>
         </RaporUst>
         <div className="ana-ic relative z-10 -mt-10 space-y-4 pb-8">
           <nav className="yn-sekmeler !grid-cols-3" aria-label="Müşteri türü">
@@ -54,7 +54,9 @@ export default async function MusterilerSayfasi({ searchParams }: { searchParams
                       ad: m.firmaAdi || "İsimsiz ilan sahibi",
                       sinif: m.sinif,
                       guzergah: m.baskinGuzergah,
-                      ozet: `${m.ilanAdet} ilan · ${m.rotaAdet} rota${m.koridorDisi ? " · koridor dışı" : ""}`,
+                      sehirYazi: m.sehirler.length ? `Çıkış: ${m.sehirler.map((s) => `${s.il} %${s.pay}`).join(" · ")}` : null,
+                      sayilar: `Bugün ${m.bugun} · 7 günde ${m.hafta} · toplam ${m.toplam}${m.takipGun < 60 ? ` (${m.takipGun} gündür takipte)` : ""}`,
+                      ozet: `${m.rotaAdet} rota${m.koridorDisi ? " · koridor dışı" : ""}`,
                       isaretli: m.isaretli,
                       sonNot: m.sonNot,
                     }}
@@ -65,7 +67,10 @@ export default async function MusterilerSayfasi({ searchParams }: { searchParams
           </DonemGecis>
           <p className="rp-not">
             <span aria-hidden>ⓘ</span>
-            <span>Sınıflandırma ilanlardan tahmindir. Notların ve işaretlerin yalnız sende görünür.</span>
+            <span>
+              Sayılar listede görünen yeni ilanlardan sayılır (aynı ilanın tekrarı sayılmaz). Sayaç yeni başladı; &quot;gündür takipte&quot; yazanların sayısı her gün büyür.
+              Sınıflandırma tahmindir. Notların ve işaretlerin yalnız sende görünür.
+            </span>
           </p>
         </div>
       </HareketKok>

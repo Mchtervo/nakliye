@@ -3,6 +3,7 @@ import { anaPrisma } from "@/lib/prismaAna";
 import { ilBul } from "@/lib/iller";
 import { koridorIlKumesi } from "@/lib/koridor";
 import { aiTercihleriOku } from "@/lib/ayarlar";
+import { paylasimOzetleri, trGun } from "@/lib/paylasimSayac";
 
 import type { MusteriSinif } from "@/lib/musteriBicim";
 
@@ -29,6 +30,14 @@ export type MusteriOzet = {
   koridorDisi: boolean;
   isaretli: boolean;
   sonNot: string | null;
+  /** Bugün / son 7 gün / toplam paylaşılan ilan (kalıcı sayaç; ilan silinse de kalır) */
+  bugun: number;
+  hafta: number;
+  toplam: number;
+  /** Sayaçta kaç gündür takipte (en az 1) */
+  takipGun: number;
+  /** En çok yük çıkardığı şehirler ve payı (%) */
+  sehirler: { il: string; pay: number }[];
 };
 
 export const MUSTERI_ISARET_ANAHTAR = "musteri_isaret";
@@ -38,6 +47,17 @@ export function telefonNormalize(tel: string | null | undefined): string | null 
   const rakam = tel.replace(/\D/g, "");
   if (rakam.length < 10) return null;
   return rakam.slice(-10);
+}
+
+/** Çıkış şehri dağılımı: en çok 3 şehir, %10 altı gösterilmez. */
+function sehirPaylari(sayac: Map<string, number>): { il: string; pay: number }[] {
+  const toplam = [...sayac.values()].reduce((a, b) => a + b, 0);
+  if (toplam === 0) return [];
+  return [...sayac]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([il, n]) => ({ il, pay: Math.round((n / toplam) * 100) }))
+    .filter((x) => x.pay >= 10);
 }
 
 function baskinAnahtar(sayac: Map<string, number>): string | null {
@@ -182,9 +202,14 @@ export async function musteriHavuzuOku(opts?: {
     koridorIci: number;
     koridorDis: number;
     webKaynak: boolean;
+    bugun: number;
+    hafta: number;
   };
 
   const map = new Map<string, Kova>();
+  const bugunBas = new Date(`${trGun()}T00:00:00+03:00`);
+  const haftaBas = new Date(`${trGun(Date.now() - 6 * 24 * 60 * 60 * 1000)}T00:00:00+03:00`);
+  const kalici = await paylasimOzetleri(gun);
 
   for (const i of ilanlar) {
     const tel = telefonNormalize(i.telefon);
@@ -204,10 +229,14 @@ export async function musteriHavuzuOku(opts?: {
         koridorIci: 0,
         koridorDis: 0,
         webKaynak: false,
+        bugun: 0,
+        hafta: 0,
       };
       map.set(tel, k);
     }
     k.ilanAdet += 1;
+    if (i.createdAt >= bugunBas) k.bugun += 1;
+    if (i.createdAt >= haftaBas) k.hafta += 1;
     if (i.kaynak?.tur === "WEB") k.webKaynak = true;
     if (i.createdAt > k.sonIlan) k.sonIlan = i.createdAt;
     if (i.firmaAdi && (!k.firmaAdi || k.firmaAdi.length < 3)) {
@@ -226,7 +255,7 @@ export async function musteriHavuzuOku(opts?: {
   }
 
   const isaretli = await musteriIsaretOku();
-  const telefonlar = [...map.keys()];
+  const telefonlar = [...new Set([...map.keys(), ...kalici.keys()])];
   const sonNotlar = await musteriSonNotlar(telefonlar);
 
   const sonuc: MusteriOzet[] = [];
@@ -273,16 +302,63 @@ export async function musteriHavuzuOku(opts?: {
       koridorDisi: k.koridorDis > 0 && k.koridorIci === 0,
       isaretli: isaretli.has(k.telefon),
       sonNot: sonNotlar.get(k.telefon) ?? null,
+      bugun: k.bugun,
+      hafta: k.hafta,
+      toplam: k.ilanAdet,
+      takipGun: 1,
+      sehirler: sehirPaylari(k.cikislar),
     });
   }
 
-  // YÜK SAHİBİ önce, sonra sıklığa göre azalan
-  sonuc.sort((a, b) => {
-    if (a.sinif === "YUK_SAHIBI" && b.sinif !== "YUK_SAHIBI") return -1;
-    if (b.sinif === "YUK_SAHIBI" && a.sinif !== "YUK_SAHIBI") return 1;
-    if (a.isaretli !== b.isaretli) return a.isaretli ? -1 : 1;
-    return b.haftalikSiklik - a.haftalikSiklik || b.ilanAdet - a.ilanAdet;
-  });
+  // Kalıcı sayaç: canlı ilanı olanların sayılarını güncelle, olmayanları da listeye ekle
+  const gorulen = new Set<string>();
+  for (const o of sonuc) {
+    gorulen.add(o.telefon);
+    const p = kalici.get(o.telefon);
+    if (!p) continue;
+    o.bugun = p.bugun;
+    o.hafta = p.hafta;
+    o.toplam = Math.max(p.toplam, o.toplam);
+    o.takipGun = p.takipGun;
+    if (p.cikislar.size) o.sehirler = sehirPaylari(p.cikislar);
+    if (!o.firmaAdi && p.firmaAdi) o.firmaAdi = p.firmaAdi;
+  }
+  for (const p of kalici.values()) {
+    if (gorulen.has(p.telefon)) continue;
+    const baskinCikis = baskinAnahtar(p.cikislar);
+    const baskinRota = baskinAnahtar(p.rotalar);
+    const cikisToplam = [...p.cikislar.values()].reduce((a, b) => a + b, 0);
+    const baskinCikisPay = baskinCikis && cikisToplam ? (p.cikislar.get(baskinCikis) || 0) / cikisToplam : 0;
+    // Yük tipi sayaçta tutulmuyor: aynı şehirden çıkış baskınsa benzer yük varsayılır
+    const sinif = siniflandir({ rotaAdet: p.rotalar.size, cikisAdet: p.cikislar.size, ilanAdet: p.toplam, baskinCikisPay, baskinYukPay: baskinCikisPay });
+    if (opts?.sadeceSahip && sinif !== "YUK_SAHIBI") continue;
+    const [c, v] = baskinRota ? baskinRota.split("|") : ["", ""];
+    sonuc.push({
+      telefon: p.telefon,
+      firmaAdi: p.firmaAdi,
+      sinif,
+      cikisIl: baskinCikis,
+      yukTipi: null,
+      ilanAdet: p.toplam,
+      rotaAdet: p.rotalar.size,
+      sonIlan: new Date(`${p.sonGun}T12:00:00+03:00`),
+      baskinCikis,
+      baskinYukTipi: null,
+      baskinGuzergah: baskinRota ? baskinRota.replace("|", " → ") : null,
+      haftalikSiklik: Math.round((p.toplam / Math.max(1, Math.min(gun, p.takipGun) / 7)) * 10) / 10,
+      koridorDisi: Boolean(baskinRota) && !koridor.has(c) && !koridor.has(v),
+      isaretli: isaretli.has(p.telefon),
+      sonNot: sonNotlar.get(p.telefon) ?? null,
+      bugun: p.bugun,
+      hafta: p.hafta,
+      toplam: p.toplam,
+      takipGun: p.takipGun,
+      sehirler: sehirPaylari(p.cikislar),
+    });
+  }
+
+  // En çok ilan paylaşan en üstte (sonra bugünkü paylaşım, sonra son görülme)
+  sonuc.sort((a, b) => b.toplam - a.toplam || b.bugun - a.bugun || b.sonIlan.getTime() - a.sonIlan.getTime());
 
   return sonuc;
 }

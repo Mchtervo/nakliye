@@ -11,6 +11,10 @@ export type MusteriSatirVeri = {
   ad: string;
   sinif: "YUK_SAHIBI" | "KOMISYONCU" | "KARISIK";
   guzergah: string | null;
+  /** "Çıkış: Ankara %75 · İstanbul %25" */
+  sehirYazi: string | null;
+  /** "Bugün 3 · 7 günde 12 · toplam 48" */
+  sayilar: string;
   ozet: string;
   isaretli: boolean;
   sonNot: string | null;
@@ -37,7 +41,9 @@ export default function MusteriSatir({ m: v, idx }: { m: MusteriSatirVeri; idx: 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15.5px] font-extrabold">{v.ad}</span>
           <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${s.sinif}`}>{s.ad} · tahmini</span>
-          {v.guzergah && <span className="mt-1 block truncate text-[13px] font-semibold text-[#3b4262]">{v.guzergah}</span>}
+          <span className="mt-1 block text-[13.5px] font-extrabold text-[#3730a3]">{v.sayilar}</span>
+          {v.sehirYazi && <span className="block text-[13px] font-semibold text-[#3b4262]">{v.sehirYazi}</span>}
+          {v.guzergah && <span className="block truncate text-[13px] font-semibold text-[#3b4262]">En sık: {v.guzergah}</span>}
           <span className="block text-[12px] text-[var(--a-ikincil)]">{v.ozet}</span>
           <span className="mt-0.5 block text-[13px] font-semibold tabular-nums">{v.telefonYazi}</span>
         </span>

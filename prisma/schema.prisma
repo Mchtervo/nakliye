@@ -561,3 +561,18 @@ model KrediTaksit {
   @@index([vade])
   @@index([krediId, sira])
 }
+
+/// Kişi (telefon) başına günlük ilan paylaşım sayacı. İlanlar 6 saatte silinir; sayaç kalır
+/// ("Yük sahibi ve komisyoncular" sayfası: bugün / hafta / toplam, en çok çıkış şehri).
+model PaylasimGun {
+  telefon  String
+  /// TR takvim günü (YYYY-MM-DD)
+  gun      String
+  cikisIl  String  @default("")
+  varisIl  String  @default("")
+  adet     Int     @default(0)
+  firmaAdi String?
+
+  @@id([telefon, gun, cikisIl, varisIl])
+  @@index([gun])
+}
