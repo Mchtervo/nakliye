@@ -3413,3 +3413,19 @@ body:has(.uy-kurulum-ust) .uye-serit-eksik { display: none; }
 /* Açık tasarımlı sayfalarda tarayıcı denetimleri (onay kutusu, tarih, seçim) da açık */
 .ana { color-scheme: light; }
 .acik-icerik { padding-top: calc(env(safe-area-inset-top) + 2.2rem); }
+
+/* ===== Telefon / tablet düzeltmeleri ===== */
+/* 1) Plus Jakarta Sans'ın boşluğu dar, üstüne eksi harf aralığı: kelimeler yapışıyordu */
+.ana { word-spacing: 0.08em; }
+.ana :is(input, textarea, select, button) { word-spacing: inherit; }
+/* 2) Yazı kutusunun tamamı dokunulabilir (üst/alt ~13px eskiden ölü bölgeydi, klavye açılmıyordu) */
+.sf-alan { padding-block: 0; }
+.sf-alan > :is(input, select, textarea) { align-self: stretch; }
+.sf-alan > textarea { padding-block: 0.7rem; }
+/* 3) Link gibi görünen küçük düğmelerin dokunma alanı (görünüm ve yerleşim aynı kalır) */
+@media (pointer: coarse) {
+  .ana-link, .ana summary { padding-block: 0.6rem; margin-block: -0.6rem; }
+}
+.sf-ay-ok { position: relative; }
+.sf-ay-ok::after { content: ""; position: absolute; inset: -0.45rem; }
+.uy-secici { min-height: 2.5rem; }

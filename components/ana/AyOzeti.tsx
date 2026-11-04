@@ -80,7 +80,7 @@ export function BaslikOzet() {
               onClick={() => sec(i)}
               aria-pressed={aktif}
               aria-label={`${a.etiket}: ${tl(a.net)}`}
-              className="flex flex-col items-center gap-1"
+              className="relative flex flex-col items-center gap-1 after:absolute after:-inset-x-[3px] after:inset-y-0 after:content-['']"
               style={{ width: sutun }}
             >
               <span className={`text-[11px] font-bold tabular-nums ${aktif ? "text-white" : "text-[#c9d0ff]"}`}>{bin}</span>

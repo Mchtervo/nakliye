@@ -37,7 +37,7 @@ export default function Alacaklar({ firmalar }: { firmalar: Alacak[] }) {
               >
                 <span className="text-white">{basHarfler(f.ad)}</span>
               </span>
-              <Link href={`/firmalar/${f.id}`} className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+              <Link href={`/firmalar/${f.id}`} className="-my-2.5 min-w-0 flex-1 truncate py-2.5 text-[14px] font-semibold">
                 {f.ad}
               </Link>
               <span className="mr-1 shrink-0 text-[14px] font-bold tabular-nums">{tlYazKisa(f.kalan)}</span>

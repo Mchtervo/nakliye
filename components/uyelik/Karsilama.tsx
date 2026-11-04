@@ -110,7 +110,7 @@ export default function Karsilama({ next, girisAcik, kapandi }: { next: string; 
         </Link>
         <p className="ana-gir mt-4 text-center text-[14.5px] text-[#4b5375]" style={{ animationDelay: "230ms" }}>
           Hesabın var mı?{" "}
-          <button type="button" onClick={() => setAcik(true)} className="font-extrabold text-[#3730a3]">
+          <button type="button" onClick={() => setAcik(true)} className="relative font-extrabold text-[#3730a3] after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']">
             Giriş yap
           </button>
         </p>

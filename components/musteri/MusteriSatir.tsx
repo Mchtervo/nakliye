@@ -79,7 +79,7 @@ export default function MusteriSatir({ m: v, idx }: { m: MusteriSatirVeri; idx: 
           {v.sonNot}
         </p>
       )}
-      <button type="button" onClick={() => setNotAcik((x) => !x)} className="text-[13px] font-bold text-[#3730a3]">
+      <button type="button" onClick={() => setNotAcik((x) => !x)} className="relative text-[13px] font-bold text-[#3730a3] after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']">
         {notAcik ? "Vazgeç" : "+ Not ekle"}
       </button>
       <AnimatePresence initial={false}>

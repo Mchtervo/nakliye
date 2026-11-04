@@ -779,7 +779,7 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
           <button
             type="button"
             onClick={() => (sheet === "daha" ? kapat() : ac("daha"))}
-            className={`dokun flex min-h-[3.3rem] flex-col items-center justify-center gap-0.5 rounded-full text-[10.5px] font-medium ${
+            className={`dokun relative flex min-h-[3.3rem] flex-col items-center justify-center gap-0.5 rounded-full text-[10.5px] font-medium ${
               gostergeIndeks === 4 ? (ana ? "text-[#4f46e5]" : "text-amber") : ana ? "text-[#7a809b]" : "text-white/75"
             }`}
             aria-expanded={sheet === "daha"}
