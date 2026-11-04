@@ -1,6 +1,6 @@
 import { AiHatasi, aiJson, aiSertDurdurma } from "@/lib/ai/istemci";
 import { prisma } from "@/lib/prisma";
-import { AI_MAX_CIKTI } from "@/lib/ai/modeller";
+import { AI_MAX_CIKTI, AI_MAX_DENEME } from "@/lib/ai/modeller";
 import { MODEL_HIZLI } from "@/lib/ai/modeller";
 import {
   ILAN_LISTESI_SEMASI,
@@ -500,7 +500,24 @@ export type CozumFiltre = {
 
 /** Ayar: ilan okuma modeli. "evren:<model>" → önce EVREN (ücretsiz), olmazsa nano. Boş → nano. */
 export const ILAN_MODELI_ANAHTAR = "ai_ilan_modeli";
-const EVREN_ZAMAN_ASIMI_MS = 45_000;
+const EVREN_ZAMAN_ASIMI_MS = 40_000;
+/**
+ * Gecikme tavanı: kuyrukta bu kadar dakikadan eski mesaj varsa EVREN denenmez,
+ * doğrudan nano (kuyruk birikmesin; hedef: ilan en geç ~10 dk içinde listede).
+ */
+const EVREN_MAX_KUYRUK_DK = 7;
+let kuyrukYasOnbellek: { dk: number; zaman: number } | null = null;
+
+/** İşlenebilir (deneme hakkı olan) en eski bekleyen mesajın yaşı, dakika. */
+async function kuyrukYasiDk(): Promise<number> {
+  if (kuyrukYasOnbellek && Date.now() - kuyrukYasOnbellek.zaman < 20_000) return kuyrukYasOnbellek.dk;
+  const e = await prisma.hamMesaj
+    .findFirst({ where: { islendi: false, denemeSayisi: { lt: AI_MAX_DENEME } }, orderBy: { createdAt: "asc" }, select: { createdAt: true } })
+    .catch(() => null);
+  const dk = e ? (Date.now() - e.createdAt.getTime()) / 60_000 : 0;
+  kuyrukYasOnbellek = { dk, zaman: Date.now() };
+  return dk;
+}
 let ilanModeliOnbellek: { deger: string | null; zaman: number } | null = null;
 
 async function ilanModeli(): Promise<string | null> {
@@ -519,6 +536,12 @@ async function ilanJson<T>(
   if (filtre.model) return aiJson<T>({ ...secenek, model: filtre.model });
   const model = (await ilanModeli()) || MODEL_HIZLI;
   if (!model.startsWith("evren:")) return aiJson<T>({ ...secenek, model });
+  // Kuyruk geride kaldıysa EVREN'i bekleme: doğrudan nano
+  const yas = await kuyrukYasiDk();
+  if (yas >= EVREN_MAX_KUYRUK_DK) {
+    console.log(`[ilanCozumle] kuyruk ${Math.round(yas)} dk geride → EVREN atlandı, ${MODEL_HIZLI}`);
+    return aiJson<T>({ ...secenek, model: MODEL_HIZLI });
+  }
   // EVREN ücretsiz ama yavaş / arada 503: olmazsa aynı parça nano'ya
   try {
     return await aiJson<T>({ ...secenek, model, zamanAsimiMs: EVREN_ZAMAN_ASIMI_MS });
