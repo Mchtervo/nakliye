@@ -6,6 +6,7 @@ import { HareketKok } from "@/components/ana/Hareket";
 import { anaYazi } from "@/components/ana/yazi";
 import RaporUst from "@/components/finans/RaporUst";
 import KisiselTercih from "@/components/uye/KisiselTercih";
+import ProfilFotografi from "@/components/uye/ProfilFotografi";
 import { ProfilForm, SifreForm } from "@/components/uye/ProfilForm";
 import TumCihazlar from "@/components/uyelik/TumCihazlar";
 import { aktifArac } from "@/lib/aktifArac";
@@ -67,6 +68,10 @@ export default async function ProfilSayfasi() {
               <b>Eksik:</b> {d.eksikler.join(", ")}
             </p>
           )}
+
+          <Bolum baslik="Profil fotoğrafı">
+            <ProfilFotografi fotograf={d.fotograf} ad={d.ad || d.kullaniciAdi} />
+          </Bolum>
 
           <Bolum baslik="Temel bilgiler">
             <KisiselTercih iller={[...ILLER]} anaUs={tercih.anaUs ?? d.sehir ?? ""} konumIl={konum ?? ""} push={tercih.pushAcik} />

@@ -17,6 +17,7 @@ export type UyeDurumu = {
   ad: string | null;
   telefon: string | null;
   sehir: string | null;
+  fotograf: string | null;
   aktif: boolean;
   sonGiris: Date | null;
   createdAt: Date;
@@ -59,6 +60,7 @@ export async function uyeDurumu(uyeId: number): Promise<UyeDurumu | null> {
     ad: uye.ad,
     telefon: uye.telefon,
     sehir: uye.sehir,
+    fotograf: uye.fotograf,
     aktif: uye.aktif,
     sonGiris: uye.sonGiris,
     createdAt: uye.createdAt,

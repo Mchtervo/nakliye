@@ -466,6 +466,8 @@ model Uye {
   ad           String?
   telefon      String?
   sehir        String?
+  /// Profil fotoğrafı yolu (/api/dosya/<ad> — üyeye özel, kendi oturumuyla görünür)
+  fotograf     String?
   aktif        Boolean   @default(true)
   sonGiris     DateTime?
   createdAt    DateTime  @default(now())

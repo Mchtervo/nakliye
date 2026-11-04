@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import type { FormSonuc } from "@/app/actions";
 import { GORUNUM_COOKIE, gorunumTokeniOlustur } from "@/lib/auth";
 import { aktifBaglam } from "@/lib/baglam";
+import { fisKaydet, fisSil } from "@/lib/fis";
 import { anaPrisma } from "@/lib/prismaAna";
 import { sifreHashle } from "@/lib/sifre";
 import { telefonNormal, yonetimKaydiYaz } from "@/lib/uyelik";
@@ -35,6 +36,31 @@ export async function profilKaydet(_onceki: FormSonuc, formData: FormData): Prom
     data: { ad, sehir: sehir || null, telefon, ...(telefon !== uye.telefon ? { telefonDogrulandi: null } : {}) },
   });
 
+  revalidatePath("/", "layout");
+  return null;
+}
+
+/** Üye: profil fotoğrafı yükle / değiştir / kaldır (aynı üyeye özel klasör, fiş gibi). */
+export async function profilFotografiKaydet(_onceki: FormSonuc, formData: FormData): Promise<FormSonuc> {
+  const b = await aktifBaglam();
+  if (b.uyeId === null) return { hata: "Bu sayfa üye hesabı içindir." };
+  const uye = await anaPrisma.uye.findUnique({ where: { id: b.uyeId }, select: { fotograf: true } });
+  if (!uye) return { hata: "Hesap bulunamadı." };
+
+  if (formData.get("kaldir")) {
+    await fisSil(uye.fotograf);
+    await anaPrisma.uye.update({ where: { id: b.uyeId }, data: { fotograf: null } });
+    revalidatePath("/", "layout");
+    return null;
+  }
+
+  const dosya = formData.get("fotograf");
+  if (!(dosya instanceof File) || dosya.size === 0) return { hata: "Bir fotoğraf seç." };
+  if (dosya.size > 6 * 1024 * 1024) return { hata: "Fotoğraf en fazla 6 MB olabilir." };
+  const sonuc = await fisKaydet(dosya);
+  if (!sonuc || "hata" in sonuc) return { hata: sonuc?.hata ?? "Fotoğraf yüklenemedi." };
+  await anaPrisma.uye.update({ where: { id: b.uyeId }, data: { fotograf: sonuc.yol } });
+  await fisSil(uye.fotograf);
   revalidatePath("/", "layout");
   return null;
 }
