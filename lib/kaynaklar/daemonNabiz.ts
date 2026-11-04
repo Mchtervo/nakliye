@@ -26,6 +26,29 @@ export async function nabizYaz(ad: DaemonAdi, durum: NabizDurum, not?: string): 
     .catch(() => null);
 }
 
+/** Yük ekranındaki "Yeni kod al": WhatsApp okuyucu uzun eşleme beklemesini keser. */
+const WA_YENI_KOD_ANAHTAR = "whatsapp_yeni_kod_istek";
+
+export async function waYeniKodIste(): Promise<void> {
+  const deger = String(Date.now());
+  await prisma.ayar.upsert({
+    where: { anahtar: WA_YENI_KOD_ANAHTAR },
+    update: { deger },
+    create: { anahtar: WA_YENI_KOD_ANAHTAR, deger },
+  });
+}
+
+/** `sonra` (ms) anından sonra yeni kod istendi mi? */
+export async function waYeniKodIstendiMi(sonra: number): Promise<boolean> {
+  const k = await prisma.ayar.findUnique({ where: { anahtar: WA_YENI_KOD_ANAHTAR } }).catch(() => null);
+  return Number(k?.deger) > sonra;
+}
+
+/** Nabız notundaki eşleme kodu ("Kod: 5QL9ZWPJ — …"). */
+export function eslemeKodu(detay: string): string | null {
+  return detay.match(/Kod:\s*([A-Z0-9-]{8,9})/)?.[1] ?? null;
+}
+
 export type DaemonSorunu = { ad: DaemonAdi; baslik: string; detay: string };
 
 const AD: Record<DaemonAdi, string> = { whatsapp: "WhatsApp", telegram: "Telegram" };

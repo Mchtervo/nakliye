@@ -24,6 +24,14 @@ import type { KaynakTuru } from "@/lib/kaynaklar/tip";
 
 export type AiSonuc = { hata: string } | { bilgi: string } | null;
 
+/** Yük ekranı: WhatsApp eşleme kodu dolduysa sunucuya girmeden yenisini iste. */
+export async function whatsappYeniKodIste(): Promise<void> {
+  await yoneticiIslemi();
+  const { waYeniKodIste } = await import("@/lib/kaynaklar/daemonNabiz");
+  await waYeniKodIste();
+  revalidatePath("/ai/yukler");
+}
+
 /** Ayarlar: Telegram test bildirimi. */
 export async function testBildirimGonder(): Promise<AiSonuc> {
   await yoneticiIslemi();

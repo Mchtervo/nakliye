@@ -19,7 +19,8 @@ import {
 } from "@/lib/karHesap";
 import { panelTazeSinir, solukMu, yeniIlanSinir } from "@/lib/ilanTazelik";
 import { gorusmeSatiri } from "@/lib/kaynaklar/waGorusme";
-import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
+import { daemonSorunlari, eslemeKodu } from "@/lib/kaynaklar/daemonNabiz";
+import { whatsappYeniKodIste } from "@/app/ai-actions";
 import type { Prisma } from "@prisma/client";
 import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
 import { yakinCevredeMi, yakinlikYazisi, yuklemeYakinligi } from "@/lib/yakinlik";
@@ -524,11 +525,33 @@ export default async function AiYuklerSayfasi({
 
   const bildirimler = uye ? null : (
     <>
-      {okuyucuSorunlari.map((s) => (
-        <div key={s.ad} className="rounded-2xl bg-[#fee2e2] px-4 py-3 text-[13px] text-[#7f1d1d]">
-          <strong>{s.baslik}.</strong> <span className="select-all">{s.detay}</span>
-        </div>
-      ))}
+      {okuyucuSorunlari.map((s) => {
+        const kod = s.ad === "whatsapp" ? eslemeKodu(s.detay) : null;
+        const eslemeSorunu = s.ad === "whatsapp" && /eşleme|oturumu kapandı/i.test(s.baslik);
+        return (
+          <div key={s.ad} className="rounded-2xl bg-[#fee2e2] px-4 py-3 text-[13px] text-[#7f1d1d]">
+            <strong>{s.baslik}.</strong>{" "}
+            {kod ? (
+              <>
+                <span className="mt-2 block select-all font-mono text-[26px] font-bold tracking-[0.2em]">{kod}</span>
+                <span className="block">
+                  WhatsApp → Bağlı cihazlar → Cihaz bağla → «Bunun yerine telefon numarasıyla bağla» → bu kodu gir.
+                </span>
+              </>
+            ) : (
+              <span className="select-all">{s.detay}</span>
+            )}
+            {eslemeSorunu && (
+              <form action={whatsappYeniKodIste} className="mt-2">
+                <button type="submit" className="rounded-xl bg-[#7f1d1d] px-3 py-2 text-[13px] font-semibold text-white">
+                  Yeni kod al
+                </button>
+                <span className="ml-2 text-[12px]">20 sn sonra sayfayı yenile</span>
+              </form>
+            )}
+          </div>
+        );
+      })}
       {killSwitch && (
         <div className="rounded-2xl bg-[#fff1dc] px-4 py-3 text-[13px] text-[#7c2d12]">
           <strong>AI kapalı.</strong> Tarama devam eder; kuyruk birikir.

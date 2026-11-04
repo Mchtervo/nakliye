@@ -25,7 +25,7 @@ import makeWASocket, {
 import { rm } from "node:fs/promises";
 import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { telegramGonder } from "@/lib/bildirim/telegram";
-import { nabizYaz, type NabizDurum } from "@/lib/kaynaklar/daemonNabiz";
+import { nabizYaz, waYeniKodIstendiMi, type NabizDurum } from "@/lib/kaynaklar/daemonNabiz";
 import { telefonlariCikar } from "@/lib/kaynaklar/onDedup";
 import { mesajlariKuyrugaAl, type GelenGrup } from "@/lib/kaynaklar/telegramUye";
 import {
@@ -658,8 +658,17 @@ async function baglan(): Promise<void> {
         uyari("Eşleme kodları kullanılmadı; 1 saat sonra tekrar denenecek.");
         durumAyarla(
           "ESLEME_BEKLIYOR",
-          "Kodlar kullanılmadı; 1 saat içinde yeni kod gelir (hemen için: sudo systemctl restart yukavci-whatsapp)"
+          "Kodun süresi doldu — yük ekranında «Yeni kod al»a bas (yoksa 1 saat içinde yeni kod gelir)"
         );
+        // Panelden "Yeni kod al" basılırsa 1 saati bekleme
+        const bas = Date.now();
+        const yoklama = setInterval(async () => {
+          if (Date.now() - bas < bekle && !(await waYeniKodIstendiMi(bas))) return;
+          clearInterval(yoklama);
+          log("Yeni eşleme kodu isteniyor.");
+          void baglan();
+        }, 10_000);
+        return;
       } else {
         log(`Bağlantı kapandı (kod=${kod ?? "-"}); yeniden bağlanılıyor.`);
         if (state.creds.registered && kod !== DisconnectReason.restartRequired) {
