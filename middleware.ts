@@ -26,6 +26,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/giris") ||
     pathname === "/kayit" ||
     pathname === "/kosullar" ||
+    pathname === "/ilanlar" ||
     pathname === "/sifre-unuttum" ||
     pathname === "/oturum-kapandi" ||
     pathname.startsWith("/_next") ||

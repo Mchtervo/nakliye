@@ -508,7 +508,7 @@ function HucreListesi({
   );
 }
 
-const MENUSUZ = ["/giris", "/kayit", "/kosullar", "/sifre-unuttum", "/kurulum"];
+const MENUSUZ = ["/giris", "/kayit", "/kosullar", "/ilanlar", "/sifre-unuttum", "/kurulum"];
 
 export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
   const gruplar = dahaGruplari(rol);

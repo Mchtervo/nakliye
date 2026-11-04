@@ -114,6 +114,11 @@ export default function Karsilama({ next, girisAcik, kapandi }: { next: string; 
             Giriş yap
           </button>
         </p>
+        <p className="ana-gir mt-2 text-center text-[13.5px]" style={{ animationDelay: "260ms" }}>
+          <Link href="/ilanlar" className="font-bold text-[#4b5375] underline underline-offset-4">
+            Önce güncel ilanlara göz at
+          </Link>
+        </p>
       </div>
 
       <AltPanel acik={acik} etiket="Giriş yap" kapat={() => setAcik(false)}>
