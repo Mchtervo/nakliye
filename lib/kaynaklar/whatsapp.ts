@@ -137,12 +137,12 @@ export async function bilinenDavetleriYaz(): Promise<void> {
 
 /**
  * Günlük katılım kotası. Grup girişleri okuyucuda 30 dk arayla denenir
- * (12 grup gün içine yayılır); WhatsApp hız sınırı uyarısı gelirse o gün
+ * (16 grup gün içine yayılır); WhatsApp hız sınırı uyarısı gelirse o gün
  * katılım durur (katilimiBugunDurdur). Kanal takibi daha az riskli.
  * 4 grup / 10 kanal ile 190+ bekleyen link ~47 gün sürüyordu.
  */
 const KATILIM = {
-  grup: { anahtar: "whatsapp_katilim_sayac", gunluk: 12 },
+  grup: { anahtar: "whatsapp_katilim_sayac", gunluk: 16 },
   kanal: { anahtar: "whatsapp_kanal_takip_sayac", gunluk: 25 },
 } as const;
 
