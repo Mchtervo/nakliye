@@ -1,4 +1,5 @@
-import { AiHatasi, aiJson } from "@/lib/ai/istemci";
+import { AiHatasi, aiJson, aiSertDurdurma } from "@/lib/ai/istemci";
+import { prisma } from "@/lib/prisma";
 import { AI_MAX_CIKTI } from "@/lib/ai/modeller";
 import { MODEL_HIZLI } from "@/lib/ai/modeller";
 import {
@@ -497,20 +498,49 @@ export type CozumFiltre = {
   kaynakOnek?: string;
 };
 
+/** Ayar: ilan okuma modeli. "evren:<model>" → önce EVREN (ücretsiz), olmazsa nano. Boş → nano. */
+export const ILAN_MODELI_ANAHTAR = "ai_ilan_modeli";
+const EVREN_ZAMAN_ASIMI_MS = 45_000;
+let ilanModeliOnbellek: { deger: string | null; zaman: number } | null = null;
+
+async function ilanModeli(): Promise<string | null> {
+  if (ilanModeliOnbellek && Date.now() - ilanModeliOnbellek.zaman < 60_000) return ilanModeliOnbellek.deger;
+  const k = await prisma.ayar.findUnique({ where: { anahtar: ILAN_MODELI_ANAHTAR } }).catch(() => null);
+  const deger = k?.deger?.trim() || null;
+  ilanModeliOnbellek = { deger, zaman: Date.now() };
+  return deger;
+}
+
+/** İlan okuma çağrısı: A/B modeli verildiyse o; değilse ayardaki model (EVREN ise nano yedekli). */
+async function ilanJson<T>(
+  filtre: CozumFiltre,
+  secenek: Omit<Parameters<typeof aiJson>[0], "model">
+): Promise<T> {
+  if (filtre.model) return aiJson<T>({ ...secenek, model: filtre.model });
+  const model = (await ilanModeli()) || MODEL_HIZLI;
+  if (!model.startsWith("evren:")) return aiJson<T>({ ...secenek, model });
+  // EVREN ücretsiz ama yavaş / arada 503: olmazsa aynı parça nano'ya
+  try {
+    return await aiJson<T>({ ...secenek, model, zamanAsimiMs: EVREN_ZAMAN_ASIMI_MS });
+  } catch (e) {
+    if (aiSertDurdurma(e)) throw e;
+    console.warn(`[ilanCozumle] EVREN olmadı (${e instanceof Error ? e.message.slice(0, 80) : e}) → ${MODEL_HIZLI}`);
+    return aiJson<T>({ ...secenek, model: MODEL_HIZLI });
+  }
+}
+
 async function tekParcaCozumle(
   parca: string,
   promptIlleri: string[],
   kaynak: string,
   filtre: CozumFiltre = {}
 ): Promise<{ ilanlar: CozulmusIlan[]; ele: CozumEleSayac }> {
-  const model = filtre.model || MODEL_HIZLI;
   const girdi = guvenliKirp(parca, 12000);
   console.log(
     `[ilanCozumle] hamGirdi ${kaynak} guvenMin=${GUVEN_MIN_KAYIT}: ` +
       JSON.stringify(girdi.slice(0, 280))
   );
-  const cikti = await aiJson<IlanCikti>({
-    model,
+  const cikti = await ilanJson<IlanCikti>(filtre, {
     sistem: `${SISTEM}${kapsamTalimati(promptIlleri)}`,
     metin: `Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}\n\nMETİN:\n${girdi}`,
     semaAdi: "yuk_ilanlari",
@@ -813,8 +843,7 @@ async function partiPaketiCozumle(
       JSON.stringify(govde.slice(0, 400))
   );
 
-  const cikti = await aiJson<MesajIlanCikti>({
-    model: filtre.model || MODEL_HIZLI,
+  const cikti = await ilanJson<MesajIlanCikti>(filtre, {
     sistem: `${SISTEM}
 
 Mesajlar [1], [2] gibi numaralarla ayrılmıştır. Her ilan için mesajNo
