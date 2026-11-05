@@ -30,7 +30,7 @@ const TIP_KELIMELER: Record<AracTipiKodu, string[]> = {
     "tenteli", "tente", "tenteli kasa", "branda", "brandali",
     "perdeli", "perde", "surgulu perde",
   ],
-  KAPALI_KASA: ["kapali kasa", "kapali", "panelvan", "panel van", "box"],
+  KAPALI_KASA: ["kapali kasa", "kapali", "box"],
   FRIGO: ["frigo", "frigorifik", "sogutuculu", "sogutmali", "termo"],
   DAMPER: ["damper", "damperli", "kaya tipi"],
   LOWBED: ["lowbed", "low bed", "lowbet", "havuzlu"],
@@ -39,7 +39,8 @@ const TIP_KELIMELER: Record<AracTipiKodu, string[]> = {
     "kisadorse", "kisa dorse", "kisa-dorse", "kisadors",
     // "sal" tek başına çok kısa; kelime sınırı ile bakılır
   ],
-  KAMYON: ["kamyonet", "kirkayak", "10 teker", "6 teker", "kamyon"],
+  // panelvan: küçük kapalı araç = kamyonet sınıfı (eskiden kapalı kasa sayılıp listeye giriyordu)
+  KAMYON: ["kamyonet", "kirkayak", "10 teker", "6 teker", "kamyon", "panelvan", "panel van"],
   DIGER: ["tanker", "silobas", "konteyner", "konteyner sasi", "romork", "havuz"],
 };
 
