@@ -13,6 +13,7 @@ import type { Hareket } from "@/components/ana/SonHareketler";
 import { pushAcikAnahtar } from "@/lib/bildirim/push";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 import { ayNetleri } from "@/lib/krediKarti";
+import { yuklerAcikMi } from "@/lib/uyeIlan";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export default async function PanelSayfasi() {
   if (b.uyeId !== null && !(await uyeDurumu(b.uyeId))?.kurulumBitti) redirect("/kurulum");
 
   const simdi = new Date();
+  // Üye "Yük bul"u kapattıysa ilan sayılmaz, kısayol görünmez
+  const yuklerAcik = b.uyeId === null || (await yuklerAcikMi());
   const [yukler, giderler, bekleyenYukler, kasaToplam, yeniIlan, aylar] = await Promise.all([
     prisma.yuk.findMany({
       select: {
@@ -60,13 +63,15 @@ export default async function PanelSayfasi() {
     }),
     prisma.kasaHareket.groupBy({ by: ["tip"], _sum: { tutar: true } }),
     // Üyede ortak ilan listesinden sayılır (yöneticinin durumlarına bakmadan)
-    (b.uyeId !== null ? anaPrisma : prisma).yukIlani.count({
-      where: {
-        ...(b.uyeId !== null ? { durum: { notIn: ["ARSIV", "ELENDI"] } } : { durum: "YENI" }),
-        // Yük bul sayfasıyla aynı: son 2 saatte paylaşılan
-        sonGorulme: { gte: new Date(simdi.getTime() - YENI_ILAN_MS) },
-      },
-    }),
+    yuklerAcik
+      ? (b.uyeId !== null ? anaPrisma : prisma).yukIlani.count({
+          where: {
+            ...(b.uyeId !== null ? { durum: { notIn: ["ARSIV", "ELENDI"] } } : { durum: "YENI" }),
+            // Yük bul sayfasıyla aynı: son 2 saatte paylaşılan
+            sonGorulme: { gte: new Date(simdi.getTime() - YENI_ILAN_MS) },
+          },
+        })
+      : Promise.resolve(0),
     // Ay sonu net kalan: KDV dahil, demirbaş hariç (lib/krediKarti)
     ayNetleri(6).catch(() => []),
   ]);
@@ -117,7 +122,9 @@ export default async function PanelSayfasi() {
   const ayAdi = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(simdi);
 
   const kisayollar = [
-    { href: "/ai/yukler", ad: "Yük bul", alt: yeniIlan > 0 ? `${yeniIlan} yeni` : "İlanları tara", ikon: "/ana/k-yukbul-2.png", nokta: yeniIlan > 0 },
+    ...(yuklerAcik
+      ? [{ href: "/ai/yukler", ad: "Yük bul", alt: yeniIlan > 0 ? `${yeniIlan} yeni` : "İlanları tara", ikon: "/ana/k-yukbul-2.png", nokta: yeniIlan > 0 }]
+      : []),
     { href: "/yukler/yeni", ad: "Sefer yaz", ikon: "/ana/k-sefer-2.png" },
     { href: "/giderler/yeni", ad: "Fiş çek", ikon: "/ana/k-fis-2.png" },
     { href: "/para", ad: "Kasa", alt: tlYazKisa(kasaBakiye), ikon: "/ana/k-kasa-2.png" },

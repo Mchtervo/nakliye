@@ -6,6 +6,7 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 import UyeSeridi from "@/components/uye/UyeSeridi";
 import { aktifBaglam } from "@/lib/baglam";
+import { yuklerAcikMi } from "@/lib/uyeIlan";
 import PwaKayit from "@/components/PwaKayit";
 import Guncelleme from "@/components/Guncelleme";
 import IkonUyari from "@/components/IkonUyari";
@@ -56,6 +57,8 @@ export default async function RootLayout({
     return null;
   });
   const rol = b === null || b.uyeId !== null ? "uye" : "admin";
+  // Üye "Yük bul"u kapattıysa menüde görünmez
+  const yukler = b !== null && b.uyeId !== null ? await yuklerAcikMi() : true;
   return (
     <html lang="tr" className={`${sans.variable} h-full antialiased`}>
       <body className="min-h-full font-sans">
@@ -69,7 +72,7 @@ export default async function RootLayout({
           <GezinmeIlerleme />
         </Suspense>
         <div className="app-shell">
-          <Nav rol={rol} />
+          <Nav rol={rol} yukler={yukler} />
           <main className="app-main">
             <div className="app-main-inner mx-auto w-full">
               <Suspense fallback={null}>

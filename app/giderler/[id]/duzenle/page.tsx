@@ -5,6 +5,7 @@ import { anaYazi } from "@/components/ana/yazi";
 import { HareketKok } from "@/components/ana/Hareket";
 import { kurustanGiris } from "@/lib/para";
 import { veresiyeYerleri } from "@/lib/veresiye";
+import { aracSecenekleri } from "@/lib/aktifArac";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,10 @@ export default async function GiderDuzenleSayfasi({
   const id = Number(idHam);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
-  const [gider, yerler] = await Promise.all([
+  const [gider, yerler, araclar] = await Promise.all([
     prisma.gider.findUnique({ where: { id } }),
     veresiyeYerleri().catch(() => []),
+    aracSecenekleri(),
   ]);
   if (!gider) notFound();
 
@@ -56,8 +58,10 @@ export default async function GiderDuzenleSayfasi({
           fisResmi: gider.fisResmi,
           odeme: gider.odeme,
           veresiyeYer: gider.veresiyeYer || "",
+          aracId: gider.aracId,
         }}
         veresiyeYerleri={yerler}
+        araclar={araclar}
       />
       </HareketKok>
     </div>

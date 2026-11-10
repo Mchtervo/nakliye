@@ -45,6 +45,8 @@ model Arac {
   id             Int       @id @default(autoincrement())
   ad             String    @default("Tır")
   plaka          String?
+  /// Aracı süren şoförün adı (sefer/gider raporlarında görünür)
+  sofor          String?
   /// Elle girilen gösterge km ve girildiği an
   kmSayac        Int?
   kmTarih        DateTime?

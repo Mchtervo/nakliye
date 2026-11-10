@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { aracKodlariCozumle, type AracTipiKodu } from "@/lib/arac";
+import { ARAC_TIPLERI, aracKodlariCozumle, type AracTipiKodu } from "@/lib/arac";
 import {
   bolgeCozumle,
   kesifKelimeleriCozumle,
@@ -58,6 +58,8 @@ export const AYAR_ANAHTARLARI = {
   telegramChatId: "telegram_chat_id",
   bildirimTelegram: "bildirim_telegram",
   bildirimPush: "bildirim_push",
+  /** Üye: "Yük bul" bölümü açık mı ("0" = kapalı; varsayılan açık) */
+  uyeYukler: "uye_yukler_acik",
   // Telegram kullanıcı hesabıyla grup keşfi / okuma
   telegramUyeAktif: "telegram_uye_aktif",
   telegramSorguSira: "telegram_sorgu_sira",
@@ -178,6 +180,8 @@ export type AiTercihleri = {
   telegramChatId: string | null;
   telegramAcik: boolean;
   pushAcik: boolean;
+  /** Üye: yük ilanları bölümü açık mı */
+  yuklerAcik: boolean;
   telegramUyeAcik: boolean;
   waSablon: {
     ad: string;
@@ -223,6 +227,17 @@ export type AiTercihleri = {
   kesifKoridorKelimeler: string[];
 };
 
+/**
+ * Araç tipi tercihi hiç seçilmemişse (üyelerde hep böyle): hesaptaki araçların
+ * hepsi tırsa kamyon/kamyonet ilanları gösterilmez. Kamyon/kamyonet sahibi ya da
+ * araç girmemiş hesapta filtre yok (eskisi gibi her şey).
+ */
+async function aractanAracTipleri(): Promise<AracTipiKodu[]> {
+  const araclar = await prisma.arac.findMany({ select: { sinif: true } }).catch(() => []);
+  if (araclar.length === 0 || araclar.some((a) => a.sinif !== "TIR")) return [];
+  return ARAC_TIPLERI.map((t) => t.kod).filter((k) => k !== "KAMYON");
+}
+
 export async function aiTercihleriOku(): Promise<AiTercihleri> {
   const a = await ayarlariOku([
     AYAR_ANAHTARLARI.aiSehir,
@@ -237,6 +252,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.telegramChatId,
     AYAR_ANAHTARLARI.bildirimTelegram,
     AYAR_ANAHTARLARI.bildirimPush,
+    AYAR_ANAHTARLARI.uyeYukler,
     AYAR_ANAHTARLARI.telegramUyeAktif,
     AYAR_ANAHTARLARI.waSablonAd,
     AYAR_ANAHTARLARI.waSablonFirma,
@@ -308,7 +324,10 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     minUcret: Number.isFinite(minHam) && minHam > 0 ? minHam : null,
     bolgeler:
       bolgeHam === undefined ? VARSAYILAN_BOLGELER : bolgeCozumle(bolgeHam),
-    aracTipleri: aracKodlariCozumle(a[AYAR_ANAHTARLARI.aiAracTipleri]),
+    aracTipleri:
+      a[AYAR_ANAHTARLARI.aiAracTipleri] === undefined
+        ? await aractanAracTipleri()
+        : aracKodlariCozumle(a[AYAR_ANAHTARLARI.aiAracTipleri]),
     maxTonaj: maxTonajCozulmus,
     anaUs: ilBul(a[AYAR_ANAHTARLARI.aiAnaUs]),
     ekIller: [...new Set(ekIller)],
@@ -317,6 +336,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     // Varsayılan açık: kullanıcı kapatmadıkça bildirim gitsin.
     telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",
     pushAcik: a[AYAR_ANAHTARLARI.bildirimPush] !== "0",
+    yuklerAcik: a[AYAR_ANAHTARLARI.uyeYukler] !== "0",
     telegramUyeAcik: a[AYAR_ANAHTARLARI.telegramUyeAktif] !== "0",
     waSablon: {
       ad: a[AYAR_ANAHTARLARI.waSablonAd] || "",

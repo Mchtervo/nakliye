@@ -36,6 +36,7 @@ export default async function FirmaDetaySayfasi({
         telHref: firma.telefon ? telefonTelHref(firma.telefon) : null,
         waHref: firma.telefon ? whatsappMesajUrl(firma.telefon, "") : null,
         vergiNo: firma.vergiNo,
+        telefonHam: firma.telefon,
         ilkKayitYazi: tarihYaz(firma.createdAt),
         seferler: firma.yukler.map((y) => ({
           id: y.id,

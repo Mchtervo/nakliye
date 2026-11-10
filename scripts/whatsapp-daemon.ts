@@ -51,6 +51,14 @@ import {
   waPasifGrupMu,
 } from "@/lib/kaynaklar/whatsapp";
 import {
+  noktaEkle,
+  noktalariKaydet,
+  noktalariYukle,
+  temizlendi,
+  temizlikAyari,
+  temizlikIsleri,
+} from "@/lib/kaynaklar/waTemizlik";
+import {
   gelenOzelMesajiIsle,
   gorusmeGonderildi,
   gorusmeHata,
@@ -58,6 +66,9 @@ import {
 } from "@/lib/kaynaklar/waGorusme";
 
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || ".wa-oturum";
+/** Sohbet temizliği kontrol noktaları (oturum klasörünün yanında, commit edilmez) */
+const TEMIZLIK_DOSYA = `${AUTH_DIR.replace(/[\\/]+$/, "")}-temizlik.json`;
+const TEMIZLIK_MS = 3 * 60 * 60 * 1000;
 const TELEFON = (process.env.WHATSAPP_TELEFON || "").replace(/\D/g, "");
 const GRUP_ESITLEME_MS = 30 * 60 * 1000;
 const KANAL_TARAMA_MS = 10 * 60 * 1000;
@@ -309,6 +320,8 @@ async function kanalMesajlariniCek(
 }
 
 let kanalTaramasiSuruyor = false;
+/** Kanal taramasında sıradaki başlangıç (tavan aşılınca dönüşümlü) */
+let kanalSira = 0;
 
 /** Önceki tur bitmeden yenisi başlamaz (yavaş kanalda turlar üst üste binmesin). */
 async function kanallariTara(sock: WASocket): Promise<void> {
@@ -347,7 +360,11 @@ async function kanallariTaraTur(sock: WASocket): Promise<void> {
     uyari("Takip edilen kanallar okunamadı:", e instanceof Error ? e.message : e);
   }
 
-  const jidler = [...gruplar.keys()].filter(kanalJidMi).slice(0, KANAL_TARAMA_TAVAN);
+  // Hep aynı ilk 25 kanal okunuyordu; sıra her turda kayar, hepsi sırayla okunur
+  const tumKanallar = [...gruplar.keys()].filter(kanalJidMi);
+  if (kanalSira >= tumKanallar.length) kanalSira = 0;
+  const jidler = [...tumKanallar.slice(kanalSira), ...tumKanallar.slice(0, kanalSira)].slice(0, KANAL_TARAMA_TAVAN);
+  kanalSira += jidler.length;
   if (jidler.length === 0) {
     log(`Kanal taraması: takip=${bulunan} yükKanalı=0`);
     return;
@@ -509,6 +526,15 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     const ids = sohbetKimlikleri(m);
     const grupMu = grupSohbetiMi(ids);
     const kanalMu = kanalSohbetiMi(ids);
+    if (grupMu && m.key.id) {
+      // Eski mesaj temizliği için "buraya kadar sil" noktası
+      noktaEkle(ids.find((j) => j.endsWith("@g.us"))!, {
+        id: m.key.id,
+        participant: m.key.participant ?? null,
+        fromMe: m.key.fromMe ?? false,
+        ts: Number(m.messageTimestamp ?? 0),
+      });
+    }
     if (!grupMu && !kanalMu && !m.key.fromMe) {
       const ozel = ids.find((j) => j.endsWith("@s.whatsapp.net")) || null;
       const yazi = whatsappMetni(m.message);
@@ -548,6 +574,53 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     if (rapor.kuyruga > 0) log(`Kuyruğa: ${rapor.kuyruga}/${rapor.alinan} (grup=${rapor.grup})`);
   } catch (e) {
     uyari("Kuyruğa yazma hatası:", e instanceof Error ? e.message : e);
+  }
+}
+
+let temizlikSuruyor = false;
+
+/**
+ * Yük gruplarında 2 günden eski mesajları temizler (gruptan çıkmaz).
+ * Ayar `wa_sohbet_temizle` kapalıysa hiçbir şey yapmaz.
+ */
+async function eskiSohbetleriTemizle(sock: WASocket): Promise<void> {
+  if (temizlikSuruyor) return;
+  temizlikSuruyor = true;
+  try {
+    const suzgec = await temizlikAyari();
+    if (suzgec === null) return;
+    const hepsi = await sock.groupFetchAllParticipating();
+    const liste = Object.values(hepsi).map((g) => ({ jid: g.id, ad: g.subject || "" }));
+    const isler = temizlikIsleri(liste, suzgec, Math.floor(Date.now() / 1000));
+    let tamam = 0;
+    for (const is of isler) {
+      try {
+        await sock.chatModify(
+          {
+            clear: true,
+            lastMessages: [
+              {
+                key: { remoteJid: is.jid, id: is.nokta.id, participant: is.nokta.participant ?? undefined, fromMe: Boolean(is.nokta.fromMe) },
+                messageTimestamp: is.nokta.ts,
+              },
+            ],
+          },
+          is.jid
+        );
+        temizlendi(is.jid, is.nokta);
+        tamam += 1;
+      } catch (e) {
+        uyari("Sohbet temizlenemedi:", is.ad, e instanceof Error ? e.message : e);
+      }
+      // WhatsApp'a art arda yüklenmeyelim
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    await noktalariKaydet(TEMIZLIK_DOSYA);
+    log(`Sohbet temizliği: ${suzgec ? `"${suzgec}" ` : ""}aday=${isler.length} temizlenen=${tamam}${tamam ? ` (${isler.slice(0, 5).map((i) => i.ad).join(" | ")})` : ""}`);
+  } catch (e) {
+    uyari("Sohbet temizliği hatası:", e instanceof Error ? e.message : e);
+  } finally {
+    temizlikSuruyor = false;
   }
 }
 
@@ -612,6 +685,7 @@ async function baglan(): Promise<void> {
   let esitlemeZamanlayici: ReturnType<typeof setInterval> | null = null;
   let gorusmeZamanlayici: ReturnType<typeof setInterval> | null = null;
   let kanalZamanlayici: ReturnType<typeof setInterval> | null = null;
+  let temizlikZamanlayici: ReturnType<typeof setInterval> | null = null;
 
   sock.ev.on("connection.update", async (u) => {
     if (u.qr && !kodIstendi && !state.creds.registered) {
@@ -658,12 +732,17 @@ async function baglan(): Promise<void> {
         void kanallaraGir(sock);
         void kanallariTara(sock);
       }, KANAL_TARAMA_MS);
+      if (temizlikZamanlayici) clearInterval(temizlikZamanlayici);
+      // İlk tur bağlandıktan 10 dk sonra, sonra 3 saatte bir
+      setTimeout(() => void eskiSohbetleriTemizle(sock), 10 * 60 * 1000);
+      temizlikZamanlayici = setInterval(() => void eskiSohbetleriTemizle(sock), TEMIZLIK_MS);
     }
 
     if (u.connection === "close") {
       if (esitlemeZamanlayici) clearInterval(esitlemeZamanlayici);
       if (gorusmeZamanlayici) clearInterval(gorusmeZamanlayici);
       if (kanalZamanlayici) clearInterval(kanalZamanlayici);
+      if (temizlikZamanlayici) clearInterval(temizlikZamanlayici);
       const kod = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
         ?.output?.statusCode;
       if (kod === DisconnectReason.loggedOut) {
@@ -738,8 +817,11 @@ async function main() {
     kuyruga = 0;
   }, 60 * 60 * 1000);
   setInterval(() => void nabizYaz("whatsapp", durum, durumNot), 60 * 1000);
-  process.on("SIGTERM", () => process.exit(0));
-  process.on("SIGINT", () => process.exit(0));
+  await noktalariYukle(TEMIZLIK_DOSYA);
+  setInterval(() => void noktalariKaydet(TEMIZLIK_DOSYA), 10 * 60 * 1000);
+  const cik = () => void noktalariKaydet(TEMIZLIK_DOSYA).finally(() => process.exit(0));
+  process.on("SIGTERM", cik);
+  process.on("SIGINT", cik);
   await baglan();
 }
 

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { yukEkle, yukGuncelle, type FormSonuc } from "@/app/actions";
 import TutarKdvGirisi from "@/components/TutarKdvGirisi";
 import RotaCizgi from "@/components/yuk/RotaCizgi";
 import { seferKmTahmini } from "@/lib/seferYer";
+import type { AracSecenek } from "@/lib/aktifArac";
 
 export type YukFormBaslangic = {
   id: number;
@@ -19,6 +20,8 @@ export type YukFormBaslangic = {
   kdvDahilMi: boolean;
   /** Elle girilmiş km (boşsa otomatik) */
   km?: string;
+  /** Seferi yapan araç (boşsa ilk araç) */
+  aracId?: number | null;
 };
 
 /** AI ilanından gelen ön dolgu (yeni yük eklerken). */
@@ -45,6 +48,13 @@ const IKON: Record<string, ReactNode> = {
     </>
   ),
   yol: <path d="M9 3 6 21M15 3l3 18M12 5v2M12 11v2M12 17v2" />,
+  tir: (
+    <>
+      <path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3v3h-7" />
+      <circle cx="6.5" cy="17" r="1.8" />
+      <circle cx="17" cy="17" r="1.8" />
+    </>
+  ),
   not: <path d="M7 3h7l4 4v14H7zM14 3v4h4M9.5 12h5M9.5 16h5" />,
 };
 
@@ -64,6 +74,7 @@ function Ikon({ ad }: { ad: string }) {
  */
 export default function YukForm({
   firmalar,
+  araclar = [],
   bugunTarih,
   baslangic,
   hazir,
@@ -72,6 +83,8 @@ export default function YukForm({
   ust,
 }: {
   firmalar: { id: number; ad: string }[];
+  /** Birden fazla araç varsa "Hangi tır?" seçimi görünür */
+  araclar?: AracSecenek[];
   bugunTarih: string;
   baslangic?: YukFormBaslangic;
   hazir?: YukFormHazirlik;
@@ -93,6 +106,17 @@ export default function YukForm({
     if (hazir?.firmaAdi || firmalar.length === 0) return "yeni";
     return "";
   });
+
+  // Bu telefonun bildirim adresi: "Yeni sefer" bildirimi kaydı girene gitmesin
+  const [cihaz, setCihaz] = useState("");
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker
+      .getRegistration()
+      .then((k) => k?.pushManager.getSubscription())
+      .then((a) => a?.endpoint && setCihaz(a.endpoint))
+      .catch(() => {});
+  }, []);
 
   const [nereden, setNereden] = useState(baslangic?.nereden || hazir?.nereden || "");
   const [nereye, setNereye] = useState(baslangic?.nereye || hazir?.nereye || "");
@@ -127,6 +151,7 @@ export default function YukForm({
         <form action={aksiyon} className="sf-kagit ana-gir" style={{ animationDelay: "100ms" }}>
           <span className="sf-tutamac" aria-hidden />
           {baslangic && <input type="hidden" name="yukId" value={baslangic.id} />}
+          {cihaz && <input type="hidden" name="cihaz" value={cihaz} />}
           {ust}
 
           <div>
@@ -182,6 +207,31 @@ export default function YukForm({
                   defaultValue={eslesenFirma ? "" : hazir?.firmaAdi || ""}
                   className="sf-girdi"
                 />
+              </div>
+            </div>
+          )}
+
+          {araclar.length > 1 && (
+            <div>
+              <label htmlFor="aracId" className="sf-etiket">
+                Tır / şoför
+              </label>
+              <div className="sf-alan">
+                <Ikon ad="tir" />
+                <select
+                  id="aracId"
+                  name="aracId"
+                  defaultValue={String(
+                    (baslangic ? (baslangic.aracId ?? araclar[0]?.id) : araclar.find((a) => a.aktif)?.id) ?? ""
+                  )}
+                  className="sf-girdi sf-secim"
+                >
+                  {araclar.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.etiket}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}

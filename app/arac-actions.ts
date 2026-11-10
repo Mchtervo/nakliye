@@ -29,12 +29,14 @@ function aracVerisi(f: FormData) {
   const kasaUzunlukM = sayi(f, "kasaUzunlukM", 1, 20);
   if (kapasiteTon === "hata") return { hata: "Kapasite 0,3–60 ton arası olmalı." } as const;
   if (kasaUzunlukM === "hata") return { hata: "Kasa uzunluğu 1–20 m arası olmalı." } as const;
+  const sofor = metin(f, "sofor", 60).replace(/\s+/g, " ");
   return {
     veri: {
       ad: aracEtiketi({ ad: "Araç", sinif, kasaTipi }),
       sinif,
       kasaTipi,
       plaka: plaka || null,
+      sofor: sofor || null,
       kapasiteTon,
       kasaUzunlukM,
     },

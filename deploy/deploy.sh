@@ -229,7 +229,7 @@ fi
 # WhatsApp okuyucu ayrı servis; restart edilmezse yeni kod hiç devreye girmez.
 wa_etkilendi() {
   git diff --name-only "$1" "$2" | grep -E \
-    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup|daemonNabiz|telegramUye)|prisma/|package-lock\.json|deploy/yukavci-whatsapp\.service)' \
+    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|waTemizlik|onDedup|daemonNabiz|telegramUye)|prisma/|package-lock\.json|deploy/yukavci-whatsapp\.service)' \
     >/dev/null
 }
 

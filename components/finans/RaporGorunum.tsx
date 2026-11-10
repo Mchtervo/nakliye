@@ -26,6 +26,8 @@ export type RaporVeri = {
   kategoriler: { kod: string; ad: string; tutar: number }[];
   /** KDV dahil sefer tutarı */
   firmalar: { id: number; ad: string; tutar: number; adet: number }[];
+  /** Tır bazlı (KDV hariç; gider = işletme gideri) */
+  araclar?: { id: number; etiket: string; sofor: string | null; gelir: number; gider: number; sefer: number }[];
   excelHref: string;
 };
 
@@ -197,6 +199,42 @@ export default function RaporGorunum({ v }: { v: RaporVeri }) {
               </ul>
             )}
           </section>
+
+          {v.araclar && v.araclar.length > 1 && (
+            <section aria-labelledby="tir-bazli">
+              <div className="flex items-baseline gap-2 px-1">
+                <h2 id="tir-bazli" className="ana-baslik">
+                  Tır bazlı gelir / gider
+                </h2>
+                <span className="text-[13px] font-semibold text-[var(--a-ikincil)]">· KDV hariç</span>
+              </div>
+              <ul className="mt-1">
+                {[...v.araclar, { id: 0, etiket: "Toplam", sofor: null, gelir: v.gelirNet, gider: v.giderNet, sefer: v.yukAdet }].map((a) => {
+                  const net = a.gelir - a.gider;
+                  return (
+                    <li key={a.id} className={`border-b border-[var(--a-cizgi)] py-2.5 last:border-0 ${a.id === 0 ? "font-extrabold" : ""}`}>
+                      <div className="flex items-baseline justify-between gap-2 px-1">
+                        <span className="min-w-0">
+                          <span className="block truncate text-[15px] font-bold">{a.etiket}</span>
+                          <span className="block text-[11.5px] text-[var(--a-ikincil)]">
+                            {[a.sofor, `${a.sefer} sefer`].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                        <span className={`shrink-0 text-[15.5px] font-extrabold tabular-nums ${net < 0 ? "text-[#dc2626]" : "text-[#15803d]"}`}>
+                          {tlYazKisa(net)}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex gap-4 px-1 text-[12.5px] tabular-nums text-[var(--a-ikincil)]">
+                        <span>Gelir {tlYazKisa(a.gelir)}</span>
+                        <span>Gider {tlYazKisa(a.gider)}</span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="rp-not mt-1.5">Tır seçilmeden girilmiş eski kayıtlar ilk tıra yazılır.</p>
+            </section>
+          )}
 
           </div>
           </div>

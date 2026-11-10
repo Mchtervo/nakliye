@@ -509,8 +509,17 @@ function HucreListesi({
 
 const MENUSUZ = ["/giris", "/kayit", "/kosullar", "/ilanlar", "/sifre-unuttum", "/kurulum"];
 
-export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
+export default function Nav({
+  rol = "admin",
+  yukler = true,
+}: {
+  rol?: "admin" | "uye";
+  /** Üye "Yük bul"u kapattıysa false */
+  yukler?: boolean;
+}) {
   const gruplar = dahaGruplari(rol);
+  const dock = yukler ? DOCK : DOCK.filter((d) => d.href !== "/ai/yukler");
+  const dahaIndeks = dock.length;
   const pathname = usePathname();
   const [sheet, setSheet] = useState<SheetTuru | null>(null);
   const [kapaniyor, setKapaniyor] = useState(false);
@@ -555,11 +564,11 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
     pathname === "/yonetim" ||
     pathname.startsWith("/yonetim/");
   const dahaAktif = DAHA_DUZ.some((l) => aktifMi(l.href));
-  const dockIndeks = DOCK.findIndex((d) => aktifMi(d.href));
-  const gostergeIndeks = sheet === "daha" || (dockIndeks < 0 && dahaAktif) ? 4 : dockIndeks;
+  const dockIndeks = dock.findIndex((d) => aktifMi(d.href));
+  const gostergeIndeks = sheet === "daha" || (dockIndeks < 0 && dahaAktif) ? dahaIndeks : dockIndeks;
 
   const konumAdi =
-    DOCK.find((d) => aktifMi(d.href))?.ad ||
+    dock.find((d) => aktifMi(d.href))?.ad ||
     DAHA_DUZ.find((d) => aktifMi(d.href))?.ad ||
     "Nakliye Defteri";
 
@@ -640,7 +649,7 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
-          {DOCK.map((l) => {
+          {dock.map((l) => {
             const aktif = aktifMi(l.href);
             return (
               <NavLink key={l.href} href={l.href} className={yanMenuSinifi(aktif)}>
@@ -741,18 +750,21 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
         style={{ bottom: "max(0.6rem, env(safe-area-inset-bottom))" }}
         aria-label="Ana menü"
       >
-        <div className={`${ana ? "ana-dock" : "sivi-cam"} relative grid grid-cols-5 rounded-full p-1`}>
+        <div
+          className={`${ana ? "ana-dock" : "sivi-cam"} relative grid rounded-full p-1`}
+          style={{ gridTemplateColumns: `repeat(${dahaIndeks + 1}, minmax(0, 1fr))` }}
+        >
           {gostergeIndeks >= 0 && (
             <span
               aria-hidden
               className={`tab-gosterge pointer-events-none absolute inset-y-1 left-1 rounded-full ${ana ? "bg-[#eef0ff]" : "bg-white/[0.13] shadow-[inset_0_0.5px_0_rgba(255,255,255,0.25)]"}`}
               style={{
-                width: "calc((100% - 0.5rem) / 5)",
+                width: `calc((100% - 0.5rem) / ${dahaIndeks + 1})`,
                 transform: `translateX(${gostergeIndeks * 100}%)`,
               }}
             />
           )}
-          {DOCK.map((l, i) => {
+          {dock.map((l, i) => {
             const aktif = i === gostergeIndeks;
             return (
               <NavLink
@@ -773,12 +785,12 @@ export default function Nav({ rol = "admin" }: { rol?: "admin" | "uye" }) {
             type="button"
             onClick={() => (sheet === "daha" ? kapat() : ac("daha"))}
             className={`dokun relative flex min-h-[3.3rem] flex-col items-center justify-center gap-0.5 rounded-full text-[10.5px] font-medium ${
-              gostergeIndeks === 4 ? (ana ? "text-[#4f46e5]" : "text-amber") : ana ? "text-[#7a809b]" : "text-white/75"
+              gostergeIndeks === dahaIndeks ? (ana ? "text-[#4f46e5]" : "text-amber") : ana ? "text-[#7a809b]" : "text-white/75"
             }`}
             aria-expanded={sheet === "daha"}
             aria-label="Diğer menü"
           >
-            <span key={gostergeIndeks === 4 ? "a" : "p"} className={gostergeIndeks === 4 ? "tab-ikon-aktif" : ""}>
+            <span key={gostergeIndeks === dahaIndeks ? "a" : "p"} className={gostergeIndeks === dahaIndeks ? "tab-ikon-aktif" : ""}>
               <svg viewBox="0 0 24 24" fill="currentColor" className={ikonSinif}>
                 <circle cx="5" cy="12" r="1.8" />
                 <circle cx="12" cy="12" r="1.8" />

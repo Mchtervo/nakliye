@@ -5,6 +5,7 @@ import OdemeGirForm from "@/components/OdemeGirForm";
 import { HareketKok } from "@/components/ana/Hareket";
 import { anaYazi } from "@/components/ana/yazi";
 import FirmaAvatar from "@/components/kasa/FirmaAvatar";
+import FirmaDuzenle from "@/components/kasa/FirmaDuzenle";
 import FirmaSekmeler from "@/components/kasa/FirmaSekmeler";
 import AcilirSatir from "@/components/sefer/AcilirSatir";
 import { tlYazKisa } from "@/lib/para";
@@ -29,6 +30,8 @@ export type FirmaVeri = {
   vergiNo: string | null;
   ilkKayitYazi: string;
   seferler: FirmaSefer[];
+  /** Düzenleme formu için kayıtlı telefon */
+  telefonHam?: string | null;
 };
 
 function Rozet({ odenen, kalan }: { odenen: number; kalan: number }) {
@@ -257,6 +260,8 @@ export default function FirmaGorunum({ v, geriHref = "/para?sekme=cari" }: { v: 
                 </section>
               }
               detay={
+                <>
+                <FirmaDuzenle firma={{ id: v.id, ad: v.ad, telefon: v.telefonHam ?? null, vergiNo: v.vergiNo }} />
                 <dl className="divide-y divide-[var(--a-cizgi)] rounded-[1.4rem] bg-white px-4 shadow-[var(--a-golge)]">
                   {(
                     [
@@ -273,6 +278,7 @@ export default function FirmaGorunum({ v, geriHref = "/para?sekme=cari" }: { v: 
                     </div>
                   ))}
                 </dl>
+                </>
               }
             />
           </div>

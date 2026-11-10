@@ -19,18 +19,40 @@ export default async function RaporlarSayfasi({
   const sonraki = new Date(yil, ay, 1);
   const anahtar = ayParametresi(yil, ay);
 
-  const [yukler, giderler] = await Promise.all([
+  const [yukler, giderler, araclar] = await Promise.all([
     prisma.yuk.findMany({
       where: { tarih: { gte: bas, lt: son } },
-      select: { toplamTutar: true, netTutar: true, kdvTutar: true, firma: { select: { id: true, ad: true } } },
+      select: { toplamTutar: true, netTutar: true, kdvTutar: true, aracId: true, firma: { select: { id: true, ad: true } } },
     }),
     prisma.gider.findMany({
       where: { tarih: { gte: bas, lt: son } },
-      select: { kategori: true, toplamTutar: true, netTutar: true, kdvTutar: true },
+      select: { kategori: true, toplamTutar: true, netTutar: true, kdvTutar: true, aracId: true },
     }),
+    prisma.arac.findMany({ orderBy: { id: "asc" }, select: { id: true, ad: true, plaka: true, sofor: true } }),
   ]);
 
   const isletmeGiderleri = giderler.filter((g) => isletmeGideriMi(g.kategori));
+
+  // Tır bazlı gelir / gider (KDV hariç). Araç alanı boş eski kayıtlar ilk araca aittir.
+  const ilkAracId = araclar[0]?.id;
+  const aracMap = new Map(
+    araclar.map((a, i) => [
+      a.id,
+      { id: a.id, etiket: a.plaka || `${a.ad} ${i + 1}`, sofor: a.sofor, gelir: 0, gider: 0, sefer: 0 },
+    ])
+  );
+  const aracBul = (id: number | null) => aracMap.get(id ?? ilkAracId ?? -1) ?? aracMap.get(ilkAracId ?? -1);
+  for (const y of yukler) {
+    const a = aracBul(y.aracId);
+    if (a) {
+      a.gelir += y.netTutar;
+      a.sefer += 1;
+    }
+  }
+  for (const g of isletmeGiderleri) {
+    const a = aracBul(g.aracId);
+    if (a) a.gider += g.netTutar;
+  }
 
   // Firma bazlı ciro (KDV dahil)
   const firmaMap = new Map<number, { id: number; ad: string; tutar: number; adet: number }>();
@@ -69,6 +91,7 @@ export default async function RaporlarSayfasi({
           .filter((k) => k.tutar > 0)
           .sort((a, b) => b.tutar - a.tutar),
         firmalar: [...firmaMap.values()].sort((a, b) => b.tutar - a.tutar),
+        araclar: [...aracMap.values()],
         excelHref: `/api/excel?ay=${anahtar}`,
       }}
     />

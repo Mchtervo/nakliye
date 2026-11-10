@@ -14,6 +14,7 @@ export type AracOge = {
   id: number;
   etiket: string;
   plaka: string | null;
+  sofor?: string | null;
   aktif: boolean;
   sinif: string | null;
   kasaTipi: string | null;
@@ -141,6 +142,10 @@ function AracFormu({ arac, kapat, ornek }: { arac?: AracOge; kapat: () => void; 
       <label className="block">
         <span className="ana-etiket">Plaka</span>
         <input name="plaka" defaultValue={arac?.plaka ?? ""} autoCapitalize="characters" className="ana-alan" placeholder="İsteğe bağlı" />
+      </label>
+      <label className="block">
+        <span className="ana-etiket">Şoför adı</span>
+        <input name="sofor" defaultValue={arac?.sofor ?? ""} autoCapitalize="words" maxLength={60} className="ana-alan" placeholder="İsteğe bağlı" />
       </label>
       {(durum.hata || silHata) && <Uyari>{durum.hata || silHata}</Uyari>}
       <button type="submit" disabled={bekliyor || ornek} className="ana-ana-dugme w-full">
@@ -277,7 +282,7 @@ export default function AracGorunum({ v }: { v: AracVeri }) {
                 >
                   {a.aktif && <m.span layoutId="aktif-arac" className="ar-arac-zemin" transition={{ type: "spring", stiffness: 480, damping: 38 }} aria-hidden />}
                   <span className="relative block text-[13.5px] font-extrabold">{a.etiket}</span>
-                  <span className={`relative block text-[11.5px] ${a.aktif ? "text-[#dfe4ff]" : "text-[var(--a-ikincil)]"}`}>{a.plaka || (a.aktif ? "Seçili · düzenle" : "Seç")}</span>
+                  <span className={`relative block text-[11.5px] ${a.aktif ? "text-[#dfe4ff]" : "text-[var(--a-ikincil)]"}`}>{[a.plaka, a.sofor].filter(Boolean).join(" · ") || (a.aktif ? "Seçili · düzenle" : "Seç")}</span>
                 </button>
               </div>
             ))}

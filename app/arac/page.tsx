@@ -32,6 +32,7 @@ export default async function AracSayfasi() {
               id: a.id,
               etiket: aracEtiketi(a),
               plaka: a.plaka,
+              sofor: a.sofor,
               aktif: a.id === aktifId,
               sinif: a.sinif,
               kasaTipi: a.kasaTipi,

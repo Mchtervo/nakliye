@@ -17,6 +17,7 @@ import {
   yolculukSor,
 } from "@/lib/bildirim/hatirlatma";
 import { ikonHatirlat } from "@/lib/bildirim/ikonGuncelleme";
+import { seferHatirlat } from "@/lib/bildirim/sefer";
 
 async function main() {
   const okuyucu = await okuyucuHatirlat();
@@ -28,6 +29,10 @@ async function main() {
   const yakit = await yakitHatirlat();
   const kart = await kartHatirlat();
   const kredi = await krediHatirlat();
+  const sefer = await seferHatirlat().catch((e) => {
+    console.error("[cron-hatirlatma] sefer", e instanceof Error ? e.message : e);
+    return false;
+  });
   // Üyeler: kendi defterlerinde, kendi cihaz / bildirim kutularına (Telegram yalnız yöneticide)
   const uyeler = await anaPrisma.uye.findMany({ where: { aktif: true, kurulumBitti: { not: null } }, select: { id: true } });
   let uyeBildirim = 0;
@@ -35,7 +40,7 @@ async function main() {
     try {
       uyeBildirim += await uyeAdinaCalistir(u.id, async () => {
         const o = await odemeHatirlat();
-        return o.adet + (await bakimHatirlat() ? 1 : 0) + (await belgeHatirlat()) + (await kartHatirlat()) + (await krediHatirlat()) + ((await yakitHatirlat()) ? 1 : 0);
+        return o.adet + (await bakimHatirlat() ? 1 : 0) + (await belgeHatirlat()) + (await kartHatirlat()) + (await krediHatirlat()) + ((await yakitHatirlat()) ? 1 : 0) + ((await seferHatirlat()) ? 1 : 0);
       });
     } catch (e) {
       console.error(`[cron-hatirlatma] üye ${u.id}`, e instanceof Error ? e.message : e);
@@ -43,7 +48,7 @@ async function main() {
   }
   console.log(`[cron-hatirlatma] üyeler=${uyeler.length} üye-bildirim=${uyeBildirim}`);
   console.log(
-    `[cron-hatirlatma] okuyucu=${okuyucu} odeme=${odeme.adet}${odeme.atlandi ? ` (${odeme.atlandi})` : ""} ikon=${ikon} yolculuk=${yolculuk} bakim=${bakim} belge=${belge} yakit=${yakit} kart=${kart} kredi=${kredi}`
+    `[cron-hatirlatma] okuyucu=${okuyucu} odeme=${odeme.adet}${odeme.atlandi ? ` (${odeme.atlandi})` : ""} ikon=${ikon} yolculuk=${yolculuk} bakim=${bakim} belge=${belge} yakit=${yakit} kart=${kart} kredi=${kredi} sefer=${sefer}`
   );
 }
 

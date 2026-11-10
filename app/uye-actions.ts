@@ -175,9 +175,11 @@ export async function kisiselTercihKaydet(_o: TercihSonuc, f: FormData): Promise
   const konum = ilBul(String(f.get("konumIl") || ""));
   if (!anaUs || !konum) return { hata: "Şehirleri seç.", tamam: false };
   const push = f.get("push") === "1" ? "1" : "0";
+  const yukler = f.get("yukler") === "0" ? "0" : "1";
   for (const [anahtar, deger] of [
     ["ai_ana_us", anaUs],
     ["bildirim_push", push],
+    ["uye_yukler_acik", yukler],
   ] as const) {
     await prisma.ayar.upsert({ where: { anahtar }, update: { deger }, create: { anahtar, deger } });
   }

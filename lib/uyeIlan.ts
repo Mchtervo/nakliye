@@ -5,6 +5,15 @@ import { prisma } from "@/lib/prisma";
  * Üyenin şemasındaki Ayar'da tutulur; yöneticinin ilan durumlarına dokunmaz.
  */
 const ANAHTAR = "uye_ilan_durum";
+
+/**
+ * Üye "Yük bul" bölümünü kapattı mı (Kişisel ayarlar → Yükler). Varsayılan açık.
+ * Yalnız üye bağlamında çağrılır (kendi şemasındaki Ayar).
+ */
+export async function yuklerAcikMi(): Promise<boolean> {
+  const a = await prisma.ayar.findUnique({ where: { anahtar: "uye_yukler_acik" } }).catch(() => null);
+  return a?.deger !== "0";
+}
 const UST_SINIR = 600;
 
 export async function uyeIlanDurumlari(): Promise<Map<number, string>> {

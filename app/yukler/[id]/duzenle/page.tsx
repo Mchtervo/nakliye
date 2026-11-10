@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import YukForm from "@/components/YukForm";
 import { anaYazi } from "@/components/ana/yazi";
 import { kurustanGiris } from "@/lib/para";
+import { aracSecenekleri } from "@/lib/aktifArac";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,13 @@ export default async function YukDuzenleSayfasi({
   const id = Number(idHam);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
-  const [yuk, firmalar] = await Promise.all([
+  const [yuk, firmalar, araclar] = await Promise.all([
     prisma.yuk.findUnique({ where: { id } }),
     prisma.firma.findMany({
       orderBy: { ad: "asc" },
       select: { id: true, ad: true },
     }),
+    aracSecenekleri(),
   ]);
   if (!yuk) notFound();
 
@@ -43,6 +45,7 @@ export default async function YukDuzenleSayfasi({
         baslik="Seferi düzenle"
         altBaslik={`${yuk.nereden} → ${yuk.nereye}`}
         firmalar={firmalar}
+        araclar={araclar}
         bugunTarih={tarihInput(yuk.tarih)}
         baslangic={{
           id: yuk.id,
@@ -55,6 +58,7 @@ export default async function YukDuzenleSayfasi({
           kdvli: yuk.kdvli,
           kdvDahilMi: yuk.kdvDahilMi,
           km: yuk.km != null ? String(yuk.km) : "",
+          aracId: yuk.aracId,
         }}
       />
     </div>

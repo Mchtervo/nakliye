@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { aktifBaglam } from "@/lib/baglam";
 import { anaPrisma } from "@/lib/prismaAna";
-import { uyeIlanDurumlari } from "@/lib/uyeIlan";
+import { uyeIlanDurumlari, yuklerAcikMi } from "@/lib/uyeIlan";
+import { redirect } from "next/navigation";
 import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
@@ -122,6 +123,8 @@ export default async function AiYuklerSayfasi({
   // üyenin kendi defterinde. Yöneticinin ilan durumları, görüşmeleri, Telegram
   // kimlikleri üyeye geçmez.
   const uye = (await aktifBaglam()).uyeId !== null;
+  // Üye yükleri kapattıysa: ayarlardan açabileceği yere gönder
+  if (uye && !(await yuklerAcikMi())) redirect("/profil");
   const ilanDb = uye ? anaPrisma : prisma;
   const uyeDurum = uye ? await uyeIlanDurumlari() : new Map<number, string>();
   const uyeTakipIdleri = [...uyeDurum].filter(([, d]) => d !== "ELENDI").map(([id]) => id);

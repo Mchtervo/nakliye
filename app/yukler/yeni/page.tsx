@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import YukForm, { type YukFormHazirlik } from "@/components/YukForm";
 import { anaYazi } from "@/components/ana/yazi";
 import { bugunTarihStr } from "@/lib/tarih";
+import { aracSecenekleri } from "@/lib/aktifArac";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,13 @@ export default async function YeniYukSayfasi({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const firmalar = await prisma.firma.findMany({
-    orderBy: { ad: "asc" },
-    select: { id: true, ad: true },
-  });
+  const [firmalar, araclar] = await Promise.all([
+    prisma.firma.findMany({
+      orderBy: { ad: "asc" },
+      select: { id: true, ad: true },
+    }),
+    aracSecenekleri(),
+  ]);
 
   const hazir: YukFormHazirlik = {
     nereden: metin(sp.nereden),
@@ -37,6 +41,7 @@ export default async function YeniYukSayfasi({
         baslik="Yeni sefer"
         altBaslik="Sefer bilgilerini gir"
         firmalar={firmalar}
+        araclar={araclar}
         bugunTarih={bugunTarihStr()}
         hazir={onDolgu ? hazir : undefined}
         ust={

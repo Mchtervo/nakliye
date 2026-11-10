@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { aktifArac } from "@/lib/aktifArac";
+import { aktifArac, formdakiAracId } from "@/lib/aktifArac";
 import { kdvHesapla, tlKurusaCevir, tlYaz } from "@/lib/para";
 import { GIDER_KATEGORILERI } from "@/lib/sabitler";
 import { fisKaydet, fisSil } from "@/lib/fis";
@@ -68,8 +68,18 @@ export async function yukEkle(
 
   const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
   const odendiMi = formData.get("odendiMi") === "1";
+  const aracId = await formdakiAracId(formData.get("aracId"), async () => (await aktifArac())?.id ?? null);
 
-  const yeniYuk = await prisma.yuk.create({
+  // Çift dokunma: aynı sefer az önce kaydedildiyse ikinci kez yazılmaz
+  const ayni = await prisma.yuk.findFirst({
+    where: { firmaId: firmaSonuc.id, nereden, nereye, toplamTutar, tarih, createdAt: { gte: new Date(Date.now() - 20_000) } },
+    select: { id: true },
+  });
+  if (ayni) redirect("/yukler");
+
+  let yeniYuk: { id: number };
+  try {
+    yeniYuk = await prisma.yuk.create({
     data: {
       tarih,
       firmaId: firmaSonuc.id,
@@ -82,13 +92,34 @@ export async function yukEkle(
       kdvTutar,
       toplamTutar,
       km: kmOku(formData.get("km")),
-      aracId: (await aktifArac())?.id ?? null,
+      aracId,
       odemeDurumu: odendiMi ? "ODENDI" : "BEKLIYOR",
       odemeler: odendiMi
         ? { create: { tarih, tutar: toplamTutar, not: "Kayıt sırasında ödendi" } }
         : undefined,
     },
+    select: { id: true },
   });
+  } catch (e) {
+    console.error("[yukEkle]", e);
+    return { hata: "Sefer kaydedilemedi, bağlantı yavaş olabilir. Birkaç saniye sonra tekrar dene." };
+  }
+
+  // Aynı hesabı kullanan diğer telefonlara "Yeni sefer" (kaydı giren cihaz hariç)
+  try {
+    const { yeniSeferBildir } = await import("@/lib/bildirim/sefer");
+    const firma = await prisma.firma.findUnique({ where: { id: firmaSonuc.id }, select: { ad: true } });
+    await yeniSeferBildir({
+      nereden,
+      nereye,
+      firma: firma?.ad ?? "",
+      toplamTutar,
+      aracId,
+      cihaz: metinOku(formData.get("cihaz")) || null,
+    });
+  } catch (e) {
+    console.warn("[yukEkle] bildirim", e instanceof Error ? e.message : e);
+  }
 
   // Boş dönmemek için ters yönde dönüş yükü araması açılır.
   const talepId = await donusTalebiOlustur(yeniYuk.id, nereden, nereye).catch(() => null);
@@ -165,6 +196,7 @@ export async function yukGuncelle(
       toplamTutar,
       odemeDurumu,
       km: kmOku(formData.get("km")),
+      aracId: await formdakiAracId(formData.get("aracId"), async () => mevcut.aracId),
     },
   });
 
@@ -325,7 +357,7 @@ export async function giderEkle(
       litre,
       km,
       fisResmi: fisSonuc?.yol ?? null,
-      aracId: (await aktifArac())?.id ?? null,
+      aracId: await formdakiAracId(formData.get("aracId"), async () => (await aktifArac())?.id ?? null),
       ...odemeBilgi,
     },
   });
@@ -419,6 +451,7 @@ export async function giderGuncelle(
       litre,
       km,
       fisResmi,
+      aracId: await formdakiAracId(formData.get("aracId"), async () => mevcut.aracId),
       ...odemeBilgi,
     },
   });

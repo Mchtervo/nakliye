@@ -20,9 +20,23 @@ function Satir({ etiket, ikon, ton, children }: { etiket: string; ikon: React.Re
 }
 
 /** Kişisel tercihler: ana üs, aracın konumu, telefona bildirim. Başarı yalnız kayıt bitince. */
-export default function KisiselTercih({ iller, anaUs, konumIl, push }: { iller: string[]; anaUs: string; konumIl: string; push: boolean }) {
+export default function KisiselTercih({
+  iller,
+  anaUs,
+  konumIl,
+  push,
+  yukler = true,
+}: {
+  iller: string[];
+  anaUs: string;
+  konumIl: string;
+  push: boolean;
+  /** "Yük bul" bölümü açık mı */
+  yukler?: boolean;
+}) {
   const [durum, aksiyon, bekliyor] = useActionState<TercihSonuc, FormData>(kisiselTercihKaydet, { hata: null, tamam: false });
   const [acik, setAcik] = useState(push);
+  const [yukAcik, setYukAcik] = useState(yukler);
   const secici = (ad: string, deger: string) => (
     <select name={ad} defaultValue={deger} className="uy-secici max-w-[9.5rem] bg-transparent text-right text-[14.5px] font-bold text-[#3730a3] outline-none">
       <option value="">Seç</option>
@@ -52,10 +66,22 @@ export default function KisiselTercih({ iller, anaUs, konumIl, push }: { iller: 
             </button>
           </Satir>
         </li>
+        <li>
+          <Satir etiket={yukAcik ? "Yükler açık" : "Yükler kapalı"} ton="ana-ton-turuncu" ikon={<><path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3v3h-7" /><circle cx="6.5" cy="17" r="1.8" /><circle cx="17" cy="17" r="1.8" /></>}>
+            <input type="hidden" name="yukler" value={yukAcik ? "1" : "0"} />
+            <button type="button" role="switch" aria-checked={yukAcik} aria-label="Yük ilanlarını aç / kapat" onClick={() => setYukAcik((a) => !a)} className={`kt-anahtar ${yukAcik ? "kt-anahtar-acik" : ""}`}>
+              <m.span layout transition={{ type: "spring", stiffness: 600, damping: 36 }} className="kt-anahtar-top" />
+            </button>
+          </Satir>
+        </li>
       </ul>
       <p className="rp-not">
         <span aria-hidden>ⓘ</span>
-        <span>Bakım, belge, kart ve tahsilat hatırlatmaları telefona gelir; kapalıyken yalnız uygulamadaki bildirim kutusunda görünür. Uygun yük bildirimi üyeler için henüz yok.</span>
+        <span>Yükler kapalıyken menüde ve ana sayfada &quot;Yük bul&quot; görünmez; yalnız sefer, gider ve hesap kısmı kalır. İstediğin zaman buradan açarsın.</span>
+      </p>
+      <p className="rp-not">
+        <span aria-hidden>ⓘ</span>
+        <span>Bakım, belge, kart ve tahsilat hatırlatmaları, başka telefondan girilen yeni seferler ve günde iki kez &quot;bugün sefer yazdın mı?&quot; telefona gelir; kapalıyken yalnız uygulamadaki bildirim kutusunda görünür. Uygun yük bildirimi üyeler için henüz yok.</span>
       </p>
       {durum.hata && <Uyari>{durum.hata}</Uyari>}
       {durum.tamam && !bekliyor && <Uyari ton="tamam">Kaydedildi.</Uyari>}

@@ -10,6 +10,7 @@ import FisYukle from "@/components/FisYukle";
 import KategoriIkon from "@/components/gider/KategoriIkon";
 import { gecerliKategoriMi, giderKategoriGruplari } from "@/lib/sabitler";
 import { kurustanGiris } from "@/lib/para";
+import type { AracSecenek } from "@/lib/aktifArac";
 
 type FisSonucu = {
   okunabildi: boolean;
@@ -44,6 +45,8 @@ export type GiderFormBaslangic = {
   fisResmi: string | null;
   odeme: string;
   veresiyeYer: string;
+  /** Gideri yapan araç (boşsa ilk araç) */
+  aracId?: number | null;
 };
 
 /**
@@ -73,7 +76,10 @@ export default function GiderForm({
   altBaslik,
   ilkVeresiye = false,
   ilkVeresiyeYer,
+  araclar = [],
 }: {
+  /** Birden fazla araç varsa "Tır" seçimi görünür */
+  araclar?: AracSecenek[];
   baslik: string;
   altBaslik: string;
   /** Veresiye defterinden "+ Veresiye gider" ile gelindi */
@@ -261,6 +267,30 @@ export default function GiderForm({
                 ))}
               </select>
             </div>
+
+            {araclar.length > 1 && (
+              <>
+                <label htmlFor="aracId" className="gd-satir-etiket">
+                  Tır
+                </label>
+                <div className="sf-alan">
+                  <select
+                    id="aracId"
+                    name="aracId"
+                    defaultValue={String(
+                      (baslangic ? (baslangic.aracId ?? araclar[0]?.id) : araclar.find((a) => a.aktif)?.id) ?? ""
+                    )}
+                    className="sf-girdi sf-secim"
+                  >
+                    {araclar.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.etiket}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
 
           <AnimatePresence initial={false} mode="popLayout">
