@@ -526,7 +526,8 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     const ids = sohbetKimlikleri(m);
     const grupMu = grupSohbetiMi(ids);
     const kanalMu = kanalSohbetiMi(ids);
-    if (grupMu && m.key.id) {
+    // Gönderen bilgisi olmayan grup mesajı temizlik noktası olamaz (kütüphane reddeder)
+    if (grupMu && m.key.id && (m.key.fromMe || m.key.participant)) {
       // Eski mesaj temizliği için "buraya kadar sil" noktası
       noktaEkle(ids.find((j) => j.endsWith("@g.us"))!, {
         id: m.key.id,
@@ -686,6 +687,7 @@ async function baglan(): Promise<void> {
   let gorusmeZamanlayici: ReturnType<typeof setInterval> | null = null;
   let kanalZamanlayici: ReturnType<typeof setInterval> | null = null;
   let temizlikZamanlayici: ReturnType<typeof setInterval> | null = null;
+  let temizlikIlk: ReturnType<typeof setTimeout> | null = null;
 
   sock.ev.on("connection.update", async (u) => {
     if (u.qr && !kodIstendi && !state.creds.registered) {
@@ -734,7 +736,8 @@ async function baglan(): Promise<void> {
       }, KANAL_TARAMA_MS);
       if (temizlikZamanlayici) clearInterval(temizlikZamanlayici);
       // İlk tur bağlandıktan 10 dk sonra, sonra 3 saatte bir
-      setTimeout(() => void eskiSohbetleriTemizle(sock), 10 * 60 * 1000);
+      if (temizlikIlk) clearTimeout(temizlikIlk);
+      temizlikIlk = setTimeout(() => void eskiSohbetleriTemizle(sock), 10 * 60 * 1000);
       temizlikZamanlayici = setInterval(() => void eskiSohbetleriTemizle(sock), TEMIZLIK_MS);
     }
 
@@ -743,6 +746,7 @@ async function baglan(): Promise<void> {
       if (gorusmeZamanlayici) clearInterval(gorusmeZamanlayici);
       if (kanalZamanlayici) clearInterval(kanalZamanlayici);
       if (temizlikZamanlayici) clearInterval(temizlikZamanlayici);
+      if (temizlikIlk) clearTimeout(temizlikIlk);
       const kod = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
         ?.output?.statusCode;
       if (kod === DisconnectReason.loggedOut) {

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { aracEtiketBulucu } from "@/lib/aktifArac";
 import { tarihYaz } from "@/lib/para";
 import { kategoriAdi, GIDER_KATEGORILERI, isletmeGideriMi } from "@/lib/sabitler";
 import { ayAraligi } from "@/lib/tarih";
@@ -17,6 +18,7 @@ export default async function GiderlerSayfasi({
   const { bas, son } = ayAraligi(yil, ay);
   const ayAdi = ayEtiketi(yil, ay);
 
+  const aracEtiketi = await aracEtiketBulucu();
   const [giderler, tumGider] = await Promise.all([
     prisma.gider.findMany({
       where: { tarih: { gte: bas, lt: son } },
@@ -73,7 +75,7 @@ export default async function GiderlerSayfasi({
           kategori: g.kategori,
           kategoriAd: kategoriAdi(g.kategori),
           alt: (g.odeme === "VERESIYE" && g.veresiyeYer) || g.aciklama || tarihYaz(g.tarih),
-          ek: [g.litre ? `${g.litre} lt` : null, g.km ? `${g.km.toLocaleString("tr-TR")} km` : null].filter(Boolean).join(" · ") || null,
+          ek: [aracEtiketi(g.aracId), g.litre ? `${g.litre} lt` : null, g.km ? `${g.km.toLocaleString("tr-TR")} km` : null].filter(Boolean).join(" · ") || null,
           toplam: g.toplamTutar,
           net: g.netTutar,
           kdv: g.kdvTutar,

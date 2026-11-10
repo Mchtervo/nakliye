@@ -29,6 +29,18 @@ export async function aracSecenekleri(): Promise<AracSecenek[]> {
 }
 
 /**
+ * Listelerde "hangi tır / şoför" etiketi. Tek araçlı hesapta etiket gereksizdir
+ * (null döner). Araç alanı boş eski kayıtlar ilk araca aittir.
+ */
+export async function aracEtiketBulucu(): Promise<(aracId: number | null) => string | null> {
+  const araclar = await aracSecenekleri();
+  if (araclar.length < 2) return () => null;
+  const harita = new Map(araclar.map((a) => [a.id, a.etiket]));
+  const ilk = araclar[0].etiket;
+  return (aracId) => (aracId === null ? ilk : (harita.get(aracId) ?? null));
+}
+
+/**
  * Formda seçilen araç (kullanıcının kendi defterinde varsa); seçilmemişse
  * `yedek` (düzenlemede mevcut araç, yeni kayıtta seçili araç).
  */

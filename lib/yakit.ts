@@ -101,8 +101,10 @@ export async function yakitVerimi(): Promise<YakitVerimi> {
  * Yakıt fişindeki gösterge km'si araç kaydını günceller (bakım takibi).
  * Daha yeni bir gösterge girişi varsa dokunmaz.
  */
-export async function yakittanGostergeYaz(km: number, tarih: Date): Promise<void> {
-  const arac = await aktifArac();
+export async function yakittanGostergeYaz(km: number, tarih: Date, aracId?: number | null): Promise<void> {
+  // Fişin ait olduğu tır (formda seçilen); verilmezse seçili araç.
+  // Önceden hep seçili araca yazılıyordu: başka tırın fişi yanlış tırın göstergesini bozuyordu.
+  const arac = (aracId ? await prisma.arac.findUnique({ where: { id: aracId } }) : null) ?? (await aktifArac());
   if (!arac) {
     await prisma.arac.create({ data: { kmSayac: km, kmTarih: tarih } });
     return;

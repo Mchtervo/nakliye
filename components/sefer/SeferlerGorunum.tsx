@@ -17,6 +17,8 @@ export type SeferSatir = {
   tarihKisa: string;
   tarihUzun: string;
   aciklama: string | null;
+  /** Hangi tır / şoför (tek araçta boş) */
+  arac?: string | null;
   toplam: number;
   odenen: number;
   net: number;
@@ -148,6 +150,7 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
                         </div>
                         <p className="truncate text-[12.5px] text-[var(--a-ikincil)]">
                           {s.firma} • {s.tarihKisa}
+                          {s.arac ? ` • ${s.arac}` : ""}
                           {s.aciklama ? ` • ${s.aciklama}` : ""}
                         </p>
                       </div>

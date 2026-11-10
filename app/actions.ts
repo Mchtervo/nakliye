@@ -344,6 +344,7 @@ export async function giderEkle(
   const fisSonuc = await fisKaydet(fisDosya);
   if (fisSonuc && "hata" in fisSonuc) return fisSonuc;
 
+  const giderAracId = await formdakiAracId(formData.get("aracId"), async () => (await aktifArac())?.id ?? null);
   await prisma.gider.create({
     data: {
       tarih,
@@ -357,14 +358,14 @@ export async function giderEkle(
       litre,
       km,
       fisResmi: fisSonuc?.yol ?? null,
-      aracId: await formdakiAracId(formData.get("aracId"), async () => (await aktifArac())?.id ?? null),
+      aracId: giderAracId,
       ...odemeBilgi,
     },
   });
   // Yakıt fişindeki gösterge bakım takibini günceller
   if (kategori === "YAKIT" && km) {
     const { yakittanGostergeYaz } = await import("@/lib/yakit");
-    await yakittanGostergeYaz(km, tarih).catch(() => null);
+    await yakittanGostergeYaz(km, tarih, giderAracId).catch(() => null);
   }
 
   revalidatePath("/");
@@ -437,6 +438,7 @@ export async function giderGuncelle(
     }
   }
 
+  const guncelAracId = await formdakiAracId(formData.get("aracId"), async () => mevcut.aracId);
   await prisma.gider.update({
     where: { id },
     data: {
@@ -451,13 +453,13 @@ export async function giderGuncelle(
       litre,
       km,
       fisResmi,
-      aracId: await formdakiAracId(formData.get("aracId"), async () => mevcut.aracId),
+      aracId: guncelAracId,
       ...odemeBilgi,
     },
   });
   if (kategori === "YAKIT" && km) {
     const { yakittanGostergeYaz } = await import("@/lib/yakit");
-    await yakittanGostergeYaz(km, tarih).catch(() => null);
+    await yakittanGostergeYaz(km, tarih, guncelAracId).catch(() => null);
   }
 
   revalidatePath("/");
