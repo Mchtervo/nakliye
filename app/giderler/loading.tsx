@@ -1,1 +1,1 @@
-export { default } from "../yukler/loading";
+export { default } from "../loading";
