@@ -26,7 +26,10 @@ export default function AnaSayfaGorunum({
   hareketler,
   alacaklar,
   acikAnahtar,
+  tirlar,
 }: {
+  /** Tır (şoför) bazlı bu ayın gelir / gideri */
+  tirlar?: ReactNode;
   selam: string;
   ayAdi: string;
   aylar: AyNetGorunum[];
@@ -78,6 +81,7 @@ export default function AnaSayfaGorunum({
               {yaklasanlar}
               {yolculuk}
               <AyinHesabi />
+              {tirlar}
               <SonHareketler hareketler={hareketler} />
               <Alacaklar firmalar={alacaklar} />
               <TelefonTuslari acikAnahtar={acikAnahtar} tema="acik" />

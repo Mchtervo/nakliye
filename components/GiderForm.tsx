@@ -271,7 +271,7 @@ export default function GiderForm({
             {araclar.length > 1 && (
               <>
                 <label htmlFor="aracId" className="gd-satir-etiket">
-                  Tır
+                  Tır / şoför
                 </label>
                 <div className="sf-alan">
                   <select

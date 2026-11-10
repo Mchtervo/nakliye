@@ -166,6 +166,7 @@ export default function FirmaGorunum({ v, geriHref = "/para?sekme=cari" }: { v: 
                 <h1 className="truncate text-[1.45rem] font-extrabold tracking-[-0.02em] text-white">{v.ad}</h1>
                 <p className="text-[13px] text-[#c7cffd]">Müşteri detayları</p>
               </div>
+              <FirmaDuzenle ikon firma={{ id: v.id, ad: v.ad, telefon: v.telefonHam ?? null, vergiNo: v.vergiNo }} />
               {v.telHref && (
                 <a href={v.telHref} className="ks-iletisim" aria-label={`${v.telefonYazi} numarasını ara`}>
                   <span className="ks-iletisim-ikon bg-white text-[#2563eb]">

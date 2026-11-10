@@ -144,8 +144,8 @@ function AracFormu({ arac, kapat, ornek }: { arac?: AracOge; kapat: () => void; 
         <input name="plaka" defaultValue={arac?.plaka ?? ""} autoCapitalize="characters" className="ana-alan" placeholder="İsteğe bağlı" />
       </label>
       <label className="block">
-        <span className="ana-etiket">Şoför adı</span>
-        <input name="sofor" defaultValue={arac?.sofor ?? ""} autoCapitalize="words" maxLength={60} className="ana-alan" placeholder="İsteğe bağlı" />
+        <span className="ana-etiket">Şoför adı soyadı</span>
+        <input name="sofor" defaultValue={arac?.sofor ?? ""} autoCapitalize="words" maxLength={60} className="ana-alan" placeholder="Örnek: Ramazan Yılmaz" />
       </label>
       {(durum.hata || silHata) && <Uyari>{durum.hata || silHata}</Uyari>}
       <button type="submit" disabled={bekliyor || ornek} className="ana-ana-dugme w-full">
@@ -291,8 +291,36 @@ export default function AracGorunum({ v }: { v: AracVeri }) {
               <span className="text-[11.5px] font-bold">Araç ekle</span>
             </button>
           </div>
-          {v.araclar.length > 1 && <p className="mt-1.5 px-1 text-[12px] text-[var(--a-ikincil)]">Yeni sefer ve giderler seçili araca yazılır; km ve bakım seçili aracındır.</p>}
+          {v.araclar.length > 1 && <p className="mt-1.5 px-1 text-[12px] text-[var(--a-ikincil)]">Yeni sefer ve giderlerde tır seçilir; seçilmezse seçili tıra yazılır. Km ve bakım seçili tırındır.</p>}
         </section>
+
+        {v.araclar.length > 0 && (
+          <section aria-labelledby="tirlar-soforler" className="ana-gir" style={{ animationDelay: "40ms" }}>
+            <h2 id="tirlar-soforler" className="ana-baslik px-1">
+              Tırlar ve şoförler
+            </h2>
+            <ul className="rp-kart mt-2 px-3">
+              {v.araclar.map((a) => (
+                <li key={a.id} className="flex items-center gap-3 border-b border-[var(--a-cizgi)] py-2.5 last:border-0">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-bold">{a.plaka || a.etiket}</span>
+                    <span className="block truncate text-[12.5px] text-[var(--a-ikincil)]">
+                      {a.sofor ? `Şoför: ${a.sofor}` : "Şoför yazılmadı"} · {a.etiket}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={v.ornek}
+                    onClick={() => setPanel({ tur: "arac", arac: a })}
+                    className="shrink-0 rounded-full bg-[#eef0ff] px-3.5 py-2 text-[13px] font-bold text-[#4338ca]"
+                  >
+                    Düzenle
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="rp-kart ana-gir grid grid-cols-2 p-2" style={{ animationDelay: "60ms" }} aria-label="Gösterge ve bakım">
           <div className="rp-hucre">

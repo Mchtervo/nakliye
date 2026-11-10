@@ -200,7 +200,7 @@ export default function RaporGorunum({ v }: { v: RaporVeri }) {
             )}
           </section>
 
-          {v.araclar && v.araclar.length > 1 && (
+          {v.araclar && v.araclar.length > 0 && (
             <section aria-labelledby="tir-bazli">
               <div className="flex items-baseline gap-2 px-1">
                 <h2 id="tir-bazli" className="ana-baslik">

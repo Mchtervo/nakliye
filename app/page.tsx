@@ -14,6 +14,7 @@ import { pushAcikAnahtar } from "@/lib/bildirim/push";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 import { ayNetleri } from "@/lib/krediKarti";
 import { yuklerAcikMi } from "@/lib/uyeIlan";
+import TirlarOzeti from "@/components/ana/TirlarOzeti";
 
 export const dynamic = "force-dynamic";
 
@@ -149,6 +150,11 @@ export default async function PanelSayfasi() {
       hareketler={hareketler}
       alacaklar={firmaAlacaklari}
       acikAnahtar={pushAcikAnahtar()}
+      tirlar={
+        <Suspense fallback={<div className="ana-iskelet h-40" />}>
+          <TirlarOzeti />
+        </Suspense>
+      }
     />
   );
 }

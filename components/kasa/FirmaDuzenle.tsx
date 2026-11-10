@@ -57,9 +57,28 @@ function Form({ firma, kapat }: { firma: Firma; kapat: () => void }) {
 }
 
 /** Firma detayındaki "Düzenle" düğmesi + alttan açılan form. */
-export default function FirmaDuzenle({ firma }: { firma: Firma }) {
+export default function FirmaDuzenle({ firma, ikon = false }: { firma: Firma; /** Başlıkta küçük kalem düğmesi */ ikon?: boolean }) {
   const [acik, setAcik] = useState(false);
   const kapat = () => setAcik(false);
+  if (ikon) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setAcik(true)}
+          aria-label="Firma adını düzenle"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]" aria-hidden>
+            <path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" />
+          </svg>
+        </button>
+        <AltPanel acik={acik} etiket="Firmayı düzenle" kapat={kapat}>
+          {acik && <Form firma={firma} kapat={kapat} />}
+        </AltPanel>
+      </>
+    );
+  }
   return (
     <>
       <button
