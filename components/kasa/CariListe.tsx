@@ -4,6 +4,7 @@ import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import FirmaAvatar from "@/components/kasa/FirmaAvatar";
+import FirmaDuzenle from "@/components/kasa/FirmaDuzenle";
 import { tlYazKisa } from "@/lib/para";
 
 export type CariSatir = {
@@ -59,8 +60,8 @@ export default function CariListe({ cariler }: { cariler: CariSatir[] }) {
         <ul className="mt-3 space-y-2.5">
           <AnimatePresence initial={false}>
             {gorunen.map((c) => (
-              <m.li key={c.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-                <Link href={`/firmalar/${c.id}`} className="ks-cari">
+              <m.li key={c.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="flex items-center gap-2">
+                <Link href={`/firmalar/${c.id}`} className="ks-cari min-w-0 flex-1">
                   <FirmaAvatar id={c.id} ad={c.ad} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15.5px] font-extrabold tracking-[-0.01em]">{c.ad}</span>
@@ -73,6 +74,7 @@ export default function CariListe({ cariler }: { cariler: CariSatir[] }) {
                     ›
                   </span>
                 </Link>
+                <FirmaDuzenle ikon acikZemin firma={{ id: c.id, ad: c.ad }} />
               </m.li>
             ))}
           </AnimatePresence>

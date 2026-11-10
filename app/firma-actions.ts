@@ -30,8 +30,10 @@ export async function firmaGuncelle(_o: FirmaSonuc, f: FormData): Promise<FirmaS
   if (!Number.isInteger(id) || id <= 0) return { hata: "Firma bulunamadı.", tamam: false };
   const ad = metin(f, "ad", 120);
   if (!ad) return { hata: "Firma adı boş olamaz.", tamam: false };
-  const telefon = metin(f, "telefon", 30) || null;
-  const vergiNo = metin(f, "vergiNo", 20) || null;
+  // Kısa formda (sefer ekranı, cari liste) yalnız ad gelir: telefon / vergi no'ya dokunulmaz
+  const ekBilgi = f.has("telefon")
+    ? { telefon: metin(f, "telefon", 30) || null, vergiNo: metin(f, "vergiNo", 20) || null }
+    : {};
 
   const firma = await prisma.firma.findUnique({ where: { id } });
   if (!firma) return { hata: "Firma bulunamadı.", tamam: false };
@@ -44,8 +46,10 @@ export async function firmaGuncelle(_o: FirmaSonuc, f: FormData): Promise<FirmaS
     return { hata: `"${ayni.ad}" adlı firma zaten var.`, tamam: false, birlestir: ayni };
   }
 
-  await prisma.firma.update({ where: { id }, data: { ad, telefon, vergiNo } });
+  await prisma.firma.update({ where: { id }, data: { ad, ...ekBilgi } });
   yenile(id);
+  // Sefer formundaki firma listesi de yeni adı göstersin
+  revalidatePath("/", "layout");
   return { hata: null, tamam: true };
 }
 

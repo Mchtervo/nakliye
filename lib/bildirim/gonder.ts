@@ -99,7 +99,7 @@ export function yeniYukMetni(
   );
 }
 
-function kaydaDon(
+export function kaydaDon(
   i: {
     id: number;
     firmaAdi: string | null;

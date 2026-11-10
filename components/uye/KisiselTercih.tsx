@@ -81,7 +81,7 @@ export default function KisiselTercih({
       </p>
       <p className="rp-not">
         <span aria-hidden>ⓘ</span>
-        <span>Bakım, belge, kart ve tahsilat hatırlatmaları, başka telefondan girilen yeni seferler ve günde iki kez &quot;bugün sefer yazdın mı?&quot; telefona gelir; kapalıyken yalnız uygulamadaki bildirim kutusunda görünür. Uygun yük bildirimi üyeler için henüz yok.</span>
+        <span>Bakım, belge, kart ve tahsilat hatırlatmaları, başka telefondan girilen yeni seferler ve günde iki kez &quot;bugün sefer yazdın mı?&quot; telefona gelir; kapalıyken yalnız uygulamadaki bildirim kutusunda görünür. Yükler açıksa güzergâhına ve tırına uygun yeni yükler de bildirilir (gece 23–07 arası susar).</span>
       </p>
       {durum.hata && <Uyari>{durum.hata}</Uyari>}
       {durum.tamam && !bekliyor && <Uyari ton="tamam">Kaydedildi.</Uyari>}

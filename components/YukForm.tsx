@@ -7,6 +7,7 @@ import TutarKdvGirisi from "@/components/TutarKdvGirisi";
 import RotaCizgi from "@/components/yuk/RotaCizgi";
 import { seferKmTahmini } from "@/lib/seferYer";
 import type { AracSecenek } from "@/lib/aktifArac";
+import FirmaDuzenle from "@/components/kasa/FirmaDuzenle";
 
 export type YukFormBaslangic = {
   id: number;
@@ -107,6 +108,8 @@ export default function YukForm({
     return "";
   });
 
+  const seciliFirma = firmalar.find((f) => String(f.id) === firmaSecim);
+
   // Bu telefonun bildirim adresi: "Yeni sefer" bildirimi kaydı girene gitmesin
   const [cihaz, setCihaz] = useState("");
   useEffect(() => {
@@ -175,19 +178,23 @@ export default function YukForm({
                 </button>
               )}
             </div>
-            <div className="sf-alan">
-              <Ikon ad="bina" />
-              <select id="firmaId" name="firmaId" required value={firmaSecim} onChange={(e) => setFirmaSecim(e.target.value)} className="sf-girdi sf-secim">
-                <option value="" disabled>
-                  Firma seç…
-                </option>
-                {firmalar.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.ad}
+            <div className="flex items-center gap-2">
+              <div className="sf-alan min-w-0 flex-1">
+                <Ikon ad="bina" />
+                <select id="firmaId" name="firmaId" required value={firmaSecim} onChange={(e) => setFirmaSecim(e.target.value)} className="sf-girdi sf-secim">
+                  <option value="" disabled>
+                    Firma seç…
                   </option>
-                ))}
-                <option value="yeni">+ Yeni firma ekle</option>
-              </select>
+                  {firmalar.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.ad}
+                    </option>
+                  ))}
+                  <option value="yeni">+ Yeni firma ekle</option>
+                </select>
+              </div>
+              {/* Seçili firmanın adı yanlış girildiyse buradan düzeltilir */}
+              {seciliFirma && <FirmaDuzenle ikon acikZemin firma={seciliFirma} />}
             </div>
           </div>
 

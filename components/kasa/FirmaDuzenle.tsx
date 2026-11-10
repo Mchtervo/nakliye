@@ -5,7 +5,8 @@ import { firmaBirlestir, firmaGuncelle, type FirmaSonuc } from "@/app/firma-acti
 import AltPanel from "@/components/ana/AltPanel";
 import { Uyari } from "@/components/uyelik/Alanlar";
 
-type Firma = { id: number; ad: string; telefon: string | null; vergiNo: string | null };
+/** telefon / vergiNo verilmezse (undefined) formda yalnız ad düzeltilir */
+type Firma = { id: number; ad: string; telefon?: string | null; vergiNo?: string | null };
 
 function Form({ firma, kapat }: { firma: Firma; kapat: () => void }) {
   const [durum, aksiyon, bekliyor] = useActionState<FirmaSonuc, FormData>(firmaGuncelle, { hata: null, tamam: false });
@@ -24,14 +25,18 @@ function Form({ firma, kapat }: { firma: Firma; kapat: () => void }) {
         <span className="ana-etiket">Firma adı</span>
         <input name="ad" required maxLength={120} defaultValue={firma.ad} className="ana-alan" />
       </label>
-      <label className="block">
-        <span className="ana-etiket">Telefon</span>
-        <input name="telefon" type="tel" inputMode="tel" maxLength={30} defaultValue={firma.telefon ?? ""} className="ana-alan" placeholder="İsteğe bağlı" />
-      </label>
-      <label className="block">
-        <span className="ana-etiket">Vergi no</span>
-        <input name="vergiNo" inputMode="numeric" maxLength={20} defaultValue={firma.vergiNo ?? ""} className="ana-alan" placeholder="İsteğe bağlı" />
-      </label>
+      {firma.telefon !== undefined && (
+        <>
+          <label className="block">
+            <span className="ana-etiket">Telefon</span>
+            <input name="telefon" type="tel" inputMode="tel" maxLength={30} defaultValue={firma.telefon ?? ""} className="ana-alan" placeholder="İsteğe bağlı" />
+          </label>
+          <label className="block">
+            <span className="ana-etiket">Vergi no</span>
+            <input name="vergiNo" inputMode="numeric" maxLength={20} defaultValue={firma.vergiNo ?? ""} className="ana-alan" placeholder="İsteğe bağlı" />
+          </label>
+        </>
+      )}
       {(durum.hata || birlestirHata) && <Uyari>{birlestirHata || durum.hata}</Uyari>}
       {durum.birlestir && (
         <button
@@ -57,7 +62,17 @@ function Form({ firma, kapat }: { firma: Firma; kapat: () => void }) {
 }
 
 /** Firma detayındaki "Düzenle" düğmesi + alttan açılan form. */
-export default function FirmaDuzenle({ firma, ikon = false }: { firma: Firma; /** Başlıkta küçük kalem düğmesi */ ikon?: boolean }) {
+export default function FirmaDuzenle({
+  firma,
+  ikon = false,
+  acikZemin = false,
+}: {
+  firma: Firma;
+  /** Küçük kalem düğmesi (başlıkta / satırda) */
+  ikon?: boolean;
+  /** Kalem açık zeminde (beyaz kart, form) */
+  acikZemin?: boolean;
+}) {
   const [acik, setAcik] = useState(false);
   const kapat = () => setAcik(false);
   if (ikon) {
@@ -65,9 +80,14 @@ export default function FirmaDuzenle({ firma, ikon = false }: { firma: Firma; /*
       <>
         <button
           type="button"
-          onClick={() => setAcik(true)}
-          aria-label="Firma adını düzenle"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white"
+          onClick={(e) => {
+            // Satır bağlantısının içindeyse sayfaya gitmesin
+            e.preventDefault();
+            e.stopPropagation();
+            setAcik(true);
+          }}
+          aria-label={`${firma.ad} adını düzenle`}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${acikZemin ? "bg-[#eef0ff] text-[#4338ca]" : "bg-white/15 text-white"}`}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]" aria-hidden>
             <path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" />

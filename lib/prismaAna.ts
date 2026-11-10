@@ -35,9 +35,12 @@ export function uyeIstemcisi(uyeId: number): PrismaClient {
   if (!c) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL yok");
-    // Üye başına küçük havuz: çok üyede bağlantı sınırı aşılmasın
+    // Üye başına küçük havuz. 2 iken ana sayfanın eşzamanlı sorguları sıraya
+    // girip 10 sn'de P2024 veriyordu (canlı logda yüzlerce; ekran kararıyordu).
+    // Supabase pgbouncer (6543) istemci bağlantısını ucuz tutar.
     const u = new URL(semaliUrl(url, uyeSemasi(uyeId)));
-    u.searchParams.set("connection_limit", "2");
+    u.searchParams.set("connection_limit", "5");
+    u.searchParams.set("pool_timeout", "20");
     c = istemci(u.toString());
     uyeIstemcileri.set(uyeId, c);
   }
