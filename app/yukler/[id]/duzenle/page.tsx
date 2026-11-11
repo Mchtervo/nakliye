@@ -27,7 +27,7 @@ export default async function YukDuzenleSayfasi({
     prisma.yuk.findUnique({ where: { id } }),
     prisma.firma.findMany({
       orderBy: { ad: "asc" },
-      select: { id: true, ad: true },
+      select: { id: true, ad: true, telefon: true },
     }),
     aracSecenekleri(),
   ]);

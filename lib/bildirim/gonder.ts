@@ -548,7 +548,9 @@ export async function bildirimHataOzetiGonder(): Promise<{
 export async function bilgiBildir(
   baslik: string,
   metin: string,
-  yol = "/"
+  yol = "/",
+  /** Bildirim kutusundaki işlem düğmeleri (ör. Ara) */
+  butonlar?: { etiket: string; url: string }[]
 ): Promise<void> {
   const tercih = await aiTercihleriOku();
   const kok = siteAdresi();
@@ -573,10 +575,10 @@ export async function bilgiBildir(
   }
 
   if (tercih.pushAcik && pushKullanilabilir()) {
-    await pushGonder({ baslik, metin: metin.slice(0, 200), url: yol, detay: metin });
+    await pushGonder({ baslik, metin: metin.slice(0, 200), url: yol, detay: metin, butonlar });
   } else {
     // Push kapalıyken de uygulama içi kutuda görünsün
     const { gelenKutusunaEkle } = await import("@/lib/bildirim/gelenKutusu");
-    await gelenKutusunaEkle({ baslik, metin, url: yol });
+    await gelenKutusunaEkle({ baslik, metin, url: yol, butonlar });
   }
 }

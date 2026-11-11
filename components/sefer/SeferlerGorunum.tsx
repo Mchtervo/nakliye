@@ -19,6 +19,8 @@ export type SeferSatir = {
   aciklama: string | null;
   /** Hangi tır / şoför (tek araçta boş) */
   arac?: string | null;
+  /** Müşteri telefonu varsa "Ara" bağlantısı (tel:) */
+  telHref?: string | null;
   toplam: number;
   odenen: number;
   net: number;
@@ -190,6 +192,14 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
                             </svg>
                             Tamamı tahsil edildi
                           </span>
+                        )}
+                        {s.telHref && (
+                          <a href={s.telHref} className="sf-ikincil-dugme flex-1" aria-label={`${s.firma} firmasını ara`}>
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
+                              <path d="M6.6 10.8a15.2 15.2 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" />
+                            </svg>
+                            Ara
+                          </a>
                         )}
                         <Link href={`/yukler/${s.id}/duzenle`} className="sf-ikincil-dugme flex-1">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>

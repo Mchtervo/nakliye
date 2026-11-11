@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { kdvHesapla, tlKurusaCevir, tlGirisBicimle, tlYaz, tlYazKisa } from "@/lib/para";
+import { KDV_ORANI, kdvHesapla, seferKdvOrani, tlKurusaCevir, tlGirisBicimle, tlYaz, tlYazKisa } from "@/lib/para";
 
 export default function TutarKdvGirisi({
   etiket = "Tutar",
@@ -12,7 +12,10 @@ export default function TutarKdvGirisi({
   kdvEtiketi,
   kdvNotu,
   tema = "koyu",
+  seferKurali = false,
 }: {
+  /** Sefer: 10.000 TL üstü %16, altı %20 (lib/para seferKdvOrani) */
+  seferKurali?: boolean;
   /** "acik": sefer formunun açık tasarımı (aynı hesap, farklı görünüm) */
   tema?: "koyu" | "acik";
   etiket?: string;
@@ -32,8 +35,10 @@ export default function TutarKdvGirisi({
   const [kdvDahilMi, setKdvDahilMi] = useState(baslangicKdvDahilMi);
 
   const kurus = tlKurusaCevir(tutar);
+  const oran = seferKurali && kurus !== null ? seferKdvOrani(kurus) : KDV_ORANI;
+  const yuzde = Math.round(oran * 100);
   const hesap =
-    kurus !== null && kurus > 0 ? kdvHesapla(kurus, kdvli, kdvDahilMi) : null;
+    kurus !== null && kurus > 0 ? kdvHesapla(kurus, kdvli, kdvDahilMi, oran) : null;
 
   if (tema === "acik") {
     return (
@@ -82,13 +87,16 @@ export default function TutarKdvGirisi({
               <span className="font-bold tabular-nums">{tlYazKisa(hesap.netTutar)}</span>
             </div>
             <div className="mt-1 flex items-center justify-between text-[13.5px]">
-              <span className="text-[#3b4262]">{kdvli ? `${kdvEtiketi || "KDV"} (%20)` : "KDV"}</span>
+              <span className="text-[#3b4262]">{kdvli ? `${kdvEtiketi || "KDV"} (%${yuzde})` : "KDV"}</span>
               <span className="font-bold tabular-nums">{kdvli ? tlYazKisa(hesap.kdvTutar) : "Yok"}</span>
             </div>
             <div className="mt-2 flex items-center justify-between border-t border-[#e3e6f3] pt-2">
               <span className="text-[15px] font-extrabold">Toplam</span>
               <span className="text-[1.35rem] font-extrabold tabular-nums text-[#4338ca]">{tlYazKisa(hesap.toplamTutar)}</span>
             </div>
+            {seferKurali && kdvli && (
+              <p className="mt-1.5 text-[11.5px] leading-snug text-[var(--a-ikincil)]">10.000 TL üstü seferde KDV %16, 10.000 TL ve altında %20 hesaplanır.</p>
+            )}
             {kdvNotu && <p className="mt-1.5 text-[11.5px] leading-snug text-[var(--a-ikincil)]">{kdvNotu}</p>}
           </div>
         )}

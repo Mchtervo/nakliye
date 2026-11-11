@@ -60,6 +60,8 @@ export const AYAR_ANAHTARLARI = {
   bildirimPush: "bildirim_push",
   /** Üye: "Yük bul" bölümü açık mı ("0" = kapalı; varsayılan açık) */
   uyeYukler: "uye_yukler_acik",
+  /** Üye: Yük bul'dan gelen yeni yük bildirimleri ("0" = kapalı; varsayılan açık) */
+  uyeYukBildirim: "uye_yuk_bildirim",
   // Telegram kullanıcı hesabıyla grup keşfi / okuma
   telegramUyeAktif: "telegram_uye_aktif",
   telegramSorguSira: "telegram_sorgu_sira",
@@ -182,6 +184,8 @@ export type AiTercihleri = {
   pushAcik: boolean;
   /** Üye: yük ilanları bölümü açık mı */
   yuklerAcik: boolean;
+  /** Üye: yeni yük bildirimleri açık mı (sefer / hatırlatma bildirimlerinden ayrı) */
+  yukBildirimAcik: boolean;
   telegramUyeAcik: boolean;
   waSablon: {
     ad: string;
@@ -253,6 +257,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     AYAR_ANAHTARLARI.bildirimTelegram,
     AYAR_ANAHTARLARI.bildirimPush,
     AYAR_ANAHTARLARI.uyeYukler,
+    AYAR_ANAHTARLARI.uyeYukBildirim,
     AYAR_ANAHTARLARI.telegramUyeAktif,
     AYAR_ANAHTARLARI.waSablonAd,
     AYAR_ANAHTARLARI.waSablonFirma,
@@ -337,6 +342,7 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     telegramAcik: a[AYAR_ANAHTARLARI.bildirimTelegram] !== "0",
     pushAcik: a[AYAR_ANAHTARLARI.bildirimPush] !== "0",
     yuklerAcik: a[AYAR_ANAHTARLARI.uyeYukler] !== "0",
+    yukBildirimAcik: a[AYAR_ANAHTARLARI.uyeYukBildirim] !== "0",
     telegramUyeAcik: a[AYAR_ANAHTARLARI.telegramUyeAktif] !== "0",
     waSablon: {
       ad: a[AYAR_ANAHTARLARI.waSablonAd] || "",

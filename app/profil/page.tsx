@@ -74,7 +74,7 @@ export default async function ProfilSayfasi() {
           </Bolum>
 
           <Bolum baslik="Temel bilgiler">
-            <KisiselTercih iller={[...ILLER]} anaUs={tercih.anaUs ?? d.sehir ?? ""} konumIl={konum ?? ""} push={tercih.pushAcik} yukler={tercih.yuklerAcik} />
+            <KisiselTercih iller={[...ILLER]} anaUs={tercih.anaUs ?? d.sehir ?? ""} konumIl={konum ?? ""} push={tercih.pushAcik} yukler={tercih.yuklerAcik} yukBildirim={tercih.yukBildirimAcik} />
           </Bolum>
 
           <Bolum baslik="Aracın">

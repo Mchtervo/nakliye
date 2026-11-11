@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { bilgiBildir } from "@/lib/bildirim/gonder";
 import { daemonSorunlari } from "@/lib/kaynaklar/daemonNabiz";
 import { tlYaz } from "@/lib/para";
+import { telefonTelHref } from "@/lib/telefon";
 
 const GUN_MS = 24 * 60 * 60 * 1000;
 const ODEME_ANAHTAR = "odeme_hatirlatma_gun";
@@ -63,13 +64,15 @@ export async function odemeHatirlat(): Promise<{ adet: number; atlandi?: string 
       nereden: true,
       nereye: true,
       toplamTutar: true,
-      firma: { select: { ad: true } },
+      firma: { select: { id: true, ad: true, telefon: true } },
       odemeler: { select: { tutar: true } },
     },
     orderBy: { tarih: "asc" },
   });
 
   const satirlar: string[] = [];
+  // Telefonu kayıtlı firmalar için "Ara" düğmesi (en çok 3)
+  const aranacak = new Map<number, { etiket: string; url: string }>();
   let toplam = 0;
   for (const y of yukler) {
     const kalan = y.toplamTutar - y.odemeler.reduce((o, p) => o + p.tutar, 0);
@@ -77,6 +80,8 @@ export async function odemeHatirlat(): Promise<{ adet: number; atlandi?: string 
     const gecen = gunFarki(trGun(y.tarih), gun);
     if (!hatirlatmaGunuMu(gecen)) continue;
     toplam += kalan;
+    const tel = y.firma.telefon ? telefonTelHref(y.firma.telefon) : null;
+    if (tel && aranacak.size < 3) aranacak.set(y.firma.id, { etiket: `Ara: ${y.firma.ad.slice(0, 24)}`, url: tel });
     satirlar.push(
       `• ${y.firma.ad}: ${tarihYaz(y.tarih)} tarihli ${y.nereden}→${y.nereye} işinin ${tlYaz(kalan)} ödemesi ${gecen} gündür alınmadı`
     );
@@ -90,7 +95,8 @@ export async function odemeHatirlat(): Promise<{ adet: number; atlandi?: string 
   await bilgiBildir(
     baslik,
     `${satirlar.join("\n")}\n\nÖdeme geldiyse uygulamada işaretle.`,
-    "/yukler"
+    "/yukler",
+    [...aranacak.values(), { etiket: "Seferlere git", url: "/yukler" }]
   );
   return { adet: satirlar.length };
 }

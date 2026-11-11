@@ -33,7 +33,7 @@ export async function uyeYukBildir(): Promise<number> {
   if (!pushKullanilabilir() || bildirimSessizMi()) return 0;
   if (!(await yuklerAcikMi())) return 0;
   const tercih = await aiTercihleriOku();
-  if (!tercih.pushAcik) return 0;
+  if (!tercih.pushAcik || !tercih.yukBildirimAcik) return 0;
   if ((await prisma.pushAbone.count()) === 0) return 0;
 
   const sonKayit = await prisma.ayar.findUnique({ where: { anahtar: SON_ANAHTAR } });

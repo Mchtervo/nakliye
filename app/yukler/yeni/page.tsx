@@ -21,7 +21,7 @@ export default async function YeniYukSayfasi({
   const [firmalar, araclar] = await Promise.all([
     prisma.firma.findMany({
       orderBy: { ad: "asc" },
-      select: { id: true, ad: true },
+      select: { id: true, ad: true, telefon: true },
     }),
     aracSecenekleri(),
   ]);

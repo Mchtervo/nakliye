@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { aracEtiketBulucu } from "@/lib/aktifArac";
+import { telefonTelHref } from "@/lib/telefon";
 import { ayAraligi } from "@/lib/tarih";
 import { ayEtiketi, ayParametresi, ayParametresiOku } from "@/lib/kdv";
 import SeferlerGorunum from "@/components/sefer/SeferlerGorunum";
@@ -64,6 +65,7 @@ export default async function YuklerSayfasi({
           tarihUzun: uzun.format(y.tarih),
           aciklama: y.aciklama,
           arac: aracEtiketi(y.aracId),
+          telHref: y.firma.telefon ? telefonTelHref(y.firma.telefon) : null,
           toplam: y.toplamTutar,
           odenen: y.odemeler.reduce((t, o) => t + o.tutar, 0),
           net: y.netTutar,

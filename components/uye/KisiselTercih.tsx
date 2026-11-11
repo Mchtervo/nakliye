@@ -26,7 +26,10 @@ export default function KisiselTercih({
   konumIl,
   push,
   yukler = true,
+  yukBildirim = true,
 }: {
+  /** Yük bul'dan gelen yeni yük bildirimleri */
+  yukBildirim?: boolean;
   iller: string[];
   anaUs: string;
   konumIl: string;
@@ -37,6 +40,7 @@ export default function KisiselTercih({
   const [durum, aksiyon, bekliyor] = useActionState<TercihSonuc, FormData>(kisiselTercihKaydet, { hata: null, tamam: false });
   const [acik, setAcik] = useState(push);
   const [yukAcik, setYukAcik] = useState(yukler);
+  const [yukBildirimAcik, setYukBildirimAcik] = useState(yukBildirim);
   const secici = (ad: string, deger: string) => (
     <select name={ad} defaultValue={deger} className="uy-secici max-w-[9.5rem] bg-transparent text-right text-[14.5px] font-bold text-[#3730a3] outline-none">
       <option value="">Seç</option>
@@ -59,9 +63,17 @@ export default function KisiselTercih({
           </Satir>
         </li>
         <li>
-          <Satir etiket="Telefona bildirim" ton="ana-ton-indigo" ikon={<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" />}>
+          <Satir etiket={acik ? "Tüm bildirimler açık" : "Tüm bildirimler kapalı"} ton="ana-ton-indigo" ikon={<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" />}>
             <input type="hidden" name="push" value={acik ? "1" : "0"} />
             <button type="button" role="switch" aria-checked={acik} onClick={() => setAcik((a) => !a)} className={`kt-anahtar ${acik ? "kt-anahtar-acik" : ""}`}>
+              <m.span layout transition={{ type: "spring", stiffness: 600, damping: 36 }} className="kt-anahtar-top" />
+            </button>
+          </Satir>
+        </li>
+        <li>
+          <Satir etiket={yukBildirimAcik ? "Yük bildirimleri açık" : "Yük bildirimleri kapalı"} ton="ana-ton-yesil" ikon={<><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>}>
+            <input type="hidden" name="yukBildirim" value={yukBildirimAcik ? "1" : "0"} />
+            <button type="button" role="switch" aria-checked={yukBildirimAcik} aria-label="Yük bul bildirimlerini aç / kapat" disabled={!acik} onClick={() => setYukBildirimAcik((a) => !a)} className={`kt-anahtar ${yukBildirimAcik && acik ? "kt-anahtar-acik" : ""} ${!acik ? "opacity-50" : ""}`}>
               <m.span layout transition={{ type: "spring", stiffness: 600, damping: 36 }} className="kt-anahtar-top" />
             </button>
           </Satir>
@@ -81,7 +93,7 @@ export default function KisiselTercih({
       </p>
       <p className="rp-not">
         <span aria-hidden>ⓘ</span>
-        <span>Bakım, belge, kart ve tahsilat hatırlatmaları, başka telefondan girilen yeni seferler ve günde iki kez &quot;bugün sefer yazdın mı?&quot; telefona gelir; kapalıyken yalnız uygulamadaki bildirim kutusunda görünür. Yükler açıksa güzergâhına ve tırına uygun yeni yükler de bildirilir (gece 23–07 arası susar).</span>
+        <span>Bakım, belge, kart ve tahsilat hatırlatmaları, başka telefondan girilen yeni seferler ve günde iki kez &quot;bugün sefer yazdın mı?&quot; telefona gelir; kapalıyken yalnız uygulamadaki bildirim kutusunda görünür. &quot;Yük bildirimleri&quot; yalnız Yük bul&apos;dan gelen yeni yükleri kapatır; sefer ve hatırlatma bildirimleri gelmeye devam eder. &quot;Tüm bildirimler&quot; kapalıyken telefona hiçbir şey gelmez.</span>
       </p>
       {durum.hata && <Uyari>{durum.hata}</Uyari>}
       {durum.tamam && !bekliyor && <Uyari ton="tamam">Kaydedildi.</Uyari>}

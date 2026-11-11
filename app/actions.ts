@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { aktifArac, formdakiAracId } from "@/lib/aktifArac";
-import { kdvHesapla, tlKurusaCevir, tlYaz } from "@/lib/para";
+import { kdvHesapla, seferKdvOrani, tlKurusaCevir, tlYaz } from "@/lib/para";
 import { GIDER_KATEGORILERI } from "@/lib/sabitler";
 import { fisKaydet, fisSil } from "@/lib/fis";
 import { digerYolculuklariKapat, donusTalebiOlustur } from "@/lib/donus";
@@ -23,21 +23,35 @@ function metinOku(deger: FormDataEntryValue | null): string {
   return typeof deger === "string" ? deger.trim() : "";
 }
 
+/** Formdaki müşteri telefonu: boşsa null (dokunma), geçersizse hata. */
+function telefonOku(ham: string): { telefon: string | null } | { hata: string } {
+  if (!ham) return { telefon: null };
+  const rakam = ham.replace(/D/g, "");
+  if (rakam.length < 10 || rakam.length > 13) return { hata: "Telefon numarası eksik ya da hatalı (örnek: 0532 123 45 67)." };
+  return { telefon: ham.replace(/[^d+ ]/g, "").trim().slice(0, 20) };
+}
+
 async function firmaBulVeyaOlustur(
   firmaIdHam: string,
-  yeniFirmaAdi: string
+  yeniFirmaAdi: string,
+  /** Sefer formunda yazılan müşteri telefonu: firmaya kaydedilir (boşsa mevcut numara kalır) */
+  telefon: string | null = null
 ): Promise<{ id: number } | { hata: string }> {
   if (firmaIdHam === "yeni") {
     if (!yeniFirmaAdi) return { hata: "Yeni firma adı boş olamaz." };
     const mevcut = await prisma.firma.findUnique({ where: { ad: yeniFirmaAdi } });
-    if (mevcut) return { id: mevcut.id };
-    const firma = await prisma.firma.create({ data: { ad: yeniFirmaAdi } });
+    if (mevcut) {
+      if (telefon && telefon !== mevcut.telefon) await prisma.firma.update({ where: { id: mevcut.id }, data: { telefon } });
+      return { id: mevcut.id };
+    }
+    const firma = await prisma.firma.create({ data: { ad: yeniFirmaAdi, telefon } });
     return { id: firma.id };
   }
   const id = Number(firmaIdHam);
   if (!Number.isInteger(id) || id <= 0) return { hata: "Lütfen bir firma seçin." };
   const firma = await prisma.firma.findUnique({ where: { id } });
   if (!firma) return { hata: "Seçilen firma bulunamadı." };
+  if (telefon && telefon !== firma.telefon) await prisma.firma.update({ where: { id }, data: { telefon } });
   return { id: firma.id };
 }
 
@@ -60,13 +74,17 @@ export async function yukEkle(
   const kdvli = formData.get("kdvli") === "1";
   const kdvDahilMi = formData.get("kdvDahilMi") === "1";
 
+  const telSonuc = telefonOku(metinOku(formData.get("firmaTelefon")));
+  if ("hata" in telSonuc) return telSonuc;
   const firmaSonuc = await firmaBulVeyaOlustur(
     metinOku(formData.get("firmaId")),
-    metinOku(formData.get("yeniFirmaAdi"))
+    metinOku(formData.get("yeniFirmaAdi")),
+    telSonuc.telefon
   );
   if ("hata" in firmaSonuc) return firmaSonuc;
 
-  const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
+  // Sefer KDV kuralı: 10.000 TL üstü %16, altı %20
+  const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi, seferKdvOrani(tutarKurus));
   const odendiMi = formData.get("odendiMi") === "1";
   const aracId = await formdakiAracId(formData.get("aracId"), async () => (await aktifArac())?.id ?? null);
 
@@ -168,13 +186,21 @@ export async function yukGuncelle(
   const kdvli = formData.get("kdvli") === "1";
   const kdvDahilMi = formData.get("kdvDahilMi") === "1";
 
+  const telSonuc = telefonOku(metinOku(formData.get("firmaTelefon")));
+  if ("hata" in telSonuc) return telSonuc;
   const firmaSonuc = await firmaBulVeyaOlustur(
     metinOku(formData.get("firmaId")),
-    metinOku(formData.get("yeniFirmaAdi"))
+    metinOku(formData.get("yeniFirmaAdi")),
+    telSonuc.telefon
   );
   if ("hata" in firmaSonuc) return firmaSonuc;
 
-  const { netTutar, kdvTutar, toplamTutar } = kdvHesapla(tutarKurus, kdvli, kdvDahilMi);
+  // Tutar ve KDV seçimi değişmediyse eski hesap korunur (kural değişikliği eski seferi bozmasın)
+  const eskiGirilen = mevcut.kdvli && !mevcut.kdvDahilMi ? mevcut.netTutar : mevcut.toplamTutar;
+  const ayniTutar = eskiGirilen === tutarKurus && mevcut.kdvli === kdvli && (!kdvli || mevcut.kdvDahilMi === kdvDahilMi);
+  const { netTutar, kdvTutar, toplamTutar } = ayniTutar
+    ? { netTutar: mevcut.netTutar, kdvTutar: mevcut.kdvTutar, toplamTutar: mevcut.toplamTutar }
+    : kdvHesapla(tutarKurus, kdvli, kdvDahilMi, seferKdvOrani(tutarKurus));
   const odenen = mevcut.odemeler.reduce((t, o) => t + o.tutar, 0);
   let odemeDurumu: string;
   if (odenen <= 0) odemeDurumu = "BEKLIYOR";

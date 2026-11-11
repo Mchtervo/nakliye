@@ -49,6 +49,7 @@ const IKON: Record<string, ReactNode> = {
     </>
   ),
   yol: <path d="M9 3 6 21M15 3l3 18M12 5v2M12 11v2M12 17v2" />,
+  telefon: <path d="M6.6 10.8a15.2 15.2 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" />,
   tir: (
     <>
       <path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3v3h-7" />
@@ -83,7 +84,7 @@ export default function YukForm({
   altBaslik,
   ust,
 }: {
-  firmalar: { id: number; ad: string }[];
+  firmalar: { id: number; ad: string; telefon?: string | null }[];
   /** Birden fazla araç varsa "Hangi tır?" seçimi görünür */
   araclar?: AracSecenek[];
   bugunTarih: string;
@@ -194,7 +195,7 @@ export default function YukForm({
                 </select>
               </div>
               {/* Seçili firmanın adı yanlış girildiyse buradan düzeltilir */}
-              {seciliFirma && <FirmaDuzenle ikon acikZemin firma={seciliFirma} />}
+              {seciliFirma && <FirmaDuzenle ikon acikZemin firma={{ id: seciliFirma.id, ad: seciliFirma.ad }} />}
             </div>
           </div>
 
@@ -217,6 +218,28 @@ export default function YukForm({
               </div>
             </div>
           )}
+
+          <div>
+            <label htmlFor="firmaTelefon" className="sf-etiket">
+              Müşteri telefonu <span className="font-medium text-[var(--a-ikincil)]">(ödeme için aranacak kişi)</span>
+            </label>
+            <div className="sf-alan">
+              <Ikon ad="telefon" />
+              {/* key: firma değişince o firmanın kayıtlı numarası gelir */}
+              <input
+                key={firmaSecim}
+                id="firmaTelefon"
+                name="firmaTelefon"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                maxLength={20}
+                placeholder="Örnek: 0532 123 45 67"
+                defaultValue={seciliFirma?.telefon ?? ""}
+                className="sf-girdi"
+              />
+            </div>
+          </div>
 
           {araclar.length > 1 && (
             <div>

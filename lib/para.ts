@@ -3,6 +3,17 @@
 
 export const KDV_ORANI = 0.20;
 
+/**
+ * Sefer (navlun) KDV kuralı: girilen tutar 10.000 TL'yi aşıyorsa %16,
+ * 10.000 TL ve altıysa %20. (Tevkifatlı faturada taşıyıcının tahsil ettiği KDV.)
+ * Yalnız seferlerde kullanılır; giderlerin KDV'si %20 kalır.
+ */
+export const SEFER_KDV_SINIR_KURUS = 10_000 * 100;
+export const SEFER_KDV_YUKSEK_TUTAR_ORANI = 0.16;
+export function seferKdvOrani(tutarKurus: number): number {
+  return tutarKurus > SEFER_KDV_SINIR_KURUS ? SEFER_KDV_YUKSEK_TUTAR_ORANI : KDV_ORANI;
+}
+
 export interface KdvSonuc {
   netTutar: number; // kuruş, KDV hariç
   kdvTutar: number; // kuruş
@@ -14,11 +25,13 @@ export interface KdvSonuc {
  * @param tutarKurus Kullanıcının girdiği tutar (kuruş)
  * @param kdvli İşlem KDV'li mi?
  * @param kdvDahilMi Girilen tutar KDV dahil mi? (kdvli=false ise önemsiz)
+ * @param oran KDV oranı (varsayılan %20; seferlerde seferKdvOrani)
  */
 export function kdvHesapla(
   tutarKurus: number,
   kdvli: boolean,
-  kdvDahilMi: boolean
+  kdvDahilMi: boolean,
+  oran: number = KDV_ORANI
 ): KdvSonuc {
   if (!Number.isInteger(tutarKurus) || tutarKurus < 0) {
     throw new Error("Tutar geçersiz");
@@ -29,12 +42,12 @@ export function kdvHesapla(
   if (kdvDahilMi) {
     // Girilen tutar KDV dahil: net = toplam / 1.20
     const toplamTutar = tutarKurus;
-    const netTutar = Math.round(toplamTutar / (1 + KDV_ORANI));
+    const netTutar = Math.round(toplamTutar / (1 + oran));
     return { netTutar, kdvTutar: toplamTutar - netTutar, toplamTutar };
   }
   // Girilen tutar KDV hariç: kdv = net * 0.20
   const netTutar = tutarKurus;
-  const kdvTutar = Math.round(netTutar * KDV_ORANI);
+  const kdvTutar = Math.round(netTutar * oran);
   return { netTutar, kdvTutar, toplamTutar: netTutar + kdvTutar };
 }
 
