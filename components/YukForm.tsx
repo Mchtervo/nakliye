@@ -317,6 +317,7 @@ export default function YukForm({
           <TutarKdvGirisi
             tema="acik"
             etiket="Navlun"
+            seferKurali
             baslangicTutar={baslangic?.tutarYazi || hazir?.tutarYazi || ""}
             baslangicKdvli={baslangic?.kdvli}
             baslangicKdvDahilMi={baslangic?.kdvDahilMi ?? true}
