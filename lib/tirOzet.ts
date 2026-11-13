@@ -10,7 +10,7 @@ export { tirHesabi, tirToplami, type TirSatiri } from "@/lib/tirHesap";
  */
 export async function tirBazliOzet(bas: Date, son: Date): Promise<TirSatiri[]> {
   const [araclar, yukler, giderler] = await Promise.all([
-    prisma.arac.findMany({ orderBy: { id: "asc" }, select: { id: true, ad: true, plaka: true, sofor: true } }),
+    prisma.arac.findMany({ orderBy: { id: "asc" }, select: { id: true, ad: true, plaka: true, sofor: true, soforFoto: true } }),
     prisma.yuk.findMany({ where: { tarih: { gte: bas, lt: son } }, select: { netTutar: true, kdvTutar: true, aracId: true } }),
     prisma.gider.findMany({ where: { tarih: { gte: bas, lt: son } }, select: { netTutar: true, kdvTutar: true, aracId: true, kategori: true } }),
   ]);
@@ -19,7 +19,7 @@ export async function tirBazliOzet(bas: Date, son: Date): Promise<TirSatiri[]> {
   const satirlar = new Map<number, TirSatiri>(
     araclar.map((a, i) => [
       a.id,
-      { id: a.id, etiket: a.plaka || `${a.ad} ${i + 1}`, sofor: a.sofor, gelir: 0, gelirKdv: 0, gider: 0, giderKdv: 0, sefer: 0 },
+      { id: a.id, etiket: a.plaka || `${a.ad} ${i + 1}`, sofor: a.sofor, soforFoto: a.soforFoto, gelir: 0, gelirKdv: 0, gider: 0, giderKdv: 0, sefer: 0 },
     ])
   );
   const bul = (id: number | null) => satirlar.get(id ?? ilkId) ?? satirlar.get(ilkId)!;

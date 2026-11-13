@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AnimatePresence, m } from "motion/react";
 import { useState } from "react";
+import SoforAvatar from "@/components/arac/SoforAvatar";
 import { useSayan } from "@/components/hareket/SayanSayi";
 import { tirHesabi, type TirSatiri } from "@/lib/tirHesap";
 
@@ -76,13 +77,17 @@ function TirKarti({ s, olcek, sira }: { s: TirSatiri; olcek: number; sira: numbe
     >
       <button type="button" onClick={() => setAcik((a) => !a)} aria-expanded={acik} className="block w-full text-left">
         <div className="flex items-center gap-3">
-          <span className="ana-mini-ikon ana-ton-indigo shrink-0" aria-hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3v3h-7" />
-              <circle cx="6.5" cy="17" r="1.8" />
-              <circle cx="17" cy="17" r="1.8" />
-            </svg>
-          </span>
+          {s.soforFoto || s.sofor ? (
+            <SoforAvatar foto={s.soforFoto} ad={s.sofor} boyut={42} />
+          ) : (
+            <span className="ana-mini-ikon ana-ton-indigo shrink-0" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3v3h-7" />
+                <circle cx="6.5" cy="17" r="1.8" />
+                <circle cx="17" cy="17" r="1.8" />
+              </svg>
+            </span>
+          )}
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] font-extrabold">{s.sofor || s.etiket}</span>
             <span className="block truncate text-[12px] text-[var(--a-ikincil)]">

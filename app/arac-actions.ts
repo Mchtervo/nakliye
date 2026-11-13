@@ -106,3 +106,26 @@ export async function aracSil(id: number): Promise<AracIslemSonuc> {
   yenile();
   return { hata: null, tamam: true };
 }
+
+/** Şoför profil fotoğrafı: yükle / değiştir / kaldır (dosya üyenin kendi klasörüne). */
+export async function soforFotoKaydet(aracId: number, f: FormData): Promise<AracIslemSonuc> {
+  if (!Number.isInteger(aracId) || aracId <= 0) return { hata: "Araç bulunamadı.", tamam: false };
+  const a = await prisma.arac.findUnique({ where: { id: aracId }, select: { soforFoto: true } });
+  if (!a) return { hata: "Araç bulunamadı.", tamam: false };
+  const { fisKaydet, fisSil } = await import("@/lib/fis");
+  if (f.get("kaldir")) {
+    await prisma.arac.update({ where: { id: aracId }, data: { soforFoto: null } });
+    await fisSil(a.soforFoto);
+    yenile();
+    return { hata: null, tamam: true };
+  }
+  const dosya = f.get("foto");
+  if (!(dosya instanceof File) || dosya.size === 0) return { hata: "Bir fotoğraf seç.", tamam: false };
+  if (dosya.size > 6 * 1024 * 1024) return { hata: "Fotoğraf en fazla 6 MB olabilir.", tamam: false };
+  const sonuc = await fisKaydet(dosya);
+  if (!sonuc || "hata" in sonuc) return { hata: sonuc?.hata ?? "Fotoğraf yüklenemedi.", tamam: false };
+  await prisma.arac.update({ where: { id: aracId }, data: { soforFoto: sonuc.yol } });
+  await fisSil(a.soforFoto);
+  yenile();
+  return { hata: null, tamam: true };
+}

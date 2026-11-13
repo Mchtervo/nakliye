@@ -47,6 +47,8 @@ model Arac {
   plaka          String?
   /// Aracı süren şoförün adı (sefer/gider raporlarında görünür)
   sofor          String?
+  /// Şoförün profil fotoğrafı (üyeye özel dosya yolu)
+  soforFoto      String?
   /// Elle girilen gösterge km ve girildiği an
   kmSayac        Int?
   kmTarih        DateTime?

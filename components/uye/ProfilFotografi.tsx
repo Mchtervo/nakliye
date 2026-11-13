@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { profilFotografiKaydet } from "@/app/uye-actions";
 
 /** Telefon fotoğrafı büyük olur: yüklemeden önce 800 px JPEG'e küçült. */
-async function kucult(dosya: File): Promise<Blob> {
+export async function kucult(dosya: File): Promise<Blob> {
   try {
     const resim = await createImageBitmap(dosya);
     const oran = Math.min(1, 800 / Math.max(resim.width, resim.height));

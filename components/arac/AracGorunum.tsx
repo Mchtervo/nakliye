@@ -1,9 +1,11 @@
 "use client";
 
 import { m } from "motion/react";
-import { useActionState, useEffect, useState, useTransition, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { aracKaydet, bakimYapildi, belgeKaydet, belgeSil, type AracSonuc, type BelgeSonuc } from "@/app/actions";
-import { aktifAracSec, aracBilgiKaydet, aracEkle, aracSil, type AracIslemSonuc } from "@/app/arac-actions";
+import { aktifAracSec, aracBilgiKaydet, aracEkle, aracSil, soforFotoKaydet, type AracIslemSonuc } from "@/app/arac-actions";
+import SoforAvatar from "@/components/arac/SoforAvatar";
+import { kucult } from "@/components/uye/ProfilFotografi";
 import AltPanel from "@/components/ana/AltPanel";
 import RaporUst from "@/components/finans/RaporUst";
 import { Uyari } from "@/components/uyelik/Alanlar";
@@ -15,6 +17,7 @@ export type AracOge = {
   etiket: string;
   plaka: string | null;
   sofor?: string | null;
+  soforFoto?: string | null;
   aktif: boolean;
   sinif: string | null;
   kasaTipi: string | null;
@@ -96,6 +99,70 @@ function KmFormu({ v, kapat }: { v: AracVeri; kapat: () => void }) {
   );
 }
 
+/** Şoför fotoğrafı seç / değiştir / kaldır (kayıtlı araçta). */
+function SoforFotoSec({ arac, ornek }: { arac: AracOge; ornek?: boolean }) {
+  const girdi = useRef<HTMLInputElement>(null);
+  const [foto, setFoto] = useState(arac.soforFoto ?? null);
+  const [hata, setHata] = useState<string | null>(null);
+  const [bekliyor, basla] = useTransition();
+
+  function gonder(f: FormData, sonra: string | null) {
+    setHata(null);
+    basla(async () => {
+      const r = await soforFotoKaydet(arac.id, f);
+      if (r.hata) setHata(r.hata);
+      else setFoto(sonra);
+    });
+  }
+
+  async function secildi(e: React.ChangeEvent<HTMLInputElement>) {
+    const dosya = e.target.files?.[0];
+    e.target.value = "";
+    if (!dosya) return;
+    const blob = await kucult(dosya);
+    const f = new FormData();
+    f.append("foto", blob, "sofor.jpg");
+    gonder(f, URL.createObjectURL(blob));
+  }
+
+  return (
+    <div className="flex items-center gap-4 rounded-2xl bg-[#f6f7fb] p-3">
+      <div className="relative">
+        <SoforAvatar foto={foto} ad={arac.sofor} boyut={76} />
+        {bekliyor && <span className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70 text-[12px] font-bold text-[#3730a3]">…</span>}
+      </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        <p className="text-[13px] font-bold text-[#3b4262]">Şoför fotoğrafı</p>
+        <input ref={girdi} type="file" accept="image/*" onChange={secildi} className="hidden" aria-label="Şoför fotoğrafı seç" />
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={bekliyor || ornek} onClick={() => girdi.current?.click()} className="ana-ana-dugme !min-h-9 !px-3.5 !text-[13.5px] disabled:opacity-60">
+            {foto ? "Değiştir" : "Fotoğraf ekle"}
+          </button>
+          {foto && (
+            <button
+              type="button"
+              disabled={bekliyor || ornek}
+              onClick={() => {
+                const f = new FormData();
+                f.append("kaldir", "1");
+                gonder(f, null);
+              }}
+              className="sf-ikincil-dugme !min-h-9 !px-3.5 !text-[13.5px] !text-[#dc2626] disabled:opacity-60"
+            >
+              Kaldır
+            </button>
+          )}
+        </div>
+        {hata && (
+          <p role="alert" className="text-[12.5px] font-semibold text-[#b91c1c]">
+            {hata}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AracFormu({ arac, kapat, ornek }: { arac?: AracOge; kapat: () => void; ornek?: boolean }) {
   const [durum, aksiyon, bekliyor] = useActionState<AracIslemSonuc, FormData>(arac ? aracBilgiKaydet : aracEkle, { hata: null, tamam: false });
   useKapanan(durum, kapat);
@@ -108,6 +175,7 @@ function AracFormu({ arac, kapat, ornek }: { arac?: AracOge; kapat: () => void; 
     <form action={aksiyon} className="space-y-3 px-5 pb-6 pt-1">
       <h2 className="text-[1.3rem] font-extrabold">{arac ? "Araç bilgileri" : "Araç ekle"}</h2>
       {arac && <input type="hidden" name="aracId" value={arac.id} />}
+      {arac && <SoforFotoSec arac={arac} ornek={ornek} />}
       <label className="block">
         <span className="ana-etiket">Araç tipi</span>
         <select name="sinif" value={sinif} onChange={(e) => setSinif(e.target.value)} className="ana-alan">
@@ -143,6 +211,7 @@ function AracFormu({ arac, kapat, ornek }: { arac?: AracOge; kapat: () => void; 
         <span className="ana-etiket">Plaka</span>
         <input name="plaka" defaultValue={arac?.plaka ?? ""} autoCapitalize="characters" className="ana-alan" placeholder="İsteğe bağlı" />
       </label>
+      {!arac && <p className="rp-not">Şoför fotoğrafını araç eklendikten sonra &quot;Düzenle&quot;den ekleyebilirsin.</p>}
       <label className="block">
         <span className="ana-etiket">Şoför adı soyadı</span>
         <input name="sofor" defaultValue={arac?.sofor ?? ""} autoCapitalize="words" maxLength={60} className="ana-alan" placeholder="Örnek: Ramazan Yılmaz" />
@@ -302,6 +371,9 @@ export default function AracGorunum({ v }: { v: AracVeri }) {
             <ul className="rp-kart mt-2 px-3">
               {v.araclar.map((a) => (
                 <li key={a.id} className="flex items-center gap-3 border-b border-[var(--a-cizgi)] py-2.5 last:border-0">
+                  <button type="button" disabled={v.ornek} onClick={() => setPanel({ tur: "arac", arac: a })} aria-label="Şoför fotoğrafı">
+                    <SoforAvatar foto={a.soforFoto} ad={a.sofor} boyut={48} />
+                  </button>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-bold">{a.plaka || a.etiket}</span>
                     <span className="block truncate text-[12.5px] text-[var(--a-ikincil)]">

@@ -4,6 +4,8 @@ export type TirSatiri = {
   /** Plaka (yoksa "Tır 1") */
   etiket: string;
   sofor: string | null;
+  /** Şoför fotoğrafı */
+  soforFoto?: string | null;
   /** Seferler, KDV hariç */
   gelir: number;
   /** Seferlerin KDV'si (hesaplanan / tahsil edilecek KDV) */
@@ -31,6 +33,6 @@ export function tirToplami(satirlar: TirSatiri[]): TirSatiri {
       giderKdv: t.giderKdv + s.giderKdv,
       sefer: t.sefer + s.sefer,
     }),
-    { id: 0, etiket: "Tüm tırlar", sofor: null, gelir: 0, gelirKdv: 0, gider: 0, giderKdv: 0, sefer: 0 }
+    { id: 0, etiket: "Tüm tırlar", sofor: null, soforFoto: null, gelir: 0, gelirKdv: 0, gider: 0, giderKdv: 0, sefer: 0 }
   );
 }
