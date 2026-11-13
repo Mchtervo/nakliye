@@ -5,6 +5,7 @@ import AksiyonButonu from "@/components/AksiyonButonu";
 import BildirimZili from "@/components/BildirimZili";
 import OdemeGirForm from "@/components/OdemeGirForm";
 import AcilirSatir from "@/components/sefer/AcilirSatir";
+import SeferFiltre from "@/components/sefer/SeferFiltre";
 import { HareketKok } from "@/components/ana/Hareket";
 import { anaYazi } from "@/components/ana/yazi";
 import { tlYazKisa } from "@/lib/para";
@@ -26,6 +27,10 @@ export type SeferSatir = {
   net: number;
   kdv: number;
   kdvli: boolean;
+  /** Kayıt sırasında peşin ödendi olarak girildi */
+  pesin?: boolean;
+  /** Aramada eşleşecek ek metin (telefon vb.) */
+  ekArama?: string;
 };
 
 export type SeferlerVeri = {
@@ -39,6 +44,9 @@ export type SeferlerVeri = {
   net: number;
   kdv: number;
   bugunKadar: number;
+  /** Tüm aylar görünümü açık mı; bağlantı ay görünümüyle değişir */
+  tumAylar?: boolean;
+  tumHref?: string;
   seferler: SeferSatir[];
 };
 
@@ -121,7 +129,14 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
 
           <div className="mt-5 flex items-baseline justify-between px-1">
             <h2 className="ana-baslik">Seferlerim</h2>
-            <span className="text-[12.5px] font-semibold text-[var(--a-ikincil)]">{v.seferler.length} sefer</span>
+            <span className="flex items-center gap-2 text-[12.5px] font-semibold text-[var(--a-ikincil)]">
+              {v.seferler.length} sefer
+              {v.tumHref && (
+                <Link href={v.tumHref} className="ana-hap !min-h-0 !py-1 !text-[12px]">
+                  {v.tumAylar ? "Bu ay" : "Tüm aylar"}
+                </Link>
+              )}
+            </span>
           </div>
 
           {v.seferler.length === 0 ? (
@@ -129,7 +144,16 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
               <span className="capitalize">{v.ayAdi}</span> ayında sefer yok. &quot;Yeni sefer&quot; ile ekle ya da başka ay seç.
             </div>
           ) : (
-            <div className="mt-3 space-y-3 pb-6">
+            <SeferFiltre
+              bilgiler={v.seferler.map((s) => ({
+                id: s.id,
+                metin: [s.firma, s.arac, s.nereden, s.nereye, s.aciklama, s.tarihUzun, s.ekArama].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR"),
+                toplam: s.toplam,
+                odenen: s.odenen,
+                kdvli: s.kdvli,
+                pesin: !!s.pesin,
+              }))}
+            >
               {v.seferler.map((s, i) => {
                 const kalan = Math.max(0, s.toplam - s.odenen);
                 return (
@@ -213,6 +237,7 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
                       <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-[#f6f7fb] px-3 py-2.5">
                         <p className="w-full text-[12px] text-[var(--a-ikincil)]">
                           {s.kdvli ? `Net ${tlYazKisa(s.net)} + KDV ${tlYazKisa(s.kdv)}` : "KDV'siz iş"}
+                          {s.pesin ? " · Peşin" : ""}
                         </p>
                         {kalan > 0 && (
                           <AksiyonButonu calistir={yukOdendiIsaretle.bind(null, s.id)} etiket="Kalanı kapat" bekleyenEtiket="…" sinif="ana-hap" />
@@ -230,7 +255,7 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
                   </article>
                 );
               })}
-            </div>
+            </SeferFiltre>
           )}
         </div>
       </HareketKok>

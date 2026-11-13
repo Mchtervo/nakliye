@@ -5,21 +5,26 @@ import { ayAraligi } from "@/lib/tarih";
 import { ayEtiketi, ayParametresi, ayParametresiOku } from "@/lib/kdv";
 import SeferlerGorunum from "@/components/sefer/SeferlerGorunum";
 
+const PESIN_NOTU = "Kayıt sırasında ödendi";
+
 export const dynamic = "force-dynamic";
 
 export default async function YuklerSayfasi({
   searchParams,
 }: {
-  searchParams: Promise<{ ay?: string }>;
+  searchParams: Promise<{ ay?: string; tum?: string }>;
 }) {
-  const { yil, ay } = ayParametresiOku((await searchParams).ay);
+  const sp = await searchParams;
+  const { yil, ay } = ayParametresiOku(sp.ay);
+  // Tüm aylar: aramada firmayı / şoförü her aydan bulmak için
+  const tumAylar = sp.tum === "1";
   const { bas, son } = ayAraligi(yil, ay);
-  const ayAdi = ayEtiketi(yil, ay);
+  const ayAdi = tumAylar ? "tüm aylar" : ayEtiketi(yil, ay);
 
   const aracEtiketi = await aracEtiketBulucu();
   const [yukler, tumYuk] = await Promise.all([
     prisma.yuk.findMany({
-      where: { tarih: { gte: bas, lt: son } },
+      where: tumAylar ? {} : { tarih: { gte: bas, lt: son } },
       include: { firma: true, odemeler: true },
       orderBy: [{ tarih: "desc" }, { id: "desc" }],
     }),
@@ -56,6 +61,8 @@ export default async function YuklerSayfasi({
         net: gelirNet,
         kdv: gelirKdv,
         bugunKadar: tumYuk._sum.toplamTutar ?? 0,
+        tumAylar,
+        tumHref: tumAylar ? ayHref(new Date(yil, ay - 1, 1)) : `/yukler?ay=${ayParametresi(yil, ay)}&tum=1`,
         seferler: yukler.map((y) => ({
           id: y.id,
           nereden: y.nereden,
@@ -71,6 +78,8 @@ export default async function YuklerSayfasi({
           net: y.netTutar,
           kdv: y.kdvTutar,
           kdvli: y.kdvli,
+          pesin: y.odemeler.some((o) => o.not === PESIN_NOTU),
+          ekArama: y.firma.telefon ?? undefined,
         })),
       }}
     />
