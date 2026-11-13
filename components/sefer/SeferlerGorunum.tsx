@@ -5,7 +5,8 @@ import AksiyonButonu from "@/components/AksiyonButonu";
 import BildirimZili from "@/components/BildirimZili";
 import OdemeGirForm from "@/components/OdemeGirForm";
 import AcilirSatir from "@/components/sefer/AcilirSatir";
-import SeferFiltre from "@/components/sefer/SeferFiltre";
+import SeferFiltre, { type SoforSecenek } from "@/components/sefer/SeferFiltre";
+import OdemeDuzelt, { type OdemeOge } from "@/components/sefer/OdemeDuzelt";
 import { HareketKok } from "@/components/ana/Hareket";
 import { anaYazi } from "@/components/ana/yazi";
 import { tlYazKisa } from "@/lib/para";
@@ -31,6 +32,9 @@ export type SeferSatir = {
   pesin?: boolean;
   /** Aramada eşleşecek ek metin (telefon vb.) */
   ekArama?: string;
+  aracId?: number | null;
+  /** Alınan ödemeler (düzelt / sil için) */
+  odemeler?: OdemeOge[];
 };
 
 export type SeferlerVeri = {
@@ -47,6 +51,8 @@ export type SeferlerVeri = {
   /** Tüm aylar görünümü açık mı; bağlantı ay görünümüyle değişir */
   tumAylar?: boolean;
   tumHref?: string;
+  /** Birden çok tır varsa şoföre göre süzme */
+  soforler?: SoforSecenek[];
   seferler: SeferSatir[];
 };
 
@@ -145,6 +151,7 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
             </div>
           ) : (
             <SeferFiltre
+              soforler={v.soforler}
               bilgiler={v.seferler.map((s) => ({
                 id: s.id,
                 metin: [s.firma, s.arac, s.nereden, s.nereye, s.aciklama, s.tarihUzun, s.ekArama].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR"),
@@ -152,6 +159,7 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
                 odenen: s.odenen,
                 kdvli: s.kdvli,
                 pesin: !!s.pesin,
+                aracId: s.aracId,
               }))}
             >
               {v.seferler.map((s, i) => {
@@ -239,6 +247,19 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
                           {s.kdvli ? `Net ${tlYazKisa(s.net)} + KDV ${tlYazKisa(s.kdv)}` : "KDV'siz iş"}
                           {s.pesin ? " · Peşin" : ""}
                         </p>
+                        {s.odemeler && s.odemeler.length > 0 && <OdemeDuzelt odemeler={s.odemeler} />}
+                        {kalan > 0 && s.telHref && (
+                          <a
+                            href={`https://wa.me/${s.telHref.replace(/D/g, "")}?text=${encodeURIComponent(
+                              `Merhaba, ${s.tarihUzun} tarihli ${s.nereden} - ${s.nereye} seferinin kalan ödemesi ${tlYazKisa(kalan)}. Ödeme için bilginize, iyi çalışmalar.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ana-hap !text-[#15803d]"
+                          >
+                            WhatsApp&apos;tan hatırlat
+                          </a>
+                        )}
                         {kalan > 0 && (
                           <AksiyonButonu calistir={yukOdendiIsaretle.bind(null, s.id)} etiket="Kalanı kapat" bekleyenEtiket="…" sinif="ana-hap" />
                         )}

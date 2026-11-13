@@ -1,4 +1,5 @@
 import Link from "next/link";
+import OdemeDuzelt from "@/components/sefer/OdemeDuzelt";
 import { yukOdendiIsaretle, yukSil } from "@/app/actions";
 import AksiyonButonu from "@/components/AksiyonButonu";
 import OdemeGirForm from "@/components/OdemeGirForm";
@@ -98,21 +99,7 @@ function SeferKarti({ s, firma }: { s: FirmaSefer; firma: string }) {
         icerik={
           <div className="space-y-2 rounded-2xl bg-[#f6f7fb] px-3 py-2.5">
             <p className="text-[12px] font-bold text-[var(--a-ikincil)]">Bu seferin tahsilatları</p>
-            {s.odemeler.length === 0 ? (
-              <p className="text-[12.5px] text-[var(--a-ikincil)]">Henüz tahsilat yok.</p>
-            ) : (
-              <ul className="space-y-1 text-[13px]">
-                {s.odemeler.map((o) => (
-                  <li key={o.id} className="flex justify-between gap-2">
-                    <span className="min-w-0 truncate">
-                      {o.tarihYazi}
-                      {o.not ? ` · ${o.not}` : ""}
-                    </span>
-                    <span className="shrink-0 font-bold tabular-nums text-[#16a34a]">{tlYazKisa(o.tutar)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <OdemeDuzelt odemeler={s.odemeler} />
             <div className="flex flex-wrap gap-2 pt-1">
               {kalan > 0 && (
                 <AksiyonButonu

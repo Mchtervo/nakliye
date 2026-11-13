@@ -22,7 +22,7 @@ export default async function YuklerSayfasi({
   const ayAdi = tumAylar ? "tüm aylar" : ayEtiketi(yil, ay);
 
   const aracEtiketi = await aracEtiketBulucu();
-  const [yukler, tumYuk] = await Promise.all([
+  const [yukler, tumYuk, araclar] = await Promise.all([
     prisma.yuk.findMany({
       where: tumAylar ? {} : { tarih: { gte: bas, lt: son } },
       include: { firma: true, odemeler: true },
@@ -31,7 +31,10 @@ export default async function YuklerSayfasi({
     prisma.yuk.aggregate({
       _sum: { toplamTutar: true, netTutar: true, kdvTutar: true },
     }),
+    prisma.arac.findMany({ orderBy: { id: "asc" }, select: { id: true, plaka: true, sofor: true, soforFoto: true } }),
   ]);
+  // Araç alanı boş eski seferler ilk tıra aittir
+  const ilkAracId = araclar[0]?.id ?? null;
 
   const gelirToplam = yukler.reduce((t, y) => t + y.toplamTutar, 0);
   const gelirNet = yukler.reduce((t, y) => t + y.netTutar, 0);
@@ -62,6 +65,7 @@ export default async function YuklerSayfasi({
         kdv: gelirKdv,
         bugunKadar: tumYuk._sum.toplamTutar ?? 0,
         tumAylar,
+        soforler: araclar.map((a, i) => ({ id: a.id, ad: a.sofor || a.plaka || `Tır ${i + 1}`, foto: a.soforFoto })),
         tumHref: tumAylar ? ayHref(new Date(yil, ay - 1, 1)) : `/yukler?ay=${ayParametresi(yil, ay)}&tum=1`,
         seferler: yukler.map((y) => ({
           id: y.id,
@@ -80,6 +84,11 @@ export default async function YuklerSayfasi({
           kdvli: y.kdvli,
           pesin: y.odemeler.some((o) => o.not === PESIN_NOTU),
           ekArama: y.firma.telefon ?? undefined,
+          aracId: y.aracId ?? ilkAracId,
+          odemeler: y.odemeler
+            .slice()
+            .sort((a, b) => a.tarih.getTime() - b.tarih.getTime())
+            .map((o) => ({ id: o.id, tarihYazi: kisa.format(o.tarih), tutar: o.tutar, not: o.not })),
         })),
       }}
     />

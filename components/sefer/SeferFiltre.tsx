@@ -2,7 +2,10 @@
 
 import { AnimatePresence, m } from "motion/react";
 import { Children, useMemo, useState, type ReactNode } from "react";
+import SoforAvatar from "@/components/arac/SoforAvatar";
 import { tlYazKisa } from "@/lib/para";
+
+export type SoforSecenek = { id: number; ad: string; foto: string | null };
 
 export type SeferFiltreBilgi = {
   id: number;
@@ -12,6 +15,8 @@ export type SeferFiltreBilgi = {
   odenen: number;
   kdvli: boolean;
   pesin: boolean;
+  /** Seferi yapan tır / şoför */
+  aracId?: number | null;
 };
 
 type Filtre = "TUM" | "ODENEN" | "ODENMEYEN" | "KISMI" | "PESIN" | "KDVLI" | "KDVSIZ";
@@ -49,7 +54,8 @@ function uyar(b: SeferFiltreBilgi, f: Filtre): boolean {
 }
 
 /** Sefer kartlarını arama + durum filtresiyle süzer. children sırası `bilgiler` ile aynı olmalı. */
-export default function SeferFiltre({ bilgiler, children }: { bilgiler: SeferFiltreBilgi[]; children: ReactNode }) {
+export default function SeferFiltre({ bilgiler, soforler = [], children }: { bilgiler: SeferFiltreBilgi[]; soforler?: SoforSecenek[]; children: ReactNode }) {
+  const [sofor, setSofor] = useState<number | null>(null);
   const [arama, setArama] = useState("");
   const [filtre, setFiltre] = useState<Filtre>("TUM");
   const kartlar = Children.toArray(children);
@@ -63,14 +69,35 @@ export default function SeferFiltre({ bilgiler, children }: { bilgiler: SeferFil
   const kelimeler = kucuk(arama).split(/\s+/).filter(Boolean);
   const gorunen = bilgiler
     .map((b, i) => ({ b, kart: kartlar[i] }))
-    .filter(({ b }) => uyar(b, filtre) && kelimeler.every((k) => b.metin.includes(k)));
-  const suzuldu = filtre !== "TUM" || kelimeler.length > 0;
+    .filter(({ b }) => (sofor === null || b.aracId === sofor) && uyar(b, filtre) && kelimeler.every((k) => b.metin.includes(k)));
+  const suzuldu = filtre !== "TUM" || kelimeler.length > 0 || sofor !== null;
   const toplam = gorunen.reduce((t, x) => t + x.b.toplam, 0);
   const odenen = gorunen.reduce((t, x) => t + Math.min(x.b.odenen, x.b.toplam), 0);
 
   return (
     <>
       <div className="mt-3 space-y-2.5">
+        {soforler.length > 1 && (
+          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 pt-0.5 [scrollbar-width:none]" role="group" aria-label="Şoföre göre göster">
+            {[{ id: null as number | null, ad: "Tümü", foto: null as string | null }, ...soforler].map((s) => {
+              const secili = sofor === s.id;
+              const adet = s.id === null ? bilgiler.length : bilgiler.filter((b) => b.aracId === s.id).length;
+              return (
+                <button key={s.id ?? "tum"} type="button" onClick={() => setSofor(s.id)} aria-pressed={secili} className="flex w-[4.4rem] shrink-0 flex-col items-center gap-1">
+                  <m.span animate={{ scale: secili ? 1.08 : 1 }} transition={{ type: "spring", stiffness: 500, damping: 30 }} className={`rounded-full p-[2px] ${secili ? "ring-[2.5px] ring-[#4f46e5]" : "opacity-80"}`}>
+                    {s.id === null ? (
+                      <span className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#e0e7ff] text-[12px] font-extrabold text-[#3730a3]">Hepsi</span>
+                    ) : (
+                      <SoforAvatar foto={s.foto} ad={s.ad} boyut={52} />
+                    )}
+                  </m.span>
+                  <span className={`w-full truncate text-center text-[11.5px] leading-tight ${secili ? "font-extrabold text-[#3730a3]" : "font-semibold text-[#3b4262]"}`}>{s.ad}</span>
+                  <span className="text-[10.5px] leading-none text-[var(--a-ikincil)]">{adet} sefer</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="sf-alan !bg-white shadow-[var(--a-golge)]">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5 shrink-0 text-[#8a90ad]" aria-hidden>
             <circle cx="11" cy="11" r="6.5" />
