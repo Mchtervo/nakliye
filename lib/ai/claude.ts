@@ -36,13 +36,15 @@ function effort(caba: unknown): "low" | "medium" | "high" {
   return "low";
 }
 
+// Okuyucular (daemon) Node'un "yalnız tip sil" kipinde çalışır: kısa alan
+// tanımı (constructor'da readonly parametre) orada desteklenmez, alanlar açık yazılır.
 export class ClaudeHttpHatasi extends Error {
-  constructor(
-    message: string,
-    readonly durum: number | null,
-    readonly kod: "KREDI_BITTI" | "GECICI" | "ANAHTAR_GECERSIZ" | "DIGER"
-  ) {
+  readonly durum: number | null;
+  readonly kod: "KREDI_BITTI" | "GECICI" | "ANAHTAR_GECERSIZ" | "DIGER";
+  constructor(message: string, durum: number | null, kod: "KREDI_BITTI" | "GECICI" | "ANAHTAR_GECERSIZ" | "DIGER") {
     super(message);
+    this.durum = durum;
+    this.kod = kod;
   }
 }
 
