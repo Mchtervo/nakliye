@@ -800,8 +800,7 @@ async function baglan(): Promise<void> {
   const sohbetKanallari = (chats: { id?: string | null; name?: string | null }[]) => {
     for (const c of chats) {
       if (!kanalJidMi(c.id)) continue;
-      void kanalKaydet(c.id, c.name).catch((e) => uyari("Kanal kaydedilemedi:", e instanceof Error ? e.message.split("
-").find((x) => x.trim()) : e));
+      void kanalKaydet(c.id, c.name).catch((e) => uyari("Kanal kaydedilemedi:", e instanceof Error ? ilkSatir(e.message) : e));
     }
   };
   sock.ev.on("chats.upsert", sohbetKanallari);
@@ -832,9 +831,12 @@ async function main() {
 
 // Veritabanı birkaç saniye erişilemezse (Supabase kesintisi) arka plandaki tek bir
 // kayıt hatası tüm okuyucuyu düşürmesin: yazılıp geçilir, bağlantı açık kalır.
+function ilkSatir(m: string): string {
+  return m.split(/\r?\n/).find((x) => x.trim()) ?? m;
+}
+
 process.on("unhandledRejection", (e) => {
-  uyari("Yakalanmayan hata (devam ediliyor):", e instanceof Error ? e.message.split("
-").find((x) => x.trim()) : e);
+  uyari("Yakalanmayan hata (devam ediliyor):", e instanceof Error ? ilkSatir(e.message) : e);
 });
 
 void main().catch((e) => {
