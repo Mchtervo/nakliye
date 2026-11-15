@@ -16,6 +16,10 @@ const FIYATLAR: Record<string, ModelFiyat> = {
   "gpt-5.4-mini": { girdi: 0.75, cikti: 4.5 },
   "gpt-5.4-nano": { girdi: 0.2, cikti: 1.25 },
   "gpt-5.4": { girdi: 2.5, cikti: 15.0 },
+  // Anthropic (model adı "claude:" önekiyle). Haiku 5.5: 100K token altı istem fiyatı
+  "claude:claude-haiku-5-5": { girdi: 0.1, cikti: 0.5 },
+  "claude:claude-sonnet-5-5": { girdi: 2.0, cikti: 10.0 },
+  "claude:claude-opus-5-5": { girdi: 4.0, cikti: 20.0 },
 };
 
 /** Bilinmeyen modelde terra fiyatı (güvenli taraf). */

@@ -3,6 +3,21 @@ import { gunlukButceUsd, mikrodolarYaz } from "@/lib/ai/maliyet";
 import { telegramGonder, telegramKullanilabilir } from "@/lib/bildirim/telegram";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 
+/** Claude (Anthropic kredisi) bugünkü harcama, mikrodolar. */
+export async function claudeBugunHarcamaMikro(): Promise<number> {
+  const sonuc = await prisma.aiCagri.aggregate({
+    where: { zaman: { gte: trGunBaslangici() }, model: { startsWith: "claude:" } },
+    _sum: { maliyetMikro: true },
+  });
+  return sonuc._sum.maliyetMikro ?? 0;
+}
+
+/** Claude günlük tavanı (USD): CLAUDE_GUNLUK_LIMIT_USD, yoksa 3 $. */
+export function claudeGunlukLimitUsd(): number {
+  const n = Number(process.env.CLAUDE_GUNLUK_LIMIT_USD);
+  return Number.isFinite(n) && n > 0 ? n : 3;
+}
+
 /** Runtime bütçe kesmesi — env AI_KAPALI'dan bağımsız, DB'de tutulur. */
 export const BUTCE_KESIM_ANAHTAR = "ai_butce_kesildi";
 /** Günde bir hatırlatma için TR gün anahtarı (YYYY-MM-DD). */
@@ -49,7 +64,8 @@ export function trGunAnahtari(tarih = new Date()): string {
 export async function bugunHarcamaMikro(): Promise<number> {
   const bas = trGunBaslangici();
   const sonuc = await prisma.aiCagri.aggregate({
-    where: { zaman: { gte: bas } },
+    // Claude ayrı cüzdan (Anthropic kredisi): OpenAI günlük limitinden düşmez
+    where: { zaman: { gte: bas }, NOT: { model: { startsWith: "claude:" } } },
     _sum: { maliyetMikro: true },
   });
   return sonuc._sum.maliyetMikro ?? 0;

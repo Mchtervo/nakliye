@@ -33,6 +33,7 @@
     "auto-deploy:acik-mi": "node --env-file=.env --import ./scripts/ts-kayit.mjs --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/auto-deploy-acik-mi.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@prisma/client": "^6.19.3",
     "@supabase/supabase-js": "^2.110.8",
     "baileys": "7.0.0-rc14",

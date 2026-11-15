@@ -6,6 +6,7 @@ import {
 import { butceMusaitMi } from "@/lib/ai/butce";
 import { maliyetHesapla, tahminiCagriMikro } from "@/lib/ai/maliyet";
 import { prisma } from "@/lib/prisma";
+import { CLAUDE_ONEK, ClaudeHttpHatasi, claudeAnahtariVar, claudeIstek } from "@/lib/ai/claude";
 
 const API_URL = "https://api.openai.com/v1/responses";
 /** EVREN (SSB) OpenAI uyumlu uç. Model adı "evren:" ile başlarsa buraya gider. */
@@ -201,6 +202,45 @@ async function cagriLogla(kayit: {
   }
 }
 
+/** Claude yolu: ayrı cüzdan ve günlük tavan; geçici hatada en fazla 2 ek deneme. */
+async function claudeIleIstekAt(govde: Record<string, unknown>, model: string, zamanAsimiMs: number, kaynak: string): Promise<OpenAiYanit> {
+  if (!claudeAnahtariVar()) throw new AiHatasi("ANTHROPIC_API_KEY tanımlı değil.", "ANAHTAR_YOK");
+  const { claudeBugunHarcamaMikro, claudeGunlukLimitUsd } = await import("@/lib/ai/butce");
+  if ((await claudeBugunHarcamaMikro()) >= claudeGunlukLimitUsd() * 1_000_000) {
+    throw new AiHatasi("Claude günlük tavanı doldu.", "BUTCE_DOLDU");
+  }
+  let sonHata: AiHatasi | null = null;
+  for (let deneme = 0; deneme < 3; deneme++) {
+    const bas = Date.now();
+    try {
+      const yanit = await claudeIstek(govde, zamanAsimiMs);
+      const girdiToken = yanit.usage.input_tokens;
+      const ciktiToken = yanit.usage.output_tokens;
+      const maliyetMikro = maliyetHesapla({ model, girdiToken, ciktiToken });
+      const kesilme = yanit.status === "incomplete" ? yanit.incomplete_details?.reason || "incomplete" : null;
+      await cagriLogla({ kaynak, model, girdiToken, ciktiToken, reasoningToken: 0, maliyetMikro, basarili: !kesilme, hata: kesilme ? "KESILDI:" + kesilme : null, sureMs: Date.now() - bas });
+      if (kesilme) throw new AiHatasi("Claude yanıtı kesildi (" + kesilme + ").", "KESILDI");
+      return yanit;
+    } catch (hata) {
+      if (hata instanceof AiHatasi) throw hata;
+      const sureMs = Date.now() - bas;
+      const mesaj = hata instanceof Error ? hata.message.slice(0, 300) : "bilinmeyen";
+      await cagriLogla({ kaynak, model, girdiToken: 0, ciktiToken: 0, reasoningToken: 0, maliyetMikro: 0, basarili: false, hata: mesaj, sureMs });
+      if (hata instanceof ClaudeHttpHatasi) {
+        if (hata.kod === "GECICI") {
+          sonHata = new AiHatasi(hata.message, "GECICI");
+          await new Promise((c) => setTimeout(c, 800 * (deneme + 1)));
+          continue;
+        }
+        throw new AiHatasi(hata.message, hata.kod === "DIGER" ? "ISTEK_HATASI" : hata.kod);
+      }
+      if (timeoutMu(hata)) throw new AiHatasi("Claude zaman aşımı (" + zamanAsimiMs + "ms).", "TIMEOUT");
+      throw new AiHatasi("Claude'a ulaşılamadı: " + mesaj, "AG_HATASI");
+    }
+  }
+  throw sonHata ?? new AiHatasi("Claude geçici hatalardan sonra vazgeçildi.", "GECICI");
+}
+
 /**
  * Tek HTTP denemesi. Timeout'ta retry YOK.
  * Sadece 429 ve 5xx için en fazla 2 ek deneme.
@@ -219,6 +259,7 @@ async function istekAt(
   }
 
   const model = String(govde.model || MODEL_HIZLI);
+  if (model.startsWith(CLAUDE_ONEK)) return claudeIleIstekAt(govde, model, zamanAsimiMs, kaynak);
   const evren = model.startsWith(EVREN_ONEK);
   const anahtar = evren ? process.env.EVREN_API_KEY : process.env.OPENAI_API_KEY;
   if (!anahtar) {
