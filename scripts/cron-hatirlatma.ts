@@ -18,6 +18,7 @@ import {
 } from "@/lib/bildirim/hatirlatma";
 import { ikonHatirlat } from "@/lib/bildirim/ikonGuncelleme";
 import { seferHatirlat } from "@/lib/bildirim/sefer";
+import { ayinElemaniBildir } from "@/lib/ayinElemani";
 
 async function main() {
   const okuyucu = await okuyucuHatirlat();
@@ -33,6 +34,11 @@ async function main() {
     console.error("[cron-hatirlatma] sefer", e instanceof Error ? e.message : e);
     return false;
   });
+  const eleman = await ayinElemaniBildir().catch((e) => {
+    console.error("[cron-hatirlatma] ayın elemanı", e instanceof Error ? e.message : e);
+    return false;
+  });
+  if (eleman) console.log("[cron-hatirlatma] ayın elemanı bildirildi (yönetici)");
   // Üyeler: kendi defterlerinde, kendi cihaz / bildirim kutularına (Telegram yalnız yöneticide)
   const uyeler = await anaPrisma.uye.findMany({ where: { aktif: true, kurulumBitti: { not: null } }, select: { id: true } });
   let uyeBildirim = 0;
@@ -40,7 +46,7 @@ async function main() {
     try {
       uyeBildirim += await uyeAdinaCalistir(u.id, async () => {
         const o = await odemeHatirlat();
-        return o.adet + (await bakimHatirlat() ? 1 : 0) + (await belgeHatirlat()) + (await kartHatirlat()) + (await krediHatirlat()) + ((await yakitHatirlat()) ? 1 : 0) + ((await seferHatirlat()) ? 1 : 0);
+        return o.adet + (await bakimHatirlat() ? 1 : 0) + (await belgeHatirlat()) + (await kartHatirlat()) + (await krediHatirlat()) + ((await yakitHatirlat()) ? 1 : 0) + ((await seferHatirlat()) ? 1 : 0) + ((await ayinElemaniBildir().catch(() => false)) ? 1 : 0);
       });
     } catch (e) {
       console.error(`[cron-hatirlatma] üye ${u.id}`, e instanceof Error ? e.message : e);

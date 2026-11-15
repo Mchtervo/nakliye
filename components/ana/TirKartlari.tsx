@@ -64,7 +64,7 @@ function Dokum({ s }: { s: TirSatiri }) {
   );
 }
 
-function TirKarti({ s, olcek, sira }: { s: TirSatiri; olcek: number; sira: number }) {
+function TirKarti({ s, olcek, sira, eleman = false }: { s: TirSatiri; olcek: number; sira: number; eleman?: boolean }) {
   const [acik, setAcik] = useState(false);
   const { kar, kdvOdenecek } = tirHesabi(s);
   const gecikme = 0.08 * sira;
@@ -90,6 +90,23 @@ function TirKarti({ s, olcek, sira }: { s: TirSatiri; olcek: number; sira: numbe
           )}
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] font-extrabold">{s.sofor || s.etiket}</span>
+            {eleman && (
+              <m.span
+                className="relative mt-0.5 inline-flex items-center gap-1 overflow-hidden rounded-full px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wide text-[#7c2d12]"
+                style={{ background: "linear-gradient(110deg, #fde68a, #fbbf24, #fde68a)" }}
+                animate={{ scale: [1, 1.06, 1] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <m.span
+                  aria-hidden
+                  className="absolute inset-y-0 w-1/2 -skew-x-12 bg-white/60 blur-[3px]"
+                  initial={{ left: "-60%" }}
+                  animate={{ left: "140%" }}
+                  transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 1.2, ease: "easeInOut" }}
+                />
+                <span className="relative">🏆 Ayın elemanı</span>
+              </m.span>
+            )}
             <span className="block truncate text-[12px] text-[var(--a-ikincil)]">
               {[s.sofor ? s.etiket : null, `${s.sefer} sefer`].filter(Boolean).join(" · ")}
             </span>
@@ -183,7 +200,7 @@ function ToplamKart({ s }: { s: TirSatiri }) {
   );
 }
 
-export default function TirKartlari({ tirlar, toplam }: { tirlar: TirSatiri[]; toplam: TirSatiri | null }) {
+export default function TirKartlari({ tirlar, toplam, elemanId = null }: { tirlar: TirSatiri[]; toplam: TirSatiri | null; elemanId?: number | null }) {
   const olcek = Math.max(1, ...tirlar.flatMap((s) => [s.gelir, s.gider]));
   return (
     <section className="ana-bolum ana-gir" style={{ animationDelay: "320ms" }} aria-labelledby="tirlar-bu-ay">
@@ -199,7 +216,7 @@ export default function TirKartlari({ tirlar, toplam }: { tirlar: TirSatiri[]; t
         {toplam && <ToplamKart s={toplam} />}
         <ul className="space-y-2.5">
           {tirlar.map((s, i) => (
-            <TirKarti key={s.id} s={s} olcek={olcek} sira={i} />
+            <TirKarti key={s.id} s={s} olcek={olcek} sira={i} eleman={elemanId === s.id} />
           ))}
         </ul>
       </div>
