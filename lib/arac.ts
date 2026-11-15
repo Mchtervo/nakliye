@@ -86,6 +86,16 @@ export function tirUzunlukMetre(metin: string | null | undefined): number | null
   return Math.round(n * 100) / 100;
 }
 
+/** Kamyon sınıfı araç (kamyonet, kamyon, panelvan, kırkayak, 6/10 teker; ek ve yazım hatası dahil). */
+export function kamyonSinifiMi(sade: string): boolean {
+  return /(^|\s)(ka?m[ay]{1,2}o?n+e?t\w*|kmayon\w*|kamyon\w*|panel ?van\w*|kirkayak\w*|(6|10|on|alti) teker\w*|minivan\w*)/.test(sade);
+}
+
+/** Metinde tır işareti var mı (ilan birden çok araç sayıyor olabilir: "kamyon / tır"). */
+export function tirIsaretiVar(sade: string): boolean {
+  return /(^|\s)(tir|tira|tirlar\w*|dorse\w*|cekici\w*|treyler\w*|trailer|mega|jumbo|13 ?60|1360|14 ?60|1460)(\s|$)/.test(sade);
+}
+
 /** Serbest metinden araç tipi kodunu çıkarır; anlaşılmazsa null. */
 export function aracKoduBul(metin: string | null | undefined): AracTipiKodu | null {
   if (!metin) return null;
@@ -145,17 +155,27 @@ export function aracMetniUyuyorMu(
     return true;
   }
 
+  // Kamyon / kamyonet kabul edilmiyorsa: metinde kamyon sınıfı (çoğul, ek ve sık
+  // yazım hatası dahil) geçip tır işareti (tır, dorse, çekici, 13.60) yoksa red.
+  // "Kapalı kamyonet" eskiden "kapalı" kelimesiyle kapalı kasa tır sanılıp geçiyordu.
+  if (!kabulKodlari.includes("KAMYON") && kamyonSinifiMi(sade) && !tirIsaretiVar(sade)) {
+    return false;
+  }
+
   let kabulSkor = 0;
   for (const k of kabulKodlari) kabulSkor += tipKelimeSkoru(sade, k);
 
   // "Kapalı, Kamyonet, Kamyon" — ilan uygun araçları sayıyor; bizimki listede.
   if (kabulSkor > 0) return true;
 
-  if (kod && !kabulKodlari.includes(kod)) return false;
+  // "Tır/Kamyon": ilan tırı da kabul ediyor — kamyon kelimesi red sebebi değil
+  const tirDaOlur = tirIsaretiVar(sade);
+  if (kod && !kabulKodlari.includes(kod) && !(kod === "KAMYON" && tirDaOlur)) return false;
 
   let redSkor = 0;
   for (const tip of ARAC_TIPLERI) {
     if (kabulKodlari.includes(tip.kod)) continue;
+    if (tip.kod === "KAMYON" && tirDaOlur) continue;
     redSkor += tipKelimeSkoru(sade, tip.kod);
   }
 
