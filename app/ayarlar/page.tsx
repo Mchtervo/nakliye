@@ -73,9 +73,18 @@ async function AyarlarSayfasiIcerik() {
   const ay = bugunAy();
 
   // Kayıtlı site tarayıcılarını IlanKaynagi'na senkronla (Ayarlar listesinde görünsün)
-  await Promise.all(WEB_SITELER.map((s) => siteKaynaginiGarantiEt(s)));
-  await eskiWhatsappHasatiniTasi();
-  await bilinenDavetleriYaz();
+  // Bakım adımları (site kaynakları, eski hasat, bilinen davetler) her açılışta
+  // çalışıp sayfayı ~1,5 sn geciktiriyordu: süreç başına saatte bir yeter.
+  if (Date.now() - sonBakim > 60 * 60 * 1000) {
+    sonBakim = Date.now();
+    await Promise.all([
+      ...WEB_SITELER.map((s) => siteKaynaginiGarantiEt(s)),
+      eskiWhatsappHasatiniTasi().then(() => bilinenDavetleriYaz()),
+    ]).catch((e) => {
+      sonBakim = 0;
+      console.error("[ayarlar] bakım", e);
+    });
+  }
 
   const [
     hizliAra,
@@ -578,6 +587,8 @@ async function AyarlarSayfasiIcerik() {
 }
 
 /** Yeni görünüm: lacivert başlık + açık tema (içerik aynı) */
+let sonBakim = 0;
+
 export default async function AyarlarSayfasi(...args: Parameters<typeof AyarlarSayfasiIcerik>) {
   return <AcikKabuk>{await AyarlarSayfasiIcerik(...args)}</AcikKabuk>;
 }
