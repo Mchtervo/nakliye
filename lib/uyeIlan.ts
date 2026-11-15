@@ -1,3 +1,4 @@
+import { aktifBaglam } from "@/lib/baglam";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -10,9 +11,22 @@ const ANAHTAR = "uye_ilan_durum";
  * Üye "Yük bul" bölümünü kapattı mı (Kişisel ayarlar → Yükler). Varsayılan açık.
  * Yalnız üye bağlamında çağrılır (kendi şemasındaki Ayar).
  */
+const yuklerBellek = new Map<number, { acik: boolean; an: number }>();
+
+/** Ayar değişince (Kişisel ayarlar) çağrılır: menü hemen güncellensin. */
+export function yuklerAcikBellekSil(uyeId: number): void {
+  yuklerBellek.delete(uyeId);
+}
+
 export async function yuklerAcikMi(): Promise<boolean> {
+  // Menü için her sayfada sorulur: 1 dk bellekte tutulur (sorgu başına ~0,25 sn)
+  const uyeId = (await aktifBaglam()).uyeId;
+  const b = uyeId !== null ? yuklerBellek.get(uyeId) : undefined;
+  if (b && Date.now() - b.an < 60_000) return b.acik;
   const a = await prisma.ayar.findUnique({ where: { anahtar: "uye_yukler_acik" } }).catch(() => null);
-  return a?.deger !== "0";
+  const acik = a?.deger !== "0";
+  if (uyeId !== null) yuklerBellek.set(uyeId, { acik, an: Date.now() });
+  return acik;
 }
 const UST_SINIR = 600;
 

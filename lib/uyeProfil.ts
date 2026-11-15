@@ -1,6 +1,7 @@
+import { cache } from "react";
 import { OTURUM_COOKIE, oturumCoz } from "@/lib/auth";
 import { anaPrisma, uyeIstemcisi } from "@/lib/prismaAna";
-import { uyeSemasiHazirla } from "@/lib/uyeSema";
+import { uyeSemasiHazirMi, uyeSemasiHazirla } from "@/lib/uyeSema";
 import { smsHazirMi } from "@/lib/sms";
 
 /** Gerçek yönetici oturumu mu (üye görünümünde olsa bile). */
@@ -33,21 +34,29 @@ export type UyeDurumu = {
 };
 
 /** Üyenin hesap + kendi şemasındaki araç/kayıt özeti (yalnız o üyenin verisi). */
-export async function uyeDurumu(uyeId: number): Promise<UyeDurumu | null> {
-  const uye = await anaPrisma.uye.findUnique({ where: { id: uyeId } });
-  if (!uye) return null;
-  // Defter kuruluyorsa yönetim paneli beklemesin: "hazırlanıyor" döner
-  const hazirlik = uyeSemasiHazirla(uyeId);
-  const bitti = await Promise.race([hazirlik.then(() => true), new Promise<boolean>((ok) => setTimeout(() => ok(false), 4000))]);
-  hazirlik.catch(() => null);
+export const uyeDurumu = cache(uyeDurumuHesapla);
+
+// Aynı istekte üst şerit + sayfa birlikte sorar: istek başına bir kez hesaplanır (cache).
+async function uyeDurumuHesapla(uyeId: number): Promise<UyeDurumu | null> {
   const db = uyeIstemcisi(uyeId);
-  const [arac, seferSayisi, giderSayisi] = bitti
-    ? await Promise.all([
-        db.arac.findFirst({ orderBy: [{ aktif: "desc" }, { id: "asc" }], select: { ad: true, plaka: true } }),
-        db.yuk.count(),
-        db.gider.count(),
-      ])
-    : [null, 0, 0];
+  const ozet = () =>
+    Promise.all([
+      db.arac.findFirst({ orderBy: [{ aktif: "desc" }, { id: "asc" }], select: { ad: true, plaka: true } }),
+      db.yuk.count(),
+      db.gider.count(),
+    ]);
+  // Defter bu süreçte hazırsa hesap ve özet tek turda (paralel) okunur
+  const hazirdi = uyeSemasiHazirMi(uyeId);
+  const [uye, onOzet] = await Promise.all([anaPrisma.uye.findUnique({ where: { id: uyeId } }), hazirdi ? ozet().catch(() => null) : null]);
+  if (!uye) return null;
+  let bitti = hazirdi;
+  if (!hazirdi) {
+    // Defter kuruluyorsa yönetim paneli beklemesin: "hazırlanıyor" döner
+    const hazirlik = uyeSemasiHazirla(uyeId);
+    bitti = await Promise.race([hazirlik.then(() => true), new Promise<boolean>((ok) => setTimeout(() => ok(false), 4000))]);
+    hazirlik.catch(() => null);
+  }
+  const [arac, seferSayisi, giderSayisi] = onOzet ?? (bitti ? await ozet() : [null, 0, 0]);
   const eksikler: string[] = [];
   // Plaka isteğe bağlı; zorunlu olan kurulum (araç tipi, şehir, kasa)
   if (!uye.kurulumBitti) eksikler.push("Araç kurulumu");

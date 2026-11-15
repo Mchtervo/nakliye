@@ -34,20 +34,50 @@ export async function yoneticiOturumSurumu(): Promise<number> {
   return Number(a?.deger) || 0;
 }
 
+/**
+ * Oturum denetimi her istekte veritabanına gidiyordu (uzak sunucu: sorgu başına
+ * ~0,25 sn; her sayfa bu kadar geç açılıyordu). Kısa süreli bellek: yalnız
+ * "geçerli" sonucu hızlandırır — bellekteki değer çerezle uyuşmuyorsa veritabanına
+ * yeniden bakılır (yeni giriş / şifre değişimi anında geçer). Kapatılan bir oturum
+ * en geç ONBELLEK_MS sonra düşer.
+ */
+const ONBELLEK_MS = 15_000;
+let yoneticiSurumBellek: { surum: number; an: number } | null = null;
+const uyeBellek = new Map<number, { aktif: boolean; oturumSurum: number; an: number }>();
+
+async function yoneticiSurumuUyuyor(surum: number): Promise<boolean> {
+  const b = yoneticiSurumBellek;
+  if (b && Date.now() - b.an < ONBELLEK_MS && b.surum === surum) return true;
+  const guncel = await yoneticiOturumSurumu();
+  yoneticiSurumBellek = { surum: guncel, an: Date.now() };
+  return guncel === surum;
+}
+
+async function uyeOturumBilgisi(uyeId: number, beklenenSurum: number | null): Promise<{ aktif: boolean; oturumSurum: number } | null> {
+  const b = uyeBellek.get(uyeId);
+  if (b && Date.now() - b.an < ONBELLEK_MS && b.aktif && (beklenenSurum === null || b.oturumSurum === beklenenSurum)) return b;
+  const uye = await anaPrisma.uye.findUnique({ where: { id: uyeId }, select: { aktif: true, oturumSurum: true } });
+  if (!uye) {
+    uyeBellek.delete(uyeId);
+    return null;
+  }
+  uyeBellek.set(uyeId, { ...uye, an: Date.now() });
+  return uye;
+}
+
 async function hesapla(jar: Kavanoz): Promise<Baglam> {
   const o = await etkinOturum(jar.get(OTURUM_COOKIE)?.value, jar.get(GORUNUM_COOKIE)?.value);
   if (!o) return ADMIN; // oturumsuz: yalnız middleware'in açık bıraktığı uçlar (giriş, makine uçları)
   if (o.rol === "admin") {
     // "Tüm cihazlardan çık" / şifre değişimi sonrası eski yönetici çerezleri geçmez
-    if (o.surum !== (await yoneticiOturumSurumu())) return oturumKapandi();
+    if (!(await yoneticiSurumuUyuyor(o.surum))) return oturumKapandi();
     return ADMIN;
   }
   // Silinmiş / kapatılmış üyenin eski çerezi geçmesin
-  const uye = await anaPrisma.uye.findUnique({ where: { id: o.uyeId }, select: { aktif: true, oturumSurum: true } });
+  const uye = await uyeOturumBilgisi(o.uyeId, o.yoneticiGoruyor ? null : o.surum);
   if (!uye?.aktif) return oturumKapandi();
   // Üye görünümünde sürüm yöneticinin kendi oturumuna aittir
-  const beklenen = o.yoneticiGoruyor ? await yoneticiOturumSurumu() : uye.oturumSurum;
-  if (o.surum !== beklenen) return oturumKapandi();
+  if (o.yoneticiGoruyor ? !(await yoneticiSurumuUyuyor(o.surum)) : o.surum !== uye.oturumSurum) return oturumKapandi();
   return { rol: "uye", uyeId: o.uyeId, yoneticiGoruyor: Boolean(o.yoneticiGoruyor) };
 }
 

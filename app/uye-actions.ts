@@ -185,6 +185,7 @@ export async function kisiselTercihKaydet(_o: TercihSonuc, f: FormData): Promise
   ] as const) {
     await prisma.ayar.upsert({ where: { anahtar }, update: { deger }, create: { anahtar, deger } });
   }
+  (await import("@/lib/uyeIlan")).yuklerAcikBellekSil(b.uyeId);
   await aracKonumuYaz(konum);
   await anaPrisma.uye.update({ where: { id: b.uyeId }, data: { sehir: anaUs } });
   revalidatePath("/", "layout");

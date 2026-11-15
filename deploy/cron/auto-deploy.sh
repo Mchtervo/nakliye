@@ -184,6 +184,20 @@ $(hata_ozet "$PRISMA_LOG")"
 fi
 rm -f "$PRISMA_LOG"
 
+# Okuyucu (daemon) betikleri site derlemesine girmez: bozuk dosya servisi düşürmesin
+SOZ_LOG="$(mktemp /tmp/yukavci-soz.XXXXXX)"
+if [ -f scripts/sozdizimi-kontrol.mjs ] && ! node scripts/sozdizimi-kontrol.mjs >"$SOZ_LOG" 2>&1; then
+  cat "$SOZ_LOG" >>"$LOG"
+  log "scripts sözdizimi HATA"
+  bildir "❌ Deploy sözdizimi: $SHORT — $MSG
+
+$(head -5 "$SOZ_LOG")"
+  rm -f "$SOZ_LOG"
+  geri_al
+  exit 1
+fi
+rm -f "$SOZ_LOG"
+
 # Build: app durdur + temiz .next (yarım _buildManifest.tmp ENOENT önlemi)
 pm2 stop yukavci >>"$LOG" 2>&1 || true
 fuser -k 3200/tcp >>"$LOG" 2>&1 || true
