@@ -34,6 +34,8 @@ import { aiMaliyetOzeti } from "@/lib/ai/maliyetOzeti";
 import AiMaliyetPaneli from "@/components/AiMaliyetPaneli";
 import IlanModeliAnahtari from "@/components/IlanModeliAnahtari";
 import SessizGruplar from "@/components/SessizGruplar";
+import EngelliNumaralar from "@/components/yuk/EngelliNumaralar";
+import { numaraGoster, yanlisNumaralar } from "@/lib/kaynaklar/yanlisNumara";
 import {
   WEB_SITELER,
   siteKaynaginiGarantiEt,
@@ -516,6 +518,14 @@ async function AyarlarSayfasiIcerik() {
         <div className="border-t border-white/8 pt-3">
           <KaynakForm />
         </div>
+      </section>
+
+      <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d4">
+        <h2 className="font-display text-lg font-bold text-paper">Engellenen numaralar</h2>
+        <p className="text-sm text-fog">
+          Sahte / ulaşılamayan numaralar. Bu numaraların ilanları hiçbir hesaba gelmez. İki farklı üye aynı numarayı engellerse buraya kendiliğinden eklenir.
+        </p>
+        <EngelliNumaralar genel numaralar={[...(await yanlisNumaralar())].reverse().map((n) => ({ n, yazi: numaraGoster(n) }))} />
       </section>
 
       <section className="kart space-y-3 p-4 sm:p-5 reveal reveal-d4">

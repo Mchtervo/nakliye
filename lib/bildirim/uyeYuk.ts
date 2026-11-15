@@ -16,6 +16,7 @@ import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
 import { ilgiliMi, LISTE_GUVEN } from "@/lib/kaynaklar/filtre";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 import { uyeIlanDurumlari, yuklerAcikMi } from "@/lib/uyeIlan";
+import { kisiselEngelliler, numaraAnahtari, yanlisNumaralar } from "@/lib/kaynaklar/yanlisNumara";
 import { tlYaz } from "@/lib/para";
 
 const SON_ANAHTAR = "uye_yuk_bildirim_son";
@@ -47,7 +48,7 @@ export async function uyeYukBildir(): Promise<number> {
   const sonId = Number(sonKayit.deger) || 0;
   if (enSon.id <= sonId) return 0;
 
-  const [konum, yonler, durumlar] = await Promise.all([aracKonumu(), aracYonleri(), uyeIlanDurumlari()]);
+  const [konum, yonler, durumlar, engelli, genelEngel] = await Promise.all([aracKonumu(), aracYonleri(), uyeIlanDurumlari(), kisiselEngelliler(), yanlisNumaralar()]);
   const adaylar = await anaPrisma.yukIlani.findMany({
     where: {
       id: { gt: sonId },
@@ -64,6 +65,8 @@ export async function uyeYukBildir(): Promise<number> {
 
   const uygun = adaylar
     .filter((i) => i.kaynak?.tur !== "WEB" && !durumlar.has(i.id))
+    // Engellenen (sahte / yanlış) numaraların yükleri bildirilmez
+    .filter((i) => !engelli.has(numaraAnahtari(i.telefon)) && !genelEngel.has(numaraAnahtari(i.telefon)))
     // Dönüş talebi yöneticinindir (üyeye geçmez); yalnız-varış koridoru bildirilmez
     .map((i) => ({ ...kaydaDon(i), donusTalebiId: null, koridorTipi: i.koridorTipi }))
     .filter((k) => ilgiliMi(k, tercih));

@@ -650,21 +650,28 @@ function IlanDetay({
                   </button>
                 )}
                 {ilan.uye && <SorunBildir ilanId={ilan.id} bitti={() => { kapat(); router.refresh(); }} />}
-                {ilan.telefon && !ilan.uye && (
+                {ilan.telefon && (
                   <button
                     type="button"
                     disabled={islem}
                     onClick={() => {
-                      if (!window.confirm(`${ilan.telefon} yanlış numara olarak işaretlensin mi? Bu numaralı ilanlar bir daha gelmez.`)) return;
+                      const soru = ilan.uye
+                        ? `${ilan.telefon} numarası engellensin mi?
+
+Sahte / ulaşılamayan numara. Bu numaranın paylaştığı yükler sana bir daha gelmez, bildirimi de gelmez. Ayarlardan istediğin zaman kaldırabilirsin.`
+                        : `${ilan.telefon} numarası herkes için engellensin mi?
+
+Bu numaranın paylaştığı yükler hiçbir hesaba gelmez.`;
+                      if (!window.confirm(soru)) return;
                       baslatIslem(async () => {
                         await ilanYanlisNumara(ilan.id);
                         kapat();
                         router.refresh();
                       });
                     }}
-                    className="ana-hap"
+                    className="ana-hap !bg-[#fef2f2] !text-[#b91c1c]"
                   >
-                    Yanlış numara
+                    🚫 Numarayı engelle
                   </button>
                 )}
                 <button

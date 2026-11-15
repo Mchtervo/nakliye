@@ -326,16 +326,52 @@ export async function ilanIletisimeGecildi(id: number): Promise<void> {
   revalidatePath("/ai/donus");
 }
 
-/** Arayınca yanlış çıkan numara: kara listeye, o numaralı ilanlar elenir. */
-export async function ilanYanlisNumara(id: number): Promise<void> {
-  if (!Number.isInteger(id) || id <= 0) return;
-  // Kara liste herkesi etkiler: yalnız yönetici
-  if (await uyeMi()) return;
-  const ilan = await prisma.yukIlani.findUnique({ where: { id }, select: { telefon: true } });
-  if (!ilan?.telefon) return;
-  const { yanlisNumaraIsaretle } = await import("@/lib/kaynaklar/yanlisNumara");
-  await yanlisNumaraIsaretle(ilan.telefon);
+/**
+ * Sahte / yanlış numara: numarayı engeller.
+ * Yönetici → herkes için kara liste. Üye → kendi listesi (+ yöneticiye şikâyet düşer;
+ * iki farklı üye engellerse numara herkes için kara listeye girer).
+ */
+export async function ilanYanlisNumara(id: number): Promise<{ genele: boolean }> {
+  if (!Number.isInteger(id) || id <= 0) return { genele: false };
+  const { aktifBaglam } = await import("@/lib/baglam");
+  const { anaPrisma } = await import("@/lib/prismaAna");
+  const b = await aktifBaglam();
+  const ilan = await anaPrisma.yukIlani.findUnique({ where: { id }, select: { telefon: true } });
+  if (!ilan?.telefon) return { genele: false };
+  const yn = await import("@/lib/kaynaklar/yanlisNumara");
+  if (b.uyeId === null) {
+    await yn.yanlisNumaraIsaretle(ilan.telefon);
+    revalidatePath("/ai/yukler");
+    revalidatePath("/ayarlar");
+    return { genele: true };
+  }
+  if (b.yoneticiGoruyor) return { genele: false };
+  const r = await yn.uyeNumaraEngelle(b.uyeId, ilan.telefon);
+  // Yönetici şikâyetler ekranında görsün
+  await anaPrisma.ilanSikayet
+    .upsert({
+      where: { ilanId_uyeId: { ilanId: id, uyeId: b.uyeId } },
+      create: { ilanId: id, uyeId: b.uyeId, neden: "YANLIS_NUMARA", not: "Numara engellendi" },
+      update: {},
+    })
+    .catch(() => null);
+  const { uyeIlanDurumYaz } = await import("@/lib/uyeIlan");
+  await uyeIlanDurumYaz(id, "ELENDI");
   revalidatePath("/ai/yukler");
+  revalidatePath("/profil");
+  return r;
+}
+
+/** Engeli kaldır (üye: kendi listesi; yönetici: genel liste). */
+export async function numaraEngelKaldir(numara: string): Promise<void> {
+  const { aktifBaglam } = await import("@/lib/baglam");
+  const b = await aktifBaglam();
+  const yn = await import("@/lib/kaynaklar/yanlisNumara");
+  if (b.uyeId === null) await yn.yanlisNumaraKaldir(numara);
+  else if (!b.yoneticiGoruyor) await yn.uyeNumaraEngelKaldir(b.uyeId, numara);
+  revalidatePath("/ai/yukler");
+  revalidatePath("/profil");
+  revalidatePath("/ayarlar");
 }
 
 export async function ilanSil(id: number): Promise<void> {

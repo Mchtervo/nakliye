@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { aktifBaglam } from "@/lib/baglam";
 import { anaPrisma } from "@/lib/prismaAna";
 import { uyeIlanDurumlari, yuklerAcikMi } from "@/lib/uyeIlan";
+import { kisiselEngelliler, numaraAnahtari, yanlisNumaralar } from "@/lib/kaynaklar/yanlisNumara";
 import { redirect } from "next/navigation";
 import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
@@ -127,6 +128,10 @@ export default async function AiYuklerSayfasi({
   if (uye && !(await yuklerAcikMi())) redirect("/profil");
   const ilanDb = uye ? anaPrisma : prisma;
   const uyeDurum = uye ? await uyeIlanDurumlari() : new Map<number, string>();
+  // Engellenen numaralar (üyenin kendi + herkes için kara liste) listeye hiç gelmez
+  const engelliNumaralar = uye
+    ? await Promise.all([kisiselEngelliler(), yanlisNumaralar()]).then(([a, b]) => new Set([...a, ...b]))
+    : new Set<string>();
   const uyeTakipIdleri = [...uyeDurum].filter(([, d]) => d !== "ELENDI").map(([id]) => id);
   const uyeGizliIdler = [...uyeDurum].filter(([, d]) => d === "ELENDI").map(([id]) => id);
   const sekmeKodlari = uye ? UYE_SEKMELERI : SEKMELER.map((s) => s.kod);
@@ -411,6 +416,7 @@ export default async function AiYuklerSayfasi({
 
   let sirali = ilanlar
     .filter((i) => i.id === odak || (i.telefon || "").replace(/\D/g, "").length >= 10)
+    .filter((i) => !engelliNumaralar.has(numaraAnahtari(i.telefon)))
     .sort((a, b) => {
     // İki şehir: tam rota üstte, sonra aynı çıkış/varış, havza en sonda
     if (cikisIl && varisIl) {

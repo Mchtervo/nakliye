@@ -6,6 +6,8 @@ import { HareketKok } from "@/components/ana/Hareket";
 import { anaYazi } from "@/components/ana/yazi";
 import RaporUst from "@/components/finans/RaporUst";
 import KisiselTercih from "@/components/uye/KisiselTercih";
+import EngelliNumaralar from "@/components/yuk/EngelliNumaralar";
+import { kisiselEngelliler, numaraGoster } from "@/lib/kaynaklar/yanlisNumara";
 import ProfilFotografi from "@/components/uye/ProfilFotografi";
 import { ProfilForm, SifreForm } from "@/components/uye/ProfilForm";
 import TumCihazlar from "@/components/uyelik/TumCihazlar";
@@ -45,11 +47,12 @@ export default async function ProfilSayfasi() {
   if (b.uyeId === null) redirect("/ayarlar");
   const d = await uyeDurumu(b.uyeId);
   if (!d) redirect("/giris");
-  const [tercih, konum, arac, muhasebeci] = await Promise.all([
+  const [tercih, konum, arac, muhasebeci, engelliler] = await Promise.all([
     aiTercihleriOku(),
     aracKonumu().catch(() => null),
     aktifArac().catch(() => null),
     prisma.ayar.findUnique({ where: { anahtar: "muhasebeci_telefon" } }),
+    kisiselEngelliler().catch(() => new Set<string>()),
   ]);
 
   return (
@@ -76,6 +79,12 @@ export default async function ProfilSayfasi() {
           <Bolum baslik="Temel bilgiler">
             <KisiselTercih iller={[...ILLER]} anaUs={tercih.anaUs ?? d.sehir ?? ""} konumIl={konum ?? ""} push={tercih.pushAcik} yukler={tercih.yuklerAcik} yukBildirim={tercih.yukBildirimAcik} />
           </Bolum>
+
+          {tercih.yuklerAcik && (
+            <Bolum baslik="Engellenen numaralar">
+              <EngelliNumaralar numaralar={[...engelliler].reverse().map((n) => ({ n, yazi: numaraGoster(n) }))} />
+            </Bolum>
+          )}
 
           <Bolum baslik="Aracın">
             <Link href="/arac" className="rp-genis-dugme">
