@@ -40,7 +40,7 @@ const TIP_KELIMELER: Record<AracTipiKodu, string[]> = {
     // "sal" tek başına çok kısa; kelime sınırı ile bakılır
   ],
   // panelvan: küçük kapalı araç = kamyonet sınıfı (eskiden kapalı kasa sayılıp listeye giriyordu)
-  KAMYON: ["kamyonet", "kirkayak", "10 teker", "6 teker", "kamyon", "panelvan", "panel van"],
+  KAMYON: ["kamyonet", "kirkayak", "kirk ayak", "40 ayak", "10 teker", "6 teker", "kamyon", "panelvan", "panel van"],
   DIGER: ["tanker", "silobas", "konteyner", "konteyner sasi", "romork", "havuz"],
 };
 
@@ -88,7 +88,7 @@ export function tirUzunlukMetre(metin: string | null | undefined): number | null
 
 /** Kamyon sınıfı araç (kamyonet, kamyon, panelvan, kırkayak, 6/10 teker; ek ve yazım hatası dahil). */
 export function kamyonSinifiMi(sade: string): boolean {
-  return /(^|\s)(ka?m[ay]{1,2}o?n+e?t\w*|kmayon\w*|kamyon\w*|panel ?van\w*|kirkayak\w*|(6|10|on|alti) teker\w*|minivan\w*)/.test(sade);
+  return /(^|\s)(ka?m[ay]{1,2}o?n+e?t\w*|kmayon\w*|kamyon\w*|panel ?van\w*|kirkayak\w*|kirk ayak|40 ayak|(6|10|on|alti) teker\w*|minivan\w*)/.test(sade);
 }
 
 /** Metinde tır işareti var mı (ilan birden çok araç sayıyor olabilir: "kamyon / tır"). */

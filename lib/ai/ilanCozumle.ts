@@ -214,6 +214,17 @@ const KACIS = /[.*+?^${}()|[\]\\]/g;
 /** Doğrulama için ham metinden bir kez çıkarılan bilgiler. */
 export type MetinBaglami = { ham: string; sade: string; iller: Set<string> };
 
+/**
+ * Mesajda yalnız bu ilanın iki ili geçiyorsa çıkış/varış karışamaz: rota iki
+ * satıra bölünmüş olsa da ("HATAY ALTINÖZÜ YÜKLER" / "📍URLA") aynı ilandır.
+ * Satır kuralı yalnız çok rotalı listelerde yanlış eşleşmeyi önlemek içindir.
+ */
+function yalnizBuRota(ilan: { cikisIl: string | null; varisIl: string | null }, baglam: MetinBaglami): boolean {
+  if (!ilan.cikisIl || !ilan.varisIl) return false;
+  const kalan = [...baglam.iller].filter((il) => il !== ilan.cikisIl && il !== ilan.varisIl);
+  return kalan.length === 0;
+}
+
 export function baglamCikar(hamMetin: string): MetinBaglami {
   return {
     ham: hamMetin,
@@ -641,6 +652,7 @@ async function tekParcaCozumle(
     }
     if (
       ilan.varisIl &&
+      !yalnizBuRota(ilan, baglam) &&
       !rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, parca)
     ) {
       const kurtar = yuklemeOlarakKurtar(ilan, parca, filtreSet);
@@ -945,6 +957,7 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     }
     if (
       ilan.varisIl &&
+      !yalnizBuRota(ilan, baglamlar[sira]) &&
       !rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, kaynakMesaj.metin)
     ) {
       const kurtar = yuklemeOlarakKurtar(ilan, kaynakMesaj.metin, filtreSet);
