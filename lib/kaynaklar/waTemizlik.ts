@@ -1,5 +1,5 @@
 /**
- * WhatsApp yük gruplarında 2 günden eski mesajları temizler ("Sohbeti temizle").
+ * WhatsApp yük gruplarında 24 saatten eski mesajları temizler ("Sohbeti temizle").
  * Gruptan ÇIKILMAZ; kanallara, kişisel sohbetlere ve adı yük grubu olmayan
  * gruplara dokunulmaz. Temizlik bağlı cihazdan telefona eşitlenir.
  *
@@ -18,7 +18,8 @@ import { prisma } from "@/lib/prisma";
 import { yukGrubuAdiMi } from "@/lib/kaynaklar/whatsapp";
 
 export const TEMIZLIK_ANAHTAR = "wa_sohbet_temizle";
-export const TEMIZLIK_YAS_SN = 2 * 24 * 60 * 60;
+/** Bu kadar saatten eski mesajlar temizlenir (WA_TEMIZLIK_SAAT, varsayılan 24; en az 6). */
+export const TEMIZLIK_YAS_SN = Math.max(6, Number(process.env.WA_TEMIZLIK_SAAT) || 24) * 60 * 60;
 /** Tur başına en fazla grup (WhatsApp'a yüklenmeyelim) */
 const TUR_TAVAN = 40;
 
@@ -71,7 +72,8 @@ export async function noktalariKaydet(dosya: string): Promise<void> {
 /** Ayar: null = kapalı, "" = tüm yük grupları, metin = adında geçenler */
 export async function temizlikAyari(): Promise<string | null> {
   const a = await prisma.ayar.findUnique({ where: { anahtar: TEMIZLIK_ANAHTAR } }).catch(() => null);
-  const d = (a?.deger || "").trim();
+  // Ayar yoksa .env'deki WA_SOHBET_TEMIZLE geçerli (aynı değerler)
+  const d = (a?.deger || process.env.WA_SOHBET_TEMIZLE || "").trim();
   if (!d || d === "0") return null;
   return d === "1" ? "" : sadelestir(d);
 }
