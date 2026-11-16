@@ -15,6 +15,10 @@
 
 # next.js
 /.next/
+/.next-yeni/
+/.next.onceki/
+/.next-eski-test/
+/.next.bak.*/
 /out/
 
 # production

@@ -14,6 +14,9 @@ const SURUM = surumBul();
 
 const nextConfig: NextConfig = {
   // Sürüm uyuşmazlığında Next sayfa geçişinde kendisi tam yenileme yapar.
+  // Kesintisiz güncelleme: deploy yeni sürümü ayrı klasöre derler (NEXT_DIST_DIR),
+  // site eski sürümle açık kalır; derleme bitince klasör .next ile değiştirilir.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   deploymentId: SURUM,
   env: {
     UYGULAMA_SURUM: SURUM,

@@ -160,8 +160,15 @@ git reset --hard origin/main >>"$LOG" 2>&1
 script_izinleri
 set -e
 
-if ! npm_ci_guvenli; then
-  exit 1
+# Paketler değişmediyse npm ci atlanır: npm ci node_modules'u silip baştan kurar,
+# o ~1 dakika boyunca çalışan site ve zamanlanmış işler modül bulamayıp hata verir.
+if [ ! -d node_modules ] || ! git diff --quiet "$OLD_SHA" HEAD -- package-lock.json package.json; then
+  log "paketler değişti → npm ci"
+  if ! npm_ci_guvenli; then
+    exit 1
+  fi
+else
+  log "paketler değişmedi → npm ci atlandı"
 fi
 
 set +e
@@ -198,16 +205,20 @@ $(head -5 "$SOZ_LOG")"
 fi
 rm -f "$SOZ_LOG"
 
-# Build: app durdur + temiz .next (yarım _buildManifest.tmp ENOENT önlemi)
-pm2 stop yukavci >>"$LOG" 2>&1 || true
-fuser -k 3200/tcp >>"$LOG" 2>&1 || true
-pkill -f "next-server" >>"$LOG" 2>&1 || true
-sleep 1
-rm -rf .next
+# Kesintisiz build: yeni sürüm ayrı klasöre (.next-yeni) derlenir, site bu sırada
+# eski .next ile AÇIK kalır. Derleme bitince klasörler değiştirilir ve site yeniden
+# başlatılır (kesinti birkaç saniye; eskiden derleme boyunca 3-5 dk kapalıydı).
+rm -rf .next-yeni
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
 BUILD_LOG="$(mktemp /tmp/yukavci-build.XXXXXX)"
-npm run build >"$BUILD_LOG" 2>&1
+NEXT_DIST_DIR=.next-yeni npm run build >"$BUILD_LOG" 2>&1
 BUILD_KOD=$?
+# Derleme tsconfig.json'a .next-yeni yolunu ekler; çalışma ağacı temiz kalsın
+git checkout -- tsconfig.json >>"$LOG" 2>&1 || true
+if [ "$BUILD_KOD" -eq 0 ] && [ ! -f .next-yeni/BUILD_ID ]; then
+  echo "BUILD_ID yok (.next-yeni)" >>"$BUILD_LOG"
+  BUILD_KOD=1
+fi
 cat "$BUILD_LOG" >>"$LOG"
 if [ "$BUILD_KOD" -ne 0 ]; then
   log "build HATA exit=$BUILD_KOD"
@@ -215,17 +226,29 @@ if [ "$BUILD_KOD" -ne 0 ]; then
 
 $(hata_ozet "$BUILD_LOG")"
   rm -f "$BUILD_LOG"
-  geri_al
-  pm2 restart yukavci --update-env >>"$LOG" 2>&1 || true
+  rm -rf .next-yeni
+  # Site eski .next ile çalışmaya devam ediyor: yalnız git geri alınır
+  git reset --hard "$OLD_SHA" >>"$LOG" 2>&1 || true
+  script_izinleri
+  if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
+    rm -rf "$NEXT_BAK"
+  fi
   exit 1
 fi
 rm -f "$BUILD_LOG"
 set -e
 
-# Build OK — yedeği sil, servisleri yenile
+# Build OK — klasörleri değiştir. Eski derleme doğrulama bitene kadar yedek kalır
+# (geri_al onu geri koyar).
 if [ -n "$NEXT_BAK" ] && [ -d "$NEXT_BAK" ]; then
   rm -rf "$NEXT_BAK"
 fi
+NEXT_BAK=".next.onceki"
+rm -rf "$NEXT_BAK"
+if [ -d .next ]; then
+  mv .next "$NEXT_BAK"
+fi
+mv .next-yeni .next
 
 # Daemon yalnızca GramJS / kuyruk / prisma / bağımlılık değişince restart.
 # UI-only push → catch-up döngüsü ve mesaj kaçırma riski olmasın.
@@ -296,6 +319,8 @@ if [ "$HATA" -ne 0 ]; then
 fi
 
 script_izinleri
+# Doğrulama geçti: eski derleme yedeği artık gereksiz
+rm -rf .next.onceki
 
 # Keşif/çıkış saatleri dosyadan gelsin (crontab.yukavci)
 if [ -f "$REPO/deploy/crontab.yukavci" ]; then

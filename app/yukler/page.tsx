@@ -4,6 +4,7 @@ import { telefonTelHref } from "@/lib/telefon";
 import { ayAraligi } from "@/lib/tarih";
 import { ayEtiketi, ayParametresi, ayParametresiOku } from "@/lib/kdv";
 import SeferlerGorunum from "@/components/sefer/SeferlerGorunum";
+import { seferKmTahmini } from "@/lib/seferYer";
 
 const PESIN_NOTU = "Kayıt sırasında ödendi";
 
@@ -85,6 +86,8 @@ export default async function YuklerSayfasi({
           pesin: y.odemeler.some((o) => o.not === PESIN_NOTU),
           ekArama: y.firma.telefon ?? undefined,
           aracId: y.aracId ?? ilkAracId,
+          km: y.km ?? seferKmTahmini(y.nereden, y.nereye),
+          kmTahmini: y.km == null,
           odemeler: y.odemeler
             .slice()
             .sort((a, b) => a.tarih.getTime() - b.tarih.getTime())

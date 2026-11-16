@@ -102,6 +102,7 @@ function fiyatParcalari(ilan: IlanKartVeri) {
 
 function bilgiSatiri(ilan: IlanKartVeri): string {
   return [
+    ilan.kar?.mesafe || null,
     ilan.tonaj ? `${ilan.tonaj} ton` : null,
     ilan.aracTipi ? (aracTipiAdi(ilan.aracTipi) ?? ilan.aracTipi) : null,
     ilan.aracUzunluk != null ? `${ilan.aracUzunluk.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} m` : null,

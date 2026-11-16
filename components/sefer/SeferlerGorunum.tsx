@@ -33,6 +33,9 @@ export type SeferSatir = {
   /** Aramada eşleşecek ek metin (telefon vb.) */
   ekArama?: string;
   aracId?: number | null;
+  /** Yol (elle girilen ya da tahmini) ve km başına kazanç */
+  km?: number | null;
+  kmTahmini?: boolean;
   /** Alınan ödemeler (düzelt / sil için) */
   odemeler?: OdemeOge[];
 };
@@ -187,6 +190,12 @@ export default function SeferlerGorunum({ v }: { v: SeferlerVeri }) {
                           {s.arac ? ` • ${s.arac}` : ""}
                           {s.aciklama ? ` • ${s.aciklama}` : ""}
                         </p>
+                        {s.km != null && s.km > 0 && (
+                          <p className="mt-0.5 text-[12.5px] font-semibold text-[#4338ca]">
+                            {s.kmTahmini ? "≈ " : ""}
+                            {s.km.toLocaleString("tr-TR")} km · km başına {tlYazKisa(Math.round(s.net / s.km))}
+                          </p>
+                        )}
                       </div>
                     </div>
 
