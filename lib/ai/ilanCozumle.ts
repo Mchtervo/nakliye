@@ -543,6 +543,7 @@ async function kuyrukYasiDk(): Promise<number> {
   return dk;
 }
 let ilanModeliOnbellek: { deger: string | null; zaman: number } | null = null;
+let claudeDevreDisi = false;
 
 async function ilanModeli(): Promise<string | null> {
   if (process.env.AI_ILAN_MODELI) return process.env.AI_ILAN_MODELI;
@@ -575,6 +576,20 @@ async function ilanJson<T>(
 ): Promise<T> {
   if (filtre.model) return aiJson<T>({ ...secenek, model: filtre.model });
   const model = (await ilanModeli()) || MODEL_HIZLI;
+  // Claude (Anthropic kredisi): olmazsa (hata, kesilme, kredi/tavan bitti) aynı iş nano'ya.
+  // Kredi ya da anahtar sorunu bu süreçte bir kez görülünce Claude tekrar denenmez.
+  if (model.startsWith("claude:")) {
+    if (!claudeDevreDisi) {
+      try {
+        return await aiJson<T>({ ...secenek, model });
+      } catch (e) {
+        const kod = e instanceof AiHatasi ? e.kod : "";
+        if (kod === "KREDI_BITTI" || kod === "ANAHTAR_GECERSIZ" || kod === "ANAHTAR_YOK" || kod === "BUTCE_DOLDU") claudeDevreDisi = true;
+        console.warn(`[ilanCozumle] Claude olmadı (${e instanceof Error ? e.message.slice(0, 80) : e}) → ${MODEL_HIZLI}`);
+      }
+    }
+    return aiJson<T>({ ...secenek, model: MODEL_HIZLI });
+  }
   if (!model.startsWith("evren:")) return aiJson<T>({ ...secenek, model });
   // Kuyruk geride kaldıysa EVREN'i bekleme: doğrudan nano
   const yas = await kuyrukYasiDk();
