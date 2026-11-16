@@ -151,4 +151,6 @@ export const EK_ILCELER: Record<string, string> = {
   "bahçesaray": "Van", "çatak": "Van",
   // Yozgat
   "çandır": "Yozgat", "çayıralan": "Yozgat", "çekerek": "Yozgat", "kadışehri": "Yozgat", "saraykent": "Yozgat", "şefaatli": "Yozgat", "yenifakılı": "Yozgat",
+  // Canlı ilanlarda geçen, tabloda olmayan semt / sınır kapısı adları (2026-11)
+  "cilvegözü": "Hatay", "öncüpınar": "Kilis", "koçhisar": "Ankara", "misis": "Adana", "büyükkarıştıran": "Kırklareli", "ortaklar": "Aydın",
 };

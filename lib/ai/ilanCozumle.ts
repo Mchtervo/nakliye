@@ -225,6 +225,17 @@ function yalnizBuRota(ilan: { cikisIl: string | null; varisIl: string | null }, 
   return kalan.length === 0;
 }
 
+/**
+ * Tek çıkışlı liste: model aynı mesajdan en az iki ilan çıkardı ve hepsinin çıkış
+ * ili aynı ("KONYA YÜKLER" başlığı altında Bursa / Çorum varışları). Çıkış tek
+ * olduğundan varışlarla yanlış eşleşme olamaz; satır kuralı güveni düşürmez.
+ */
+function tekCikisliListe(neredenler: (string | null | undefined)[]): boolean {
+  if (neredenler.length < 2) return false;
+  const iller = new Set(neredenler.map((n) => ilBul(n ?? null)));
+  return iller.size === 1 && !iller.has(null);
+}
+
 export function baglamCikar(hamMetin: string): MetinBaglami {
   return {
     ham: hamMetin,
@@ -620,6 +631,7 @@ async function tekParcaCozumle(
   const baglam = baglamCikar(parca);
   const filtreSet = new Set(filtre.filtreIlleri ?? promptIlleri);
   const sonuc: CozulmusIlan[] = [];
+  const tekCikis = tekCikisliListe(hamListe.map((h) => h.nereden));
   for (const ham of hamListe) {
     let ilan = ilaniNormalize(ham, baglam, filtre.anaUs ?? null, filtreSet);
     if (!ilan.telefon) ilan.telefon = irtibatTelefonuBul(parca);
@@ -653,6 +665,7 @@ async function tekParcaCozumle(
     if (
       ilan.varisIl &&
       !yalnizBuRota(ilan, baglam) &&
+      !tekCikis &&
       !rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, parca)
     ) {
       const kurtar = yuklemeOlarakKurtar(ilan, parca, filtreSet);
@@ -932,6 +945,10 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
   const hamListe = cikti.ilanlar || [];
   if (hamListe.length === 0) ele.aiCevapBos += 1;
 
+  const tekCikisMesaj = new Map<number, boolean>();
+  for (const no of new Set(hamListe.map((h) => Math.round(h.mesajNo)))) {
+    tekCikisMesaj.set(no - 1, tekCikisliListe(hamListe.filter((h) => Math.round(h.mesajNo) === no).map((h) => h.nereden)));
+  }
   for (const ham of hamListe) {
     const sira = Math.round(ham.mesajNo) - 1;
     const kaynakMesaj = paket[sira];
@@ -958,6 +975,7 @@ ilan varsa hepsini ayrı ayrı listele.${kapsamTalimati(promptIlleri)}`,
     if (
       ilan.varisIl &&
       !yalnizBuRota(ilan, baglamlar[sira]) &&
+      !tekCikisMesaj.get(sira) &&
       !rotaAyniSatirdaMi(ilan.nereden, ilan.nereye, kaynakMesaj.metin)
     ) {
       const kurtar = yuklemeOlarakKurtar(ilan, kaynakMesaj.metin, filtreSet);

@@ -236,6 +236,15 @@ export type AiTercihleri = {
  * hepsi tırsa kamyon/kamyonet ilanları gösterilmez. Kamyon/kamyonet sahibi ya da
  * araç girmemiş hesapta filtre yok (eskisi gibi her şey).
  */
+/**
+ * Tenteli tır açık yükü de taşır: "13.60 açık tır" ilanları tenteli kabul edenlere
+ * de gelir (ilan sahipleri tenteli / kapalı / açık ayrımını özensiz yazıyor).
+ * Kısa dorse ayrı elenir (lib/arac).
+ */
+function tenteliyeAcikEkle(kodlar: AracTipiKodu[]): AracTipiKodu[] {
+  return kodlar.includes("TENTELI") && !kodlar.includes("SAL_DORSE") ? [...kodlar, "SAL_DORSE"] : kodlar;
+}
+
 async function aractanAracTipleri(): Promise<AracTipiKodu[]> {
   const araclar = await prisma.arac.findMany({ select: { sinif: true } }).catch(() => []);
   if (araclar.length === 0 || araclar.some((a) => a.sinif !== "TIR")) return [];
@@ -329,10 +338,11 @@ export async function aiTercihleriOku(): Promise<AiTercihleri> {
     minUcret: Number.isFinite(minHam) && minHam > 0 ? minHam : null,
     bolgeler:
       bolgeHam === undefined ? VARSAYILAN_BOLGELER : bolgeCozumle(bolgeHam),
-    aracTipleri:
+    aracTipleri: tenteliyeAcikEkle(
       a[AYAR_ANAHTARLARI.aiAracTipleri] === undefined
         ? await aractanAracTipleri()
-        : aracKodlariCozumle(a[AYAR_ANAHTARLARI.aiAracTipleri]),
+        : aracKodlariCozumle(a[AYAR_ANAHTARLARI.aiAracTipleri])
+    ),
     maxTonaj: maxTonajCozulmus,
     anaUs: ilBul(a[AYAR_ANAHTARLARI.aiAnaUs]),
     ekIller: [...new Set(ekIller)],

@@ -88,7 +88,7 @@ export function tirUzunlukMetre(metin: string | null | undefined): number | null
 
 /** Kamyon sınıfı araç (kamyonet, kamyon, panelvan, kırkayak, 6/10 teker; ek ve yazım hatası dahil). */
 export function kamyonSinifiMi(sade: string): boolean {
-  return /(^|\s)(ka?m[ay]{1,2}o?n+e?t\w*|kmayon\w*|kamyon\w*|panel ?van\w*|kirkayak\w*|kirk ayak|40 ayak|(6|10|on|alti) teker\w*|minivan\w*)/.test(sade);
+  return /(^|\s)(ka?m[ay]{1,2}o?n+e?t\w*|kmayon\w*|kamyon\w*|panel ?van\w*|kirkayak\w*|kirk ayak|40 ayak|(6|8|10|on|alti|sekiz) ?teker\w*|minivan\w*)/.test(sade);
 }
 
 /** Metinde tır işareti var mı (ilan birden çok araç sayıyor olabilir: "kamyon / tır"). */
@@ -136,10 +136,12 @@ export function aracMetniUyuyorMu(
 
   if (!sade && !kod) return true; // belirsiz — geçir
 
-  // kısadorse / kısa dorse — sal dorse değilse kesin red
+  // kısadorse / kısa dorse — ayrı bir dorse: standart 13.60 tır (tenteli / kapalı)
+  // kabul ediliyorsa ya da sal dorse seçili değilse kesin red.
+  // (Tenteli seçilince açık 13.60 işleri de kabul edilir; kısa dorse bunun dışında.)
   if (
     /(^|\s)(kisadorse|kisadors|kisa dorse|kisa-dorse)(\s|$)/.test(sade) &&
-    !kabulKodlari.includes("SAL_DORSE")
+    (!kabulKodlari.includes("SAL_DORSE") || kabulKodlari.includes("TENTELI") || kabulKodlari.includes("KAPALI_KASA"))
   ) {
     return false;
   }
