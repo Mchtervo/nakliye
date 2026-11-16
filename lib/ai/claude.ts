@@ -67,7 +67,9 @@ export async function claudeIstek(govde: Record<string, unknown>, zamanAsimiMs: 
     const yanit = await claudeIstemcisi().messages.create(
       {
         model,
-        max_tokens: Number(govde.max_output_tokens) || 4000,
+        // Düşünme tokenleri de bu sınıra dahil: OpenAI için ayarlı sınır (2500) uzun listelerde
+        // cevabı yarıda kesiyordu. Yalnız kullanılan token faturalanır.
+        max_tokens: Math.max((Number(govde.max_output_tokens) || 4000) * 3, 8000),
         ...(sistem ? { system: sistem } : {}),
         messages: [{ role: "user", content: kullanici }],
         output_config: {
