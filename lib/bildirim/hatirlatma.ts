@@ -28,10 +28,9 @@ function gunFarki(eski: string, yeni: string): number {
   return Math.round((Date.parse(yeni) - Date.parse(eski)) / GUN_MS);
 }
 
-/** 7, 14, 21, 30, sonra 45, 60, 75… */
+/** Ödeme alınmadıysa: seferden 7 gün sonra, sonra 2 günde bir (7, 9, 11, 13…) ödenene kadar. */
 export function hatirlatmaGunuMu(gecen: number): boolean {
-  if (gecen === 7 || gecen === 14 || gecen === 21 || gecen === 30) return true;
-  return gecen > 30 && (gecen - 30) % 15 === 0;
+  return gecen >= 7 && (gecen - 7) % 2 === 0;
 }
 
 async function ayarAl(anahtar: string): Promise<string | null> {
