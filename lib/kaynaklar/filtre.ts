@@ -172,6 +172,32 @@ export function webIlanGorunurMu(
  * Skor 40+ yeter (50 altı eskiden paneli boşaltıyordu; şüpheli sekmesi ayrı).
  * İki uç da hattın içindeyse çıkar. Doğu varışı listelenmez.
  */
+/** Yöneticinin araç kuralıyla elenip "Şüpheli"ye yazılan ilanlar (başka araçlara uyabilir). */
+export const ARAC_ELENDI_ONEK = "[araç tipi] ";
+
+/**
+ * Listede görünmeyen durumlar. Üye için araç kuralıyla elenenler hariç tutulmaz:
+ * ortak ilanı yöneticinin tırına uymadığı için elenmiş olabilir, üyenin aracına uyar.
+ * (Üye listesinde üyenin kendi araç süzgeci ayrıca uygulanır.)
+ */
+export function gorunurDurumKosulu(uye: boolean) {
+  if (!uye) return { durum: { notIn: ["ARSIV", "ELENDI"] } };
+  return {
+    OR: [
+      { durum: { notIn: ["ARSIV", "ELENDI"] } },
+      { durum: "ELENDI", hamMetin: { startsWith: ARAC_ELENDI_ONEK } },
+    ],
+  };
+}
+
+/** Araç tipi süzgeci (belirsiz / kodsuz ilan geçer). Seçim yoksa koşul yok. */
+export function aracKosulu(tercih: AiTercihleri) {
+  if (tercih.aracTipleri.length === 0) return {};
+  return {
+    OR: [{ aracTipiKod: null }, { aracTipiKod: { in: tercih.aracTipleri as string[] } }],
+  };
+}
+
 export function tercihKosulu(
   tercih: AiTercihleri,
   secenek: { webDahil?: boolean } = {}
@@ -181,15 +207,7 @@ export function tercihKosulu(
   ];
   if (!secenek.webDahil) kosullar.push(webKaynakHaricKosulu());
 
-  if (tercih.aracTipleri.length > 0) {
-    // Belirsiz (null) geçsin — damper/frigo kodu olanlar zaten listede değil.
-    kosullar.push({
-      OR: [
-        { aracTipiKod: null },
-        { aracTipiKod: { in: tercih.aracTipleri as string[] } },
-      ],
-    });
-  }
+  if (tercih.aracTipleri.length > 0) kosullar.push(aracKosulu(tercih));
   if (tercih.maxTonaj) {
     kosullar.push({ OR: [{ tonaj: null }, { tonaj: { lte: tercih.maxTonaj } }] });
   }

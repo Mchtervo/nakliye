@@ -13,7 +13,7 @@ import { aiTercihleriOku } from "@/lib/ayarlar";
 import { bildirimSessizMi, kaydaDon } from "@/lib/bildirim/gonder";
 import { pushGonder, pushKullanilabilir } from "@/lib/bildirim/push";
 import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
-import { ilgiliMi, LISTE_GUVEN } from "@/lib/kaynaklar/filtre";
+import { gorunurDurumKosulu, ilgiliMi, LISTE_GUVEN } from "@/lib/kaynaklar/filtre";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 import { uyeIlanDurumlari, yuklerAcikMi } from "@/lib/uyeIlan";
 import { kisiselEngelliler, numaraAnahtari, yanlisNumaralar } from "@/lib/kaynaklar/yanlisNumara";
@@ -54,7 +54,7 @@ export async function uyeYukBildir(): Promise<number> {
       id: { gt: sonId },
       sonGorulme: { gte: new Date(Date.now() - YENI_ILAN_MS) },
       guvenSkoru: { gte: LISTE_GUVEN },
-      durum: { notIn: ["ARSIV", "ELENDI"] },
+      ...gorunurDurumKosulu(true),
       ...konumKosulu(konum, yonler),
     },
     orderBy: { id: "asc" },

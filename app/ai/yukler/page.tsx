@@ -9,7 +9,7 @@ import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
 import { ilBul, sehirHavzasi } from "@/lib/iller";
-import { SUPHE_SINIRI, tercihKosulu, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
+import { ARAC_ELENDI_ONEK, SUPHE_SINIRI, aracKosulu, araciUyuyorMu, gorunurDurumKosulu, tercihKosulu, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
 import YukBulGorunum from "@/components/yuk/YukBulGorunum";
 import type { RotaCip } from "@/components/yuk/AramaTepsisi";
 import { fiyatAkliDisiMi } from "@/lib/ai/ilanCozumle";
@@ -218,7 +218,7 @@ export default async function AiYuklerSayfasi({
       sekme === "ILGILENIYOR"
         ? { id: { in: uyeTakipIdleri } }
         : sekme === "HEPSI"
-          ? { guvenSkoru: { gte: SUPHE_SINIRI }, id: { notIn: uyeGizliIdler } }
+          ? { guvenSkoru: { gte: SUPHE_SINIRI }, id: { notIn: uyeGizliIdler }, ...aracKosulu(tercih) }
           : {
               // Yöneticinin Yeni sekmesiyle aynı kural (güven eşiği yok)
               ...tercihKosulu(tercih, { webDahil: true }),
@@ -281,11 +281,10 @@ export default async function AiYuklerSayfasi({
           durum: { not: "ARSIV" },
         }
       : {
-          OR: [
-            { createdAt: { gte: tazeSinir } },
-            { sonGorulme: { gte: tazeSinir } },
+          AND: [
+            { OR: [{ createdAt: { gte: tazeSinir } }, { sonGorulme: { gte: tazeSinir } }] },
+            gorunurDurumKosulu(uye),
           ],
-          durum: { notIn: ["ARSIV", "ELENDI"] },
         };
 
   const numaraKosul: Prisma.YukIlaniWhereInput = {
@@ -313,9 +312,12 @@ export default async function AiYuklerSayfasi({
   const tekSehirAd = cikisIl || varisIl;
 
   const sayacTazelik: Prisma.YukIlaniWhereInput = {
-    OR: [{ createdAt: { gte: tazeSinir } }, { sonGorulme: { gte: tazeSinir } }],
-    durum: { notIn: ["ARSIV", "ELENDI"] },
-    AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
+    AND: [
+      { OR: [{ createdAt: { gte: tazeSinir } }, { sonGorulme: { gte: tazeSinir } }] },
+      gorunurDurumKosulu(uye),
+      { telefon: { not: null } },
+      { telefon: { not: "" } },
+    ],
   };
 
   const [ilanlarHam, kaynakSayisi, yeniSayisi, donusSayisi, supheliSayisi, hatMap] =
@@ -417,6 +419,8 @@ export default async function AiYuklerSayfasi({
   let sirali = ilanlar
     .filter((i) => i.id === odak || (i.telefon || "").replace(/\D/g, "").length >= 10)
     .filter((i) => !engelliNumaralar.has(numaraAnahtari(i.telefon)))
+    // Üye: kendi aracına uymayan (kamyonet, kısa dorse…) ilan görünmez — kod yetmez, metne de bakılır
+    .filter((i) => !uye || i.id === odak || araciUyuyorMu(i, tercih, i.hamMetin))
     .sort((a, b) => {
     // İki şehir: tam rota üstte, sonra aynı çıkış/varış, havza en sonda
     if (cikisIl && varisIl) {
@@ -634,7 +638,7 @@ export default async function AiYuklerSayfasi({
           uye,
           yakinlik: konum ? yakinlikYazisi(konum, yuklemeYakinligi(konum, ilan)) : null,
           guvenSkoru: ilan.guvenSkoru,
-          hamMetin: ilan.hamMetin,
+          hamMetin: ilan.hamMetin.startsWith(ARAC_ELENDI_ONEK) ? ilan.hamMetin.slice(ARAC_ELENDI_ONEK.length) : ilan.hamMetin,
           createdAt: ilan.createdAt,
           sonGorulme: ilan.sonGorulme,
           donusTalebiId: ilan.donusTalebiId,

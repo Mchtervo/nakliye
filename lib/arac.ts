@@ -136,23 +136,20 @@ export function aracMetniUyuyorMu(
 
   if (!sade && !kod) return true; // belirsiz — geçir
 
-  // kısadorse / kısa dorse — ayrı bir dorse: standart 13.60 tır (tenteli / kapalı)
-  // kabul ediliyorsa ya da sal dorse seçili değilse kesin red.
-  // (Tenteli seçilince açık 13.60 işleri de kabul edilir; kısa dorse bunun dışında.)
-  if (
-    /(^|\s)(kisadorse|kisadors|kisa dorse|kisa-dorse)(\s|$)/.test(sade) &&
-    (!kabulKodlari.includes("SAL_DORSE") || kabulKodlari.includes("TENTELI") || kabulKodlari.includes("KAPALI_KASA"))
-  ) {
-    return false;
+  // kısadorse / kısa dorse — 13.60 tırdan ayrı bir dorse (çoğu dökme / damper işi);
+  // açık kasa = 13.60 açık sayılır. Yalnız damperi olan görür.
+  if (/(^|\s)(kisadorse|kisadors|kisa dorse|kisa-dorse)(\s|$)/.test(sade)) {
+    return kabulKodlari.includes("DAMPER");
   }
 
-  // "açık veya kapalı" / "açık/kapalı" — kapalı seçeneği var → kabul
+  // "açık veya kapalı" / "açık/kapalı" — ikisinden biri bizde varsa kabul
   if (
     /acik\s*(veya|\/|,|\+|ve)\s*kapali|kapali\s*(veya|\/|,|\+|ve)\s*acik/.test(
       sade
     ) &&
     (kabulKodlari.includes("TENTELI") ||
-      kabulKodlari.includes("KAPALI_KASA"))
+      kabulKodlari.includes("KAPALI_KASA") ||
+      kabulKodlari.includes("SAL_DORSE"))
   ) {
     return true;
   }

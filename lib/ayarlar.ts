@@ -245,10 +245,32 @@ function tenteliyeAcikEkle(kodlar: AracTipiKodu[]): AracTipiKodu[] {
   return kodlar.includes("TENTELI") && !kodlar.includes("SAL_DORSE") ? [...kodlar, "SAL_DORSE"] : kodlar;
 }
 
+/** Araç kasa tipi → ilan araç kodu (konteyner / tanker ilanlarda "Diğer"). */
+const KASADAN_ILAN: Record<string, AracTipiKodu> = {
+  TENTELI: "TENTELI",
+  KAPALI_KASA: "KAPALI_KASA",
+  FRIGO: "FRIGO",
+  SAL_DORSE: "SAL_DORSE",
+  DAMPER: "DAMPER",
+  LOWBED: "LOWBED",
+  KONTEYNER: "DIGER",
+  TANKER: "DIGER",
+};
+
 async function aractanAracTipleri(): Promise<AracTipiKodu[]> {
-  const araclar = await prisma.arac.findMany({ select: { sinif: true } }).catch(() => []);
-  if (araclar.length === 0 || araclar.some((a) => a.sinif !== "TIR")) return [];
-  return ARAC_TIPLERI.map((t) => t.kod).filter((k) => k !== "KAMYON");
+  const araclar = await prisma.arac.findMany({ select: { sinif: true, kasaTipi: true } }).catch(() => []);
+  if (araclar.length === 0) return [];
+  // Hesaptaki tüm araçların kasa tipleri birleşir (3 tırdan biri damperse damper ilanları da gelir)
+  const kodlar = new Set<AracTipiKodu>();
+  for (const a of araclar) {
+    const kasa = a.kasaTipi ? KASADAN_ILAN[a.kasaTipi] : undefined;
+    if (a.sinif && a.sinif !== "TIR" && a.sinif !== "DIGER") kodlar.add("KAMYON");
+    if (kasa) kodlar.add(kasa);
+    // Kasa tipi girilmemiş araç: sınıfına uygun her iş (eski davranış)
+    else if (a.sinif === "TIR") for (const t of ARAC_TIPLERI) if (t.kod !== "KAMYON") kodlar.add(t.kod);
+    else return [];
+  }
+  return [...kodlar];
 }
 
 export async function aiTercihleriOku(): Promise<AiTercihleri> {

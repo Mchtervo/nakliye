@@ -1092,12 +1092,11 @@ export async function kuyrugunuCoz(
     }
     if (!ilanKaydaUygunMu(ilan, tercih, koridorSet, hamMetin)) {
       if (!araciUyuyorMu(ilan, tercih, hamMetin)) {
-        // Araç reddi → yine kaydet (ELENDI), Şüpheli'de görünsün
+        // Araç reddi → yine kaydet (ELENDI): yöneticide Şüpheli'de görünür; başka araçlı
+        // üyelere (damper, frigo…) normal ilan olarak gider. Güven puanı korunur, yoksa
+        // üye listesi / bildirimi eşiğinin altında kalıyordu.
         const kaynakId = kaynaklar.get(anahtar) ?? null;
-        const elenen = {
-          ...ilan,
-          guvenSkoru: Math.min(ilan.guvenSkoru, 40),
-        };
+        const elenen = ilan;
         await ilanlariKaydet(
           kaynakId,
           [
