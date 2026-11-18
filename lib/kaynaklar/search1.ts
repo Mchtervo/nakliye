@@ -32,19 +32,12 @@ const KREDI_BITTI_ANAHTAR = "search1_kredi_bitti";
 
 async function krediBittiIsaretle(): Promise<void> {
   const gun = bugunTr();
-  const onceki = await prisma.ayar.findUnique({ where: { anahtar: KREDI_BITTI_ANAHTAR } });
+  // Telefona bildirim gönderilmez (kullanıcı istemedi); arama o gün sessizce durur.
   await prisma.ayar.upsert({
     where: { anahtar: KREDI_BITTI_ANAHTAR },
     update: { deger: gun },
     create: { anahtar: KREDI_BITTI_ANAHTAR, deger: gun },
   });
-  if (onceki?.deger === gun) return;
-  const { bilgiBildir } = await import("@/lib/bildirim/gonder");
-  await bilgiBildir(
-    "Arama kredisi bitti",
-    "Search1API ödeme istiyor (402). Facebook/Google ilan araması durdu; kredi yüklenince ertesi gün kendiliğinden devam eder.",
-    "/ayarlar"
-  ).catch(() => null);
 }
 
 /** Her arama 1 kredi; günlük limit dolduysa false döner ve sayacı artırmaz. */
