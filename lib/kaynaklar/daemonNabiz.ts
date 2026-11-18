@@ -8,7 +8,11 @@ import { prisma } from "@/lib/prisma";
 export type DaemonAdi = "whatsapp" | "telegram";
 export type NabizDurum = "BAGLI" | "KOPTU" | "OTURUM_KAPANDI" | "ESLEME_BEKLIYOR";
 
-export type Nabiz = { durum: NabizDurum; zaman: string; not?: string };
+/** bas: bu duruma geçilen an (kısa kopmaları uyarıdan ayırmak için) */
+export type Nabiz = { durum: NabizDurum; zaman: string; not?: string; bas?: string };
+/** WhatsApp bağlantıyı ~50 dk'da bir kesip yeniliyor; okuyucu saniyeler içinde döner. Bundan kısa kopma uyarı değildir. */
+const KISA_KOPMA_MS = 5 * 60 * 1000;
+const durumBaslangici = new Map<DaemonAdi, { durum: NabizDurum; bas: string }>();
 
 /** Bu süredir nabız yoksa daemon ölü sayılır (servis durmuş / çökmüş). */
 const OLU_ESIK_MS = 10 * 60 * 1000;
@@ -16,7 +20,11 @@ const OLU_ESIK_MS = 10 * 60 * 1000;
 const anahtar = (ad: DaemonAdi) => `daemon_nabiz_${ad}`;
 
 export async function nabizYaz(ad: DaemonAdi, durum: NabizDurum, not?: string): Promise<void> {
-  const deger = JSON.stringify({ durum, zaman: new Date().toISOString(), ...(not ? { not } : {}) });
+  const simdi = new Date().toISOString();
+  const onceki = durumBaslangici.get(ad);
+  if (!onceki || onceki.durum !== durum) durumBaslangici.set(ad, { durum, bas: simdi });
+  const bas = durumBaslangici.get(ad)!.bas;
+  const deger = JSON.stringify({ durum, zaman: simdi, bas, ...(not ? { not } : {}) });
   await prisma.ayar
     .upsert({
       where: { anahtar: anahtar(ad) },
@@ -76,11 +84,13 @@ export async function daemonSorunlari(): Promise<DaemonSorunu[]> {
       cikti.push({
         ad,
         baslik: `${AD[ad]} okuyucu durmuş`,
-        detay: `${dk} dakikadır ses yok. Sunucuda: sudo systemctl restart yukavci-${ad}`,
+        detay: `${dk} dakikadır ses yok. Okuyucu kapanmış olabilir ya da sunucu veritabanına ulaşamıyor.`,
       });
       continue;
     }
     if (n.durum === "BAGLI") continue;
+    // Kısa kopma (WhatsApp'ın kendi yenilemesi): okuyucu kendisi bağlanır, uyarı gösterme
+    if (n.durum === "KOPTU" && n.bas && Date.now() - new Date(n.bas).getTime() < KISA_KOPMA_MS) continue;
     const baslik =
       n.durum === "ESLEME_BEKLIYOR"
         ? `${AD[ad]} eşleme bekliyor`
