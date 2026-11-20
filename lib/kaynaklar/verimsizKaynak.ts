@@ -109,17 +109,31 @@ export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<Se
   const bugun = new Date(simdi.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const son = await prisma.ayar.findUnique({ where: { anahtar: SON_KONTROL_ANAHTAR } });
   // ":aday2" eki: aday kuralı geldiği gün liste bir kez yeniden değerlendirilir
-  if (son?.deger === `${bugun}:aday2`) return sessizKaynaklar(simdi);
+  if (son?.deger === `${bugun}:aday3`) return sessizKaynaklar(simdi);
 
   const bas = new Date(simdi.getTime() - PENCERE_GUN * GUN_MS);
   const koridor = new Set(koridorIlKumesi((await aiTercihleriOku()).koridorIller));
-  const [aiye, ilanlar, mevcut, ist] = await Promise.all([
+  const [aiye, ilanlar, ilanMesaj, mevcutHam, ist] = await Promise.all([
     prisma.hamMesaj.groupBy({ by: ["kaynakId"], where: { createdAt: { gte: bas }, denemeSayisi: { gt: 0 } }, _count: true }),
     prisma.yukIlani.groupBy({ by: ["kaynakId"], where: { createdAt: { gte: bas } }, _count: true }),
+    // İlanlar 6 saatte silindiği için YukIlani'den sayım 7 günü göremiyor (iyi gruplar
+    // "0 ilan" sanılıp susturuluyordu). İlan çıkaran ham mesajlar da sayılır.
+    prisma.hamMesaj.groupBy({
+      by: ["kaynakId"],
+      where: {
+        createdAt: { gte: bas },
+        denemeSayisi: { gt: 0 },
+        OR: [{ hata: null }, { hata: { contains: "ELENDI kaydı" } }, { hata: { startsWith: "Kayıt adayıydı" } }],
+      },
+      _count: true,
+    }),
     sessizKaynaklar(simdi),
     istisnalar(),
   ]);
   const ilanSay = new Map(ilanlar.map((i) => [i.kaynakId, i._count]));
+  for (const i of ilanMesaj) ilanSay.set(i.kaynakId, Math.max(ilanSay.get(i.kaynakId) ?? 0, i._count));
+  // Eski (hatalı sayımla) susturulanlar bir kez bırakılır; gerçekten verimsizse yeniden susturulur
+  const mevcut = son?.deger?.endsWith(":aday3") ? mevcutHam : mevcutHam.filter((s) => !s.sebep.startsWith("7 günde"));
   const kaynaklar = await prisma.ilanKaynagi.findMany({
     where: { aktif: true, durum: "AKTIF", tur: { in: ["WHATSAPP_GRUP", "TELEGRAM_UYE", "TELEGRAM"] } },
     select: { id: true, ad: true },
@@ -158,8 +172,8 @@ export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<Se
   });
   await prisma.ayar.upsert({
     where: { anahtar: SON_KONTROL_ANAHTAR },
-    create: { anahtar: SON_KONTROL_ANAHTAR, deger: `${bugun}:aday2` },
-    update: { deger: `${bugun}:aday2` },
+    create: { anahtar: SON_KONTROL_ANAHTAR, deger: `${bugun}:aday3` },
+    update: { deger: `${bugun}:aday3` },
   });
 
   const eklenen = liste.filter((s) => !mevcut.some((m) => m.id === s.id));
