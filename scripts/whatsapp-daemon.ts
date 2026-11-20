@@ -12,9 +12,11 @@
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  downloadMediaMessage,
   fetchLatestWaWebVersion,
   getBinaryNodeChild,
   getBinaryNodeChildren,
+  normalizeMessageContent,
   proto,
   useMultiFileAuthState as dosyaOturumu,
   type BinaryNode,
@@ -27,6 +29,7 @@ import { AYAR_ANAHTARLARI, ayarOku } from "@/lib/ayarlar";
 import { telegramGonder } from "@/lib/bildirim/telegram";
 import { nabizYaz, waYeniKodIstendiMi, type NabizDurum } from "@/lib/kaynaklar/daemonNabiz";
 import { telefonlariCikar } from "@/lib/kaynaklar/onDedup";
+import { FOTO_MAX_BAYT, fotoMetni, fotoOkunabilir, fotoSayac } from "@/lib/kaynaklar/fotoOku";
 import { mesajlariKuyrugaAl, type GelenGrup } from "@/lib/kaynaklar/telegramUye";
 import {
   aktifWhatsappGruplari,
@@ -423,8 +426,8 @@ async function kanallaraGir(sock: WASocket): Promise<void> {
   }
 }
 
-function mesajMetni(m: WAMessage): string | null {
-  const metin = whatsappMetni(m.message);
+function mesajMetni(m: WAMessage, yerine?: string): string | null {
+  const metin = yerine ?? whatsappMetni(m.message);
   if (!metin || metin.length < MIN_METIN) return null;
   if (telefonlariCikar(metin).length > 0) return metin;
   // Numarasız ilan: irtibat gönderende ya da kanal başlığındaki numarada
@@ -518,6 +521,36 @@ function kaynakIdBul(ids: string[]): number | null {
   return null;
 }
 
+const fotoIstat = { denenen: 0, okunan: 0, hata: 0 };
+
+/**
+ * Yazısız (ya da çok kısa yazılı) fotoğraf: ilan ekran görüntüsü / kâğıt olabilir.
+ * İndirip ücretsiz OCR'a okutur; metin + varsa fotoğraf altı yazısı döner.
+ */
+async function fotoIlanMetni(m: WAMessage): Promise<string | null> {
+  const foto = normalizeMessageContent(m.message)?.imageMessage;
+  if (!foto || !fotoOkunabilir()) return null;
+  const boyut = Number(foto.fileLength ?? 0);
+  if (boyut > FOTO_MAX_BAYT) return null;
+  fotoIstat.denenen += 1;
+  try {
+    const veri = (await Promise.race([
+      downloadMediaMessage(m, "buffer", {}),
+      new Promise<never>((_, red) => setTimeout(() => red(new Error("indirme zaman aşımı")), 30_000)),
+    ])) as Buffer;
+    if (veri.length > FOTO_MAX_BAYT) return null;
+    const yazi = await fotoMetni(veri, foto.mimetype || "image/jpeg");
+    if (!yazi) return null;
+    fotoIstat.okunan += 1;
+    const alt = (foto.caption || "").trim();
+    return mesajMetni(m, alt ? `${alt}\n${yazi}` : yazi);
+  } catch (e) {
+    fotoIstat.hata += 1;
+    if (fotoIstat.hata % 20 === 1) uyari("Fotoğraf okunamadı:", e instanceof Error ? ilkSatir(e.message) : e);
+    return null;
+  }
+}
+
 /** Teşhis sayaçları (saatlik log). */
 const akis = { grup: 0, cozulemedi: 0, metinsiz: 0, nedenler: new Map<string, number>() };
 
@@ -571,7 +604,8 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     const zaman = Number(m.messageTimestamp ?? 0);
     const maxYas = kanalMu ? MAX_KANAL_YASI_SN : MAX_MESAJ_YASI_SN;
     if (zaman > 0 && simdiSn - zaman > maxYas) continue;
-    const metin = mesajMetni(m);
+    let metin = mesajMetni(m);
+    if (!metin) metin = await fotoIlanMetni(m);
     if (!metin) continue;
     const liste = grupBazli.get(kaynakId) ?? [];
     liste.push({ mesajId: null, metin, gonderenUserId: null, zaman: zaman > 0 ? new Date(zaman * 1000) : null });
@@ -828,7 +862,10 @@ async function baglan(): Promise<void> {
 async function main() {
   log(`Başlıyor. Oturum klasörü: ${AUTH_DIR}`);
   setInterval(() => {
-    log(`Saatlik: alınan=${alinan} kuyruğa=${kuyruga} takipte=${gruplar.size}`);
+    log(`Saatlik: alınan=${alinan} kuyruğa=${kuyruga} takipte=${gruplar.size} foto: denenen=${fotoIstat.denenen} okunan=${fotoIstat.okunan} hata=${fotoIstat.hata} (bugün ${fotoSayac().adet})`);
+    fotoIstat.denenen = 0;
+    fotoIstat.okunan = 0;
+    fotoIstat.hata = 0;
     alinan = 0;
     kuyruga = 0;
   }, 60 * 60 * 1000);
