@@ -519,7 +519,7 @@ function kaynakIdBul(ids: string[]): number | null {
 }
 
 /** Teşhis sayaçları (saatlik log). */
-const ham = { grup: 0, cozulemedi: 0, metinsiz: 0, nedenler: new Map<string, number>() };
+const akis = { grup: 0, cozulemedi: 0, metinsiz: 0, nedenler: new Map<string, number>() };
 
 async function mesajlariIsle(mesajlar: WAMessage[]) {
   const simdiSn = Math.floor(Date.now() / 1000);
@@ -531,12 +531,12 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     const kanalMu = kanalSohbetiMi(ids);
     if (grupMu && !m.key.fromMe) {
       // Teşhis: grup mesajı geldi ama çözülemedi mi (şifre anahtarı yok)?
-      ham.grup += 1;
+      akis.grup += 1;
       if (m.messageStubType === 2 || (!m.message && m.messageStubParameters?.length)) {
-        ham.cozulemedi += 1;
+        akis.cozulemedi += 1;
         const neden = String(m.messageStubParameters?.[0] ?? "-").slice(0, 40);
-        ham.nedenler.set(neden, (ham.nedenler.get(neden) ?? 0) + 1);
-      } else if (!whatsappMetni(m.message)) ham.metinsiz += 1;
+        akis.nedenler.set(neden, (akis.nedenler.get(neden) ?? 0) + 1);
+      } else if (!whatsappMetni(m.message)) akis.metinsiz += 1;
     }
     // Gönderen bilgisi olmayan grup mesajı temizlik noktası olamaz (kütüphane reddeder)
     if (grupMu && m.key.id && (m.key.fromMe || m.key.participant)) {
@@ -834,11 +834,11 @@ async function main() {
   }, 60 * 60 * 1000);
   setInterval(() => void nabizYaz("whatsapp", durum, durumNot), 60 * 1000);
   setInterval(() => {
-    log(`Grup akışı (10 dk): gelen=${ham.grup} çözülemedi=${ham.cozulemedi} metinsiz=${ham.metinsiz} ${[...ham.nedenler].map(([k, v]) => `${k}:${v}`).join(",")}`);
-    ham.grup = 0;
-    ham.cozulemedi = 0;
-    ham.metinsiz = 0;
-    ham.nedenler.clear();
+    log(`Grup akışı (10 dk): gelen=${akis.grup} çözülemedi=${akis.cozulemedi} metinsiz=${akis.metinsiz} ${[...akis.nedenler].map(([k, v]) => `${k}:${v}`).join(",")}`);
+    akis.grup = 0;
+    akis.cozulemedi = 0;
+    akis.metinsiz = 0;
+    akis.nedenler.clear();
   }, 10 * 60 * 1000);
   await noktalariYukle(TEMIZLIK_DOSYA);
   setInterval(() => void noktalariKaydet(TEMIZLIK_DOSYA), 10 * 60 * 1000);
