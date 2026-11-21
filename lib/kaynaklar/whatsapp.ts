@@ -198,7 +198,10 @@ export async function katilimHakkiKullan(tip: WhatsappLinkTip = "grup"): Promise
   });
 }
 
-export async function siradakiDavet(): Promise<{ id: number; kod: string } | null> {
+/** Kullanıcının elle verdiği linkler: ad kontrolüne takılmadan girilir. */
+export const ELLE_ONCELIK = 100;
+
+export async function siradakiDavet(): Promise<{ id: number; kod: string; elle: boolean } | null> {
   const aday = await prisma.ilanKaynagi.findFirst({
     where: {
       tur: WHATSAPP_GRUP,
@@ -207,15 +210,15 @@ export async function siradakiDavet(): Promise<{ id: number; kod: string } | nul
       NOT: { hedef: { startsWith: "https://chat.whatsapp.com/0029" } },
     },
     orderBy: [{ oncelik: "desc" }, { id: "asc" }],
-    select: { id: true, hedef: true },
+    select: { id: true, hedef: true, oncelik: true },
   });
   if (!aday) return null;
   const kod = aday.hedef.split("/").pop()?.split("?")[0] || "";
   if (!kod) return null;
-  return { id: aday.id, kod };
+  return { id: aday.id, kod, elle: (aday.oncelik ?? 0) >= ELLE_ONCELIK };
 }
 
-export async function siradakiKanalDavet(): Promise<{ id: number; kod: string } | null> {
+export async function siradakiKanalDavet(): Promise<{ id: number; kod: string; elle: boolean } | null> {
   const aday = await prisma.ilanKaynagi.findFirst({
     where: {
       tur: WHATSAPP_GRUP,
@@ -226,12 +229,12 @@ export async function siradakiKanalDavet(): Promise<{ id: number; kod: string } 
       ],
     },
     orderBy: [{ oncelik: "desc" }, { id: "asc" }],
-    select: { id: true, hedef: true },
+    select: { id: true, hedef: true, oncelik: true },
   });
   if (!aday) return null;
   const kod = aday.hedef.split("/").pop()?.split("?")[0] || "";
   if (!kod) return null;
-  return { id: aday.id, kod };
+  return { id: aday.id, kod, elle: (aday.oncelik ?? 0) >= ELLE_ONCELIK };
 }
 
 /** Yanlışlıkla grup daveti diye yazılmış kanal kodlarını kanal sırasına alır. */

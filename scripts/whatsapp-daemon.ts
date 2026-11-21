@@ -402,7 +402,7 @@ async function kanallaraGir(sock: WASocket): Promise<void> {
       await davetKapat(aday.id, ad || "WA kanal", "Kanal bulunamadı");
       return;
     }
-    if (ad && !yukGrubuAdiMi(ad)) {
+    if (!aday.elle && ad && !yukGrubuAdiMi(ad)) {
       await davetKapat(aday.id, ad, "Yük kanalı değil — takip edilmedi");
       log(`Kanal atlandı (yük değil): ${ad}`);
       return;
@@ -467,11 +467,11 @@ async function davetlereGir(sock: WASocket) {
     try {
       const bilgi = await sock.groupGetInviteInfo(aday.kod);
       const ad = (bilgi.subject || "").trim();
-      if (bilgi.id && (await waPasifGrupMu(bilgi.id))) {
+      if (!aday.elle && bilgi.id && (await waPasifGrupMu(bilgi.id))) {
         await davetKapat(aday.id, ad || "adsız grup", "Daha önce çıkılmış grup — girilmedi");
         continue;
       }
-      if (!yukGrubuAdiMi(ad)) {
+      if (!aday.elle && !yukGrubuAdiMi(ad)) {
         await davetKapat(aday.id, ad || "adsız grup", "Yük grubu değil — girilmedi");
         log(`Atlandı (yük grubu değil): ${ad || aday.kod}`);
         continue;
