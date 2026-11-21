@@ -255,7 +255,7 @@ mv .next-yeni .next
 daemon_etkilendi() {
   local eski="$1" yeni="$2"
   git diff --name-only "$eski" "$yeni" | grep -E \
-    '^(scripts/telegram-daemon\.ts|scripts/ts-kayit\.mjs|scripts/ts-cozucu\.mjs|scripts/cron-katil\.ts|scripts/cron-grup-cik\.ts|lib/kaynaklar/(telegram|tdm|eleme|grupOkuma|filtre|kaydet|daemonNabiz)|lib/ayarlar\.ts|lib/prisma\.ts|lib/bildirim/|lib/ai/|package(-lock)?\.json|prisma/|deploy/yukavci-telegram\.service)' \
+    '^(scripts/telegram-daemon\.ts|scripts/ts-kayit\.mjs|scripts/ts-cozucu\.mjs|scripts/cron-katil\.ts|scripts/cron-grup-cik\.ts|lib/kaynaklar/(telegram|tdm|eleme|grupOkuma|filtre|kaydet|daemonNabiz|onFiltre|onDedup)|lib/iller.ts|lib/ayarlar\.ts|lib/prisma\.ts|lib/bildirim/|lib/ai/|package(-lock)?\.json|prisma/|deploy/yukavci-telegram\.service)' \
     >/dev/null
 }
 
@@ -278,7 +278,7 @@ if systemctl is-enabled yukavci-whatsapp >/dev/null 2>&1; then
   # Her yeniden bağlanış telefonda "senkronizasyon tamamlandı" bildirimi çıkarır:
   # yalnız okuyucunun kendi kodu / kuyruk yazımı / şema / paket değişince.
   if git diff --name-only "$OLD_SHA" HEAD | grep -E \
-    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|onDedup|daemonNabiz|telegramUye)|prisma/|package-lock\.json|deploy/yukavci-whatsapp\.service)' >/dev/null; then
+    '^(scripts/whatsapp-daemon\.ts|lib/kaynaklar/(whatsapp|waGorusme|waTemizlik|onDedup|onFiltre|fotoOku|daemonNabiz|telegramUye)|lib/ai/nvidia.ts|lib/iller.ts|prisma/|package-lock\.json|deploy/yukavci-whatsapp\.service)' >/dev/null; then
     log "whatsapp daemon kodu değişti → yukavci-whatsapp restart"
     sudo -n /bin/systemctl restart yukavci-whatsapp >>"$LOG" 2>&1 || log "yukavci-whatsapp restart yetkisi yok (sudoers)"
   fi
