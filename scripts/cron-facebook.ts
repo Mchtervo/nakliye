@@ -31,7 +31,7 @@ function fbYukGrubuMu(ad: string): boolean {
 
 async function listeYenile(sayfa: Parameters<typeof katilinanGruplar>[0]): Promise<void> {
   const son = await prisma.ayar.findUnique({ where: { anahtar: LISTE_ANAHTAR } });
-  if (son && Date.now() - Number(son.deger) < LISTE_YENILE_MS) return;
+  if (son && Date.now() - Number(son.deger) < LISTE_YENILE_MS && process.env.FB_LISTE_YENILE !== "1") return;
   const gruplar = await katilinanGruplar(sayfa);
   let yuk = 0;
   for (const g of gruplar) {
@@ -40,7 +40,14 @@ async function listeYenile(sayfa: Parameters<typeof katilinanGruplar>[0]): Promi
     await prisma.ilanKaynagi.upsert({
       where: { tur_hedef: { tur: FACEBOOK_GRUP, hedef: g.id } },
       create: { tur: FACEBOOK_GRUP, hedef: g.id, ad: g.ad, aktif: uygun, durum: uygun ? "AKTIF" : "PASIF" },
-      update: { ad: g.ad },
+      update: { ad: g.ad, aktif: uygun, durum: uygun ? "AKTIF" : "PASIF" },
+    });
+  }
+  // Hesap değişti / gruptan çıkıldı: listede olmayan gruplar okunmasın
+  if (gruplar.length > 0) {
+    await prisma.ilanKaynagi.updateMany({
+      where: { tur: FACEBOOK_GRUP, hedef: { notIn: gruplar.map((g) => g.id) } },
+      data: { aktif: false, durum: "PASIF" },
     });
   }
   await prisma.ayar.upsert({ where: { anahtar: LISTE_ANAHTAR }, create: { anahtar: LISTE_ANAHTAR, deger: String(Date.now()) }, update: { deger: String(Date.now()) } });
