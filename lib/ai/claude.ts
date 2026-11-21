@@ -19,7 +19,20 @@ export function claudeAnahtariVar(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
-type GirdiParcasi = { type?: string; text?: string };
+type GirdiParcasi = { type?: string; text?: string; image_url?: string };
+
+type ClaudeIcerik =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string } }
+  | { type: "image"; source: { type: "url"; url: string } };
+
+/** Responses biçimindeki görsel (data: URL ya da https) → Claude görsel bloğu. */
+function gorselBlogu(url: string): ClaudeIcerik | null {
+  const m = url.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
+  if (m) return { type: "image", source: { type: "base64", media_type: m[1] as "image/jpeg", data: m[2] } };
+  if (/^https:\/\//.test(url)) return { type: "image", source: { type: "url", url } };
+  return null;
+}
 type Girdi = { role: "system" | "user"; content: string | GirdiParcasi[] }[];
 
 export type ClaudeYanit = {
@@ -60,6 +73,12 @@ export async function claudeIstek(govde: Record<string, unknown>, zamanAsimiMs: 
     .filter((g) => g.role === "user")
     .map((g) => (typeof g.content === "string" ? g.content : g.content.filter((p) => p.type === "input_text").map((p) => p.text ?? "").join("\n")))
     .join("\n\n");
+  // Görseller (fiş vb.): metinden önce
+  const gorseller = girdi
+    .filter((g) => g.role === "user" && typeof g.content !== "string")
+    .flatMap((g) => (g.content as GirdiParcasi[]).filter((p) => p.type === "input_image" && p.image_url).map((p) => gorselBlogu(p.image_url!)))
+    .filter((b): b is ClaudeIcerik => b !== null);
+  const icerik: string | ClaudeIcerik[] = gorseller.length ? [...gorseller, { type: "text", text: kullanici }] : kullanici;
   const reasoning = govde.reasoning as { effort?: string } | undefined;
   const sema = (govde.text as { format?: { type?: string; schema?: Record<string, unknown> } } | undefined)?.format;
 
@@ -71,7 +90,7 @@ export async function claudeIstek(govde: Record<string, unknown>, zamanAsimiMs: 
         // cevabı yarıda kesiyordu. Yalnız kullanılan token faturalanır.
         max_tokens: Math.max((Number(govde.max_output_tokens) || 4000) * 3, 8000),
         ...(sistem ? { system: sistem } : {}),
-        messages: [{ role: "user", content: kullanici }],
+        messages: [{ role: "user", content: icerik }],
         output_config: {
           effort: effort(reasoning?.effort),
           ...(sema?.type === "json_schema" && sema.schema ? { format: { type: "json_schema" as const, schema: sema.schema } } : {}),

@@ -1,5 +1,11 @@
-import { aiJson } from "@/lib/ai/istemci";
+import { aiJson, aiSertDurdurma } from "@/lib/ai/istemci";
 import { MODEL_HIZLI } from "@/lib/ai/modeller";
+import { claudeAnahtariVar } from "@/lib/ai/claude";
+import { nvidiaAnahtariVar } from "@/lib/ai/nvidia";
+
+/** Fiş okuma sırası: Claude (Anthropic kredisi) → NVIDIA (ücretsiz) → OpenAI (kredisi bitmiş olabilir). */
+const FIS_CLAUDE = process.env.FIS_MODELI || "claude:claude-haiku-5-5";
+const FIS_NVIDIA = "nvidia:nvidia/nemotron-3.5-super-vl-120b-a12b";
 import { FIS_SEMASI, type FisCikti } from "@/lib/ai/semalar";
 import { GIDER_KATEGORILERI, gecerliKategoriMi } from "@/lib/sabitler";
 
@@ -29,8 +35,27 @@ export type FisOkuma = FisCikti;
  * @param gorselUrl data: URL veya erişilebilir https URL
  */
 export async function fisOku(gorselUrl: string): Promise<FisOkuma> {
+  const modeller = [
+    ...(claudeAnahtariVar() ? [FIS_CLAUDE] : []),
+    ...(nvidiaAnahtariVar() ? [FIS_NVIDIA] : []),
+    MODEL_HIZLI,
+  ];
+  let sonHata: unknown = null;
+  for (const model of modeller) {
+    try {
+      return await fisOkuModel(gorselUrl, model);
+    } catch (e) {
+      if (aiSertDurdurma(e) && model === MODEL_HIZLI) throw e;
+      sonHata = e;
+      console.warn(`[fisOku] ${model} olmadı: ${e instanceof Error ? e.message.slice(0, 120) : e}`);
+    }
+  }
+  throw sonHata instanceof Error ? sonHata : new Error("Fiş okunamadı.");
+}
+
+async function fisOkuModel(gorselUrl: string, model: string): Promise<FisOkuma> {
   const sonuc = await aiJson<FisCikti>({
-    model: MODEL_HIZLI,
+    model,
     sistem: SISTEM,
     metin:
       "Bu fişi oku ve alanları çıkar. Emin olamadığın alanı null bırak, uydurma.",
