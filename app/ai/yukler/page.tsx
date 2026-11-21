@@ -8,7 +8,8 @@ import { kurustanGiris, tlYaz } from "@/lib/para";
 import { aiTercihleriOku } from "@/lib/ayarlar";
 import { aiKapaliMi, aiKullanilabilir } from "@/lib/ai/istemci";
 import { aracTipiAdi } from "@/lib/arac";
-import { ilBul, sehirHavzasi } from "@/lib/iller";
+import { ilBul, sadelestir, sehirHavzasi } from "@/lib/iller";
+import { yemIlanMi } from "@/lib/kaynaklar/onFiltre";
 import { ARAC_ELENDI_ONEK, SUPHE_SINIRI, aracKosulu, araciUyuyorMu, gorunurDurumKosulu, tercihKosulu, webKaynakHaricKosulu } from "@/lib/kaynaklar/filtre";
 import YukBulGorunum from "@/components/yuk/YukBulGorunum";
 import type { RotaCip } from "@/components/yuk/AramaTepsisi";
@@ -419,6 +420,8 @@ export default async function AiYuklerSayfasi({
   let sirali = ilanlar
     .filter((i) => i.id === odak || (i.telefon || "").replace(/\D/g, "").length >= 10)
     .filter((i) => !engelliNumaralar.has(numaraAnahtari(i.telefon)))
+    // Uygulama satmak için atılan sahte (yem) listeler — kuyruğa girmeden önce de eleniyor
+    .filter((i) => !yemIlanMi(sadelestir(i.hamMetin)))
     // Üye: kendi aracına uymayan (kamyonet, kısa dorse…) ilan görünmez — kod yetmez, metne de bakılır
     .filter((i) => !uye || i.id === odak || araciUyuyorMu(i, tercih, i.hamMetin))
     .sort((a, b) => {

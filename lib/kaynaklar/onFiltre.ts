@@ -66,8 +66,31 @@ export function satirHashUret(satir: string): string {
   return createHash("sha1").update(sadelestir(satir)).digest("hex").slice(0, 32);
 }
 
+/**
+ * Yem ilan: uygulama satmak için otomatik üretilen sahte listeler (21.11'de listedeki
+ * ilanların ~%40'ı). Hep aynı kalıp: "Bugün için nakliye görevi / Bugünkü taşıma görevi /
+ * Bugün yapılacak sevkiyat", Türkiye'nin her yerinden 8–10 rota ve araç olarak tüm tiplerin
+ * sayıldığı "Kapalı/Tenteli/Yüksek Yan/Açık/Frigo/Damperli". Gerçek yükçü böyle yazmaz.
+ */
+const YEM_ARAC = "(kapali|tenteli|acik|frigo|damperli|yuksek yan)";
+/** Araç tiplerini art arda 4+ sayma ("Kapalı/Tenteli/Yüksek Yan/Açık…"). */
+const YEM_ARAC_LISTESI = new RegExp(`(${YEM_ARAC} ){3,}${YEM_ARAC}`);
+const YEM_BASLIK =
+  /(^|\s)((bugun(ku)?|gunun|gunluk)( icin)? (nakliye|tasima|sevkiyat|lojistik) gorevi|bugun (yapilacak|planlanan) (sevkiyat|tasima|nakliye))/;
+const YEM_CUMLE =
+  /surucu arkadaslar lutfen bana whatsapp|mesaj icin whatsapp kullanabilirsiniz|yukaridaki firma telefon bu listedeki guzergahlar|bana whatsapp tan mesaj atabilir misiniz/;
+/** Aynı şebekenin sıralı aldığı hat blokları (21.11 ölçümü). */
+const YEM_NUMARA = /(^|\D)0?(5015972\d{3}|555897\d{4}|555898\d{4}|535732\d{4}|536032\d{4}|501600\d{4}|501624\d{4}|506353\d{4})(\D|$)/;
+
+export function yemIlanMi(sade: string): boolean {
+  const s = sade.trim();
+  if (YEM_ARAC_LISTESI.test(s) || YEM_BASLIK.test(s) || YEM_CUMLE.test(s)) return true;
+  if (/^tasima yuku 0?5\d{9}/.test(s)) return true;
+  return YEM_NUMARA.test(s.replace(/(\d)\s(?=\d)/g, "$1"));
+}
+
 function spamMi(sade: string): boolean {
-  return SPAM_KALIPLARI.some((k) => sade.includes(sadelestir(k)));
+  return yemIlanMi(sade) || SPAM_KALIPLARI.some((k) => sade.includes(sadelestir(k)));
 }
 
 /** Rota / fiyat / telefon / araç — ilan sinyali (keşif + budama paylaşır). */
