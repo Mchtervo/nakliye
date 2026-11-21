@@ -75,11 +75,14 @@ const TEMIZLIK_MS = 3 * 60 * 60 * 1000;
 const TELEFON = (process.env.WHATSAPP_TELEFON || "").replace(/\D/g, "");
 const GRUP_ESITLEME_MS = 30 * 60 * 1000;
 const KANAL_TARAMA_MS = 10 * 60 * 1000;
-const KANAL_CEK_ADET = 20;
-const KANAL_TARAMA_TAVAN = 25;
+const KANAL_CEK_ADET = 30;
+/** Tur başına kanal: 160+ kanal ~30 dk'da bir dolaşılır (eskiden 25 → ~66 dk, çok paylaşan kanalda ilan kaçıyordu). */
+const KANAL_TARAMA_TAVAN = 60;
 /** Cevapsız kanal sorgusu 60 sn beklemesin; tur 10 dk'yı aşmasın. */
 const KANAL_SORGU_MS = 15_000;
-const KANAL_PARALEL = 4;
+const KANAL_PARALEL = 6;
+/** Kanal adresine doğrudan sorgu (sunucu boş dönerse). Hep zaman aşımına düştüğü için kapalı. */
+const KANAL_DOGRUDAN_DENE = process.env.WA_KANAL_DOGRUDAN === "1";
 const WA_SUNUCU = "s.whatsapp.net";
 /** whatsmeow: hesabın katıldığı kanallar. Chrome/web sorgusu. */
 const KANAL_LISTE_SORGUSU = "6388546374527196";
@@ -307,19 +310,15 @@ async function kanalMesajlariniCek(
   adet: number
 ): Promise<WAMessage[]> {
   const adetYazi = String(adet);
+  // Sunucu sorgusu çalışıyor; kanalın kendi adresine sorgu hep 15 sn bekleyip zaman aşımına
+  // düşüyordu (günde binlerce kez) ve taramayı yavaşlatıyordu. Önce sunucu, gerekirse kanal.
+  const sunucu = kanalDugumleriniOku(await kanalIq(sock, WA_SUNUCU, { type: "jid", jid, count: adetYazi }), jid);
+  if (sunucu.length > 0 || !KANAL_DOGRUDAN_DENE) return sunucu;
   try {
-    const kanala = await kanalIq(sock, jid, { count: adetYazi });
-    const dogrudan = kanalDugumleriniOku(kanala, jid);
-    if (dogrudan.length > 0) return dogrudan;
-  } catch (e) {
-    uyari("Kanal yazısı okunamadı:", e instanceof Error ? e.message : e);
+    return kanalDugumleriniOku(await kanalIq(sock, jid, { count: adetYazi }), jid);
+  } catch {
+    return [];
   }
-  const sunucu = await kanalIq(sock, WA_SUNUCU, {
-    type: "jid",
-    jid,
-    count: adetYazi,
-  });
-  return kanalDugumleriniOku(sunucu, jid);
 }
 
 let kanalTaramasiSuruyor = false;
