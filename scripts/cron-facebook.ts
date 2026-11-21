@@ -55,6 +55,7 @@ async function listeYenile(sayfa: Parameters<typeof katilinanGruplar>[0]): Promi
 }
 
 async function oturumUyarisi(mesaj: string): Promise<void> {
+  console.warn("[facebook]", mesaj);
   const gun = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
   const k = await prisma.ayar.findUnique({ where: { anahtar: UYARI_ANAHTAR } });
   if (k?.deger === gun) return;
@@ -65,7 +66,6 @@ async function oturumUyarisi(mesaj: string): Promise<void> {
     "Facebook okuyucu durdu. Yedek hesapla tarayıcıdan bir kez giriş yap, Cookie-Editor ile çerezleri Claude'a ver.",
     "/ayarlar"
   ).catch(() => null);
-  console.warn("[facebook]", mesaj);
 }
 
 async function main() {
