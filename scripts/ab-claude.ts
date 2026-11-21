@@ -10,8 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { modelIleCozumle, skorHesapla, tabloYaz, type AbMesaj } from "@/lib/ai/abKarsilastir";
 import type { CozulmusIlan } from "@/lib/ai/ilanCozumle";
 
-const A = "gpt-5.4-nano";
-const B = "claude:claude-haiku-5-5";
+const A = process.env.AB_A || "gpt-5.4-nano";
+const B = process.env.AB_B || "claude:claude-haiku-5-5";
 const ADET = Math.max(5, Math.min(80, Number(process.argv[2]) || 40));
 
 async function ornekSec(): Promise<AbMesaj[]> {
@@ -39,14 +39,13 @@ async function ornekSec(): Promise<AbMesaj[]> {
 const rota = (i: CozulmusIlan) => `${i.cikisIl || i.nereden || "?"}→${i.varisIl || i.nereye || "?"}${i.aracTipiKod ? ` [${i.aracTipiKod}]` : ""}`;
 
 async function main() {
-  if (!process.env.ANTHROPIC_API_KEY || !process.env.OPENAI_API_KEY) throw new Error("ANTHROPIC_API_KEY ve OPENAI_API_KEY gerekli.");
   const mesajlar = await ornekSec();
   console.log(`[ab-claude] ${mesajlar.length} mesaj (son 24 saat, telefonlu, tekrarsız)`);
 
-  const a = await modelIleCozumle(mesajlar, A, "nano");
-  const aSkor = await skorHesapla(mesajlar, a.ilanlar, A, "nano", a.bas);
-  const b = await modelIleCozumle(mesajlar, B, "haiku");
-  const bSkor = await skorHesapla(mesajlar, b.ilanlar, B, "haiku", b.bas);
+  const a = await modelIleCozumle(mesajlar, A, "A");
+  const aSkor = await skorHesapla(mesajlar, a.ilanlar, A, "A", a.bas);
+  const b = await modelIleCozumle(mesajlar, B, "B");
+  const bSkor = await skorHesapla(mesajlar, b.ilanlar, B, "B", b.bas);
 
   console.log("\n" + tabloYaz(aSkor, bSkor));
 

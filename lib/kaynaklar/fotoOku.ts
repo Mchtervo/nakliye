@@ -70,6 +70,18 @@ export async function fotoMetni(foto: Buffer, mime = "image/jpeg"): Promise<stri
       })) as { choices?: { message?: { content?: string | null } }[] };
       metin = j.choices?.[0]?.message?.content ?? null;
     } catch (e) {
+      // Son yedek: NVIDIA görsel modeli
+      try {
+        const { nvidiaGorselMetni } = await import("@/lib/ai/nvidia");
+        metin = await nvidiaGorselMetni(url);
+      } catch {
+        metin = null;
+      }
+      if (metin) {
+        ardisikHata = 0;
+        const temiz = metin.replace(/\n{2,}/g, "\n").trim();
+        return temiz.length >= 10 ? temiz : null;
+      }
       ardisikHata += 1;
       // Servis düştüyse 10 dk dinlen (her fotoğrafta 60 sn beklemeyelim)
       if (ardisikHata >= 3) {

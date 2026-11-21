@@ -1,4 +1,5 @@
 import { AiHatasi, aiJson, aiSertDurdurma } from "@/lib/ai/istemci";
+import { NVIDIA_ILAN_MODELI, nvidiaAnahtariVar } from "@/lib/ai/nvidia";
 import { prisma } from "@/lib/prisma";
 import { AI_MAX_CIKTI, AI_MAX_DENEME } from "@/lib/ai/modeller";
 import { MODEL_HIZLI } from "@/lib/ai/modeller";
@@ -585,7 +586,16 @@ async function ilanJson<T>(
       } catch (e) {
         const kod = e instanceof AiHatasi ? e.kod : "";
         if (kod === "KREDI_BITTI" || kod === "ANAHTAR_GECERSIZ" || kod === "ANAHTAR_YOK" || kod === "BUTCE_DOLDU") claudeDevreDisi = true;
-        console.warn(`[ilanCozumle] Claude olmadı (${e instanceof Error ? e.message.slice(0, 80) : e}) → ${MODEL_HIZLI}`);
+        console.warn(`[ilanCozumle] Claude olmadı (${e instanceof Error ? e.message.slice(0, 80) : e}) → yedek`);
+      }
+    }
+    // Ücretsiz yedek (NVIDIA); o da olmazsa ücretli nano
+    if (nvidiaAnahtariVar()) {
+      try {
+        return await aiJson<T>({ ...secenek, model: NVIDIA_ILAN_MODELI, zamanAsimiMs: 45_000 });
+      } catch (e) {
+        if (aiSertDurdurma(e)) throw e;
+        console.warn(`[ilanCozumle] NVIDIA olmadı (${e instanceof Error ? e.message.slice(0, 80) : e}) → ${MODEL_HIZLI}`);
       }
     }
     return aiJson<T>({ ...secenek, model: MODEL_HIZLI });

@@ -7,6 +7,7 @@ import { butceMusaitMi } from "@/lib/ai/butce";
 import { maliyetHesapla, tahminiCagriMikro } from "@/lib/ai/maliyet";
 import { prisma } from "@/lib/prisma";
 import { CLAUDE_ONEK, ClaudeHttpHatasi, claudeAnahtariVar, claudeIstek } from "@/lib/ai/claude";
+import { NVIDIA_ONEK, NvidiaHatasi, nvidiaAnahtariVar, nvidiaIstek } from "@/lib/ai/nvidia";
 
 const API_URL = "https://api.openai.com/v1/responses";
 /** EVREN (SSB) OpenAI uyumlu uç. Model adı "evren:" ile başlarsa buraya gider. */
@@ -241,6 +242,34 @@ async function claudeIleIstekAt(govde: Record<string, unknown>, model: string, z
   throw sonHata ?? new AiHatasi("Claude geçici hatalardan sonra vazgeçildi.", "GECICI");
 }
 
+/** NVIDIA yolu (ücretsiz): 429 / 5xx'te bir ek deneme. */
+async function nvidiaIleIstekAt(govde: Record<string, unknown>, model: string, zamanAsimiMs: number, kaynak: string): Promise<OpenAiYanit> {
+  if (!nvidiaAnahtariVar()) throw new AiHatasi("NVIDIA_API_KEY tanımlı değil.", "ANAHTAR_YOK");
+  let sonHata: AiHatasi | null = null;
+  for (let deneme = 0; deneme < 2; deneme++) {
+    const bas = Date.now();
+    try {
+      const yanit = await nvidiaIstek(govde, zamanAsimiMs);
+      const kesilme = yanit.status === "incomplete" ? "max_output_tokens" : null;
+      await cagriLogla({ kaynak, model, girdiToken: yanit.usage.input_tokens, ciktiToken: yanit.usage.output_tokens, reasoningToken: 0, maliyetMikro: 0, basarili: !kesilme, hata: kesilme ? "KESILDI:" + kesilme : null, sureMs: Date.now() - bas });
+      if (kesilme) throw new AiHatasi("NVIDIA yanıtı kesildi.", "KESILDI");
+      return yanit;
+    } catch (hata) {
+      if (hata instanceof AiHatasi) throw hata;
+      const mesaj = hata instanceof Error ? hata.message.slice(0, 300) : "bilinmeyen";
+      await cagriLogla({ kaynak, model, girdiToken: 0, ciktiToken: 0, reasoningToken: 0, maliyetMikro: 0, basarili: false, hata: mesaj, sureMs: Date.now() - bas });
+      if (hata instanceof NvidiaHatasi && (hata.durum === 429 || hata.durum >= 500)) {
+        sonHata = new AiHatasi(hata.message, "GECICI");
+        await new Promise((c) => setTimeout(c, 1500));
+        continue;
+      }
+      if (timeoutMu(hata)) throw new AiHatasi("NVIDIA zaman aşımı (" + zamanAsimiMs + "ms).", "TIMEOUT");
+      throw new AiHatasi(mesaj, hata instanceof NvidiaHatasi ? "ISTEK_HATASI" : "AG_HATASI");
+    }
+  }
+  throw sonHata ?? new AiHatasi("NVIDIA geçici hatalardan sonra vazgeçildi.", "GECICI");
+}
+
 /**
  * Tek HTTP denemesi. Timeout'ta retry YOK.
  * Sadece 429 ve 5xx için en fazla 2 ek deneme.
@@ -260,6 +289,7 @@ async function istekAt(
 
   const model = String(govde.model || MODEL_HIZLI);
   if (model.startsWith(CLAUDE_ONEK)) return claudeIleIstekAt(govde, model, zamanAsimiMs, kaynak);
+  if (model.startsWith(NVIDIA_ONEK)) return nvidiaIleIstekAt(govde, model, zamanAsimiMs, kaynak);
   const evren = model.startsWith(EVREN_ONEK);
   const anahtar = evren ? process.env.EVREN_API_KEY : process.env.OPENAI_API_KEY;
   if (!anahtar) {
