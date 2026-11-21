@@ -9,10 +9,15 @@
  * gpt-5.4-nano ~5× ucuz ($0.20/$1.25) — varsayılan nano.
  * Luna'ya dönmek için: OPENAI_MODEL_HIZLI=gpt-5.6-luna
  */
-export const MODEL_HIZLI = process.env.OPENAI_MODEL_HIZLI || "gpt-5.4-nano";
+export const MODEL_HIZLI = process.env.OPENAI_MODEL_HIZLI || "claude:claude-haiku-5-5";
+
+/**
+ * 21.11.2026: OpenAI kredisi bitti → varsayılanlar Claude (Anthropic kredisi).
+ * Hızlı işler Haiku, muhakeme/web araması Sonnet. OpenAI'ye dönmek için env ile model adı ver.
+ */
 
 /** Muhakeme isteyen işler: günlük analiz, firma bulma. */
-export const MODEL_ANALIZ = process.env.OPENAI_MODEL_ANALIZ || "gpt-5.6-terra";
+export const MODEL_ANALIZ = process.env.OPENAI_MODEL_ANALIZ || "claude:claude-sonnet-5-5";
 
 /** İstek zaman aşımı. Timeout'ta retry YOK — OpenAI yine ücretlendirir. */
 export const AI_ZAMAN_ASIMI_MS = Number(process.env.OPENAI_TIMEOUT_MS || 60000);

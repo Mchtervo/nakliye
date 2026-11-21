@@ -72,7 +72,8 @@ export async function aiTestBypassIle<T>(islem: () => Promise<T>): Promise<T> {
 }
 
 export function aiKullanilabilir(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY) && !aiKapaliMi();
+  // Varsayılan modeller Claude: OpenAI anahtarı şart değil
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY) && !aiKapaliMi();
 }
 
 export type AiGorsel = { url: string };
