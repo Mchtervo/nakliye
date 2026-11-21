@@ -179,7 +179,7 @@ export async function mesajlariKuyrugaAl(
       where: { id: grup.id },
       select: { id: true, tur: true, sonMesajId: true },
     });
-    if (!kaynak || (kaynak.tur !== TELEGRAM_UYE && kaynak.tur !== WHATSAPP_GRUP)) continue;
+    if (!kaynak || (kaynak.tur !== TELEGRAM_UYE && kaynak.tur !== WHATSAPP_GRUP && kaynak.tur !== "FACEBOOK_GRUP")) continue;
 
     rapor.grup += 1;
     rapor.alinan += grup.mesajlar.length;
