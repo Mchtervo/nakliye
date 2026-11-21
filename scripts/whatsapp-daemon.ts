@@ -471,6 +471,11 @@ async function davetlereGir(sock: WASocket) {
         await davetKapat(aday.id, ad || "adsız grup", "Daha önce çıkılmış grup — girilmedi");
         continue;
       }
+      // Sahte (yem) ilan şebekesinin grupları: günlük katılma hakkını harcamasın
+      if (!aday.elle && /s[üu]leymans*tan[ıi][şs][ıi]k/i.test(ad)) {
+        await davetKapat(aday.id, ad, "Sahte ilan şebekesi grubu — girilmedi");
+        continue;
+      }
       if (!aday.elle && !yukGrubuAdiMi(ad)) {
         await davetKapat(aday.id, ad || "adsız grup", "Yük grubu değil — girilmedi");
         log(`Atlandı (yük grubu değil): ${ad || aday.kod}`);
