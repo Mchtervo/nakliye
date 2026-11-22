@@ -538,10 +538,18 @@ async function fotoIlanMetni(m: WAMessage): Promise<string | null> {
   if (boyut > FOTO_MAX_BAYT) return null;
   fotoIstat.denenen += 1;
   try {
-    const veri = (await Promise.race([
-      downloadMediaMessage(m, "buffer", {}),
-      new Promise<never>((_, red) => setTimeout(() => red(new Error("indirme zaman aşımı")), 30_000)),
-    ])) as Buffer;
+    // Kanal fotoğrafları şifresizdir (medya anahtarı yok): doğrudan adresinden indirilir
+    const sifresiz = !foto.mediaKey || foto.mediaKey.length === 0;
+    const adres = foto.url || (foto.directPath ? `https://mmg.whatsapp.net${foto.directPath}` : null);
+    const veri = sifresiz
+      ? adres
+        ? Buffer.from(await (await fetch(adres, { signal: AbortSignal.timeout(30_000) })).arrayBuffer())
+        : null
+      : ((await Promise.race([
+          downloadMediaMessage(m, "buffer", {}),
+          new Promise<never>((_, red) => setTimeout(() => red(new Error("indirme zaman aşımı")), 30_000)),
+        ])) as Buffer);
+    if (!veri) return null;
     if (veri.length > FOTO_MAX_BAYT) return null;
     const yazi = await fotoMetni(veri, foto.mimetype || "image/jpeg");
     if (!yazi) return null;
@@ -619,7 +627,12 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
 
   const gelen: GelenGrup[] = [...grupBazli].map(([id, liste]) => ({ id, mesajlar: liste }));
   try {
-    const rapor = await mesajlariKuyrugaAl(gelen);
+    // Veritabanı anlık koparsa mesajlar kaybolmasın: bir kez daha dene
+    const rapor = await mesajlariKuyrugaAl(gelen).catch(async (e) => {
+      await new Promise((c) => setTimeout(c, 3000));
+      if (e) uyari("Kuyruğa yazma: ilk deneme olmadı, tekrar deneniyor");
+      return mesajlariKuyrugaAl(gelen);
+    });
     alinan += rapor.alinan;
     kuyruga += rapor.kuyruga;
     if (rapor.kuyruga > 0) log(`Kuyruğa: ${rapor.kuyruga}/${rapor.alinan} (grup=${rapor.grup})`);
