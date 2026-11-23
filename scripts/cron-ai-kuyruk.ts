@@ -66,7 +66,8 @@ async function main() {
 
   let rapor: Awaited<ReturnType<typeof kuyrugunuCoz>>;
   try {
-    rapor = await kuyrugunuCoz(22);
+    // Tur başına mesaj: canlı akış geri gelince 22 yetmedi (151 mesaj birikti, ilan 30+ dk gecikti)
+    rapor = await kuyrugunuCoz(Number(process.env.AI_KUYRUK_TUR || 45));
   } catch (e) {
     if (e instanceof AiHatasi && e.kod === "KREDI_BITTI") {
       await krediBittiIsaretle();
