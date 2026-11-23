@@ -763,6 +763,35 @@ async function baglan(): Promise<void> {
 
   sock.ev.on("creds.update", saveCreds);
 
+  // Çevrimdışı kuyruk: WhatsApp birikmiş mesajları 100'erli paketlerle verir ve her paketten
+  // sonra "sıradakini ver" ister. Kütüphane yalnız İLK paketi istiyor → her bağlanışta ~100
+  // mesaj gelip kalan binlercesi (23.11: 12.781) kuyrukta kalıyor, canlı mesajlar da
+  // arkasında sıkışıyordu. Paket bitince (1,5 sn sessizlik) sıradaki istenir.
+  let offlineBitti = false;
+  let offlineSayac = 0;
+  let paketZaman: ReturnType<typeof setTimeout> | null = null;
+  const sonrakiPaket = () => {
+    if (offlineBitti) return;
+    sock
+      .sendNode({ tag: "ib", attrs: {}, content: [{ tag: "offline_batch", attrs: { count: "100" } }] })
+      .catch((e) => uyari("Sıradaki paket istenemedi:", e instanceof Error ? e.message : e));
+  };
+  const offlineDugum = (node: { attrs?: Record<string, string> }) => {
+    if (offlineBitti || !node.attrs?.offline) return;
+    offlineSayac += 1;
+    if (offlineSayac % 1000 === 0) log(`Bekleyen mesaj kuyruğu: ${offlineSayac} alındı`);
+    if (paketZaman) clearTimeout(paketZaman);
+    paketZaman = setTimeout(sonrakiPaket, 1500);
+  };
+  for (const olay of ["CB:message", "CB:receipt", "CB:notification", "CB:call"]) {
+    sock.ws.on(olay, offlineDugum);
+  }
+  sock.ws.on("CB:ib,,offline", () => {
+    offlineBitti = true;
+    if (paketZaman) clearTimeout(paketZaman);
+    log(`Bekleyen mesaj kuyruğu bitti (${offlineSayac} alındı) — canlı akış başladı`);
+  });
+
   let kodIstendi = false;
   let esitlemeZamanlayici: ReturnType<typeof setInterval> | null = null;
   let gorusmeZamanlayici: ReturnType<typeof setInterval> | null = null;
