@@ -105,16 +105,30 @@ function uyari(...args: unknown[]) {
 
 type Logger = SocketConfig["logger"];
 
+/**
+ * Kütüphane günlüğü: uyarı/hatalar ve bağlantı yaşam döngüsü (ön anahtar, pasif/aktif,
+ * çevrimdışı kuyruk) dosyaya yazılır. 22.11'de canlı grup akışı sessizce durdu ve
+ * tamamen susturulmuş günlük yüzünden nedeni görülemedi.
+ */
+const BAILEYS_ONEMLI = /pre-?key|passive|offline|opened connection|Online|AwaitingInitialSync|buffer timeout|stream/i;
 function sessizLogger(): Logger {
   const bos = () => {};
+  const yaz = (seviye: string) => (o: unknown, m?: unknown) => {
+    const metin = [typeof o === "string" ? o : JSON.stringify(o), typeof m === "string" ? m : ""]
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .slice(0, 300);
+    if (seviye === "info" && !BAILEYS_ONEMLI.test(metin)) return;
+    console.log(`[baileys ${seviye} ${new Date().toISOString()}] ${metin}`);
+  };
   const l: Logger = {
-    level: "silent",
+    level: "info",
     child: () => l,
     trace: bos,
     debug: bos,
-    info: bos,
-    warn: bos,
-    error: bos,
+    info: yaz("info"),
+    warn: yaz("warn"),
+    error: yaz("error"),
   };
   return l;
 }
@@ -565,6 +579,9 @@ async function fotoIlanMetni(m: WAMessage): Promise<string | null> {
 
 /** Teşhis sayaçları (saatlik log). */
 const akis = { grup: 0, cozulemedi: 0, metinsiz: 0, nedenler: new Map<string, number>() };
+/** Son grup mesajının geldiği an: uzun süre sessizlik = canlı akış durmuş, bağlantı yenilenir. */
+let sonGrupMesaji = Date.now();
+const SESSIZLIK_MS = Number(process.env.WA_SESSIZLIK_DK || 10) * 60 * 1000;
 
 async function mesajlariIsle(mesajlar: WAMessage[]) {
   const simdiSn = Math.floor(Date.now() / 1000);
@@ -577,6 +594,7 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     if (grupMu && !m.key.fromMe) {
       // Teşhis: grup mesajı geldi ama çözülemedi mi (şifre anahtarı yok)?
       akis.grup += 1;
+      sonGrupMesaji = Date.now();
       if (m.messageStubType === 2 || (!m.message && m.messageStubParameters?.length)) {
         akis.cozulemedi += 1;
         const neden = String(m.messageStubParameters?.[0] ?? "-").slice(0, 40);
@@ -751,6 +769,7 @@ async function baglan(): Promise<void> {
   let kanalZamanlayici: ReturnType<typeof setInterval> | null = null;
   let temizlikZamanlayici: ReturnType<typeof setInterval> | null = null;
   let temizlikIlk: ReturnType<typeof setTimeout> | null = null;
+  let bekciZamanlayici: ReturnType<typeof setInterval> | null = null;
 
   sock.ev.on("connection.update", async (u) => {
     if (u.qr && !kodIstendi && !state.creds.registered) {
@@ -802,6 +821,16 @@ async function baglan(): Promise<void> {
       if (temizlikIlk) clearTimeout(temizlikIlk);
       temizlikIlk = setTimeout(() => void eskiSohbetleriTemizle(sock), 10 * 60 * 1000);
       temizlikZamanlayici = setInterval(() => void eskiSohbetleriTemizle(sock), TEMIZLIK_MS);
+      // Bekçi: yüzlerce gruptan 10 dk hiç mesaj gelmiyorsa WhatsApp canlı akışı kesmiş demektir
+      // (22.11'den beri mesajlar yalnız yeniden bağlanınca toplu geliyordu) → bağlantıyı yenile.
+      sonGrupMesaji = Date.now();
+      if (bekciZamanlayici) clearInterval(bekciZamanlayici);
+      bekciZamanlayici = setInterval(() => {
+        if (Date.now() - sonGrupMesaji < SESSIZLIK_MS) return;
+        uyari(`Gruplardan ${Math.round((Date.now() - sonGrupMesaji) / 60000)} dk mesaj yok → bağlantı yenileniyor`);
+        sonGrupMesaji = Date.now();
+        sock.end(new Error("canlı grup akışı durdu"));
+      }, 60 * 1000);
     }
 
     if (u.connection === "close") {
@@ -810,6 +839,7 @@ async function baglan(): Promise<void> {
       if (kanalZamanlayici) clearInterval(kanalZamanlayici);
       if (temizlikZamanlayici) clearInterval(temizlikZamanlayici);
       if (temizlikIlk) clearTimeout(temizlikIlk);
+      if (bekciZamanlayici) clearInterval(bekciZamanlayici);
       const kod = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
         ?.output?.statusCode;
       if (kod === DisconnectReason.loggedOut) {
