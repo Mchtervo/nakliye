@@ -39,13 +39,14 @@ import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { yukIlanlariniBildir } from "@/lib/bildirim/gonder";
 import { YENI_ILAN_MS } from "@/lib/ilanTazelik";
 import { kesintiMuafBaslangici } from "@/lib/ai/krediDurumu";
-import { ilBul } from "@/lib/iller";
+import { ilBul, sadelestir } from "@/lib/iller";
 import { aiGeceMi, elemeArtir } from "@/lib/kaynaklar/elemeSayac";
 import { araciUyuyorMu, ilgilileriSuz } from "@/lib/kaynaklar/filtre";
 import { grupOkumaArtir, grupOkumaToplu } from "@/lib/kaynaklar/grupOkumaSayac";
 import { grupIstatistikleri } from "@/lib/kaynaklar/grupTemizlik";
 import {
   elemeSebebi,
+  gucluYukMu,
   METIN_HASH_PENCERE_MS,
   metinHashUret,
   rotaHashleri,
@@ -786,7 +787,7 @@ export async function kuyrugunuCoz(
   });
   if (eskiAtilan.count > 0) console.log(`[kuyruk] eski mesaj atıldı: ${eskiAtilan.count}`);
 
-  const hedefLimit = Math.max(1, Math.min(limit, 25));
+  const hedefLimit = Math.max(1, Math.min(limit, 60));
   const secilen =
     secenek.mesajIdler && secenek.mesajIdler.length > 0
       ? await prisma.hamMesaj.findMany({
@@ -913,7 +914,10 @@ export async function kuyrugunuCoz(
     for (let i = 0; i < aiParti.length; i++) {
       const m = aiParti[i]!;
       const skor = skorlar[i];
-      if (skor === null || skor === undefined || skor >= esik) {
+      // Açıkça yük olan mesaj (telefon + iki il + tır/ton/13.60…) ücretsiz ön süzgeçle elenmez:
+      // 23.11'de "Ankara İstanbul Arnavutköy 1360 açık kapalı farketmez paletli alçı" 0.12 skorla elenmişti.
+      const kesinYuk = /0?5d{2}[s.-]?d{3}[s.-]?d{2}[s.-]?d{2}/.test(m.metin) && gucluYukMu(sadelestir(m.metin));
+      if (skor === null || skor === undefined || skor >= esik || kesinYuk) {
         kalanlar.push(m);
         continue;
       }
