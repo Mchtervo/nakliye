@@ -118,6 +118,8 @@ export default async function AiYuklerSayfasi({
     arsiv?: string;
     /** 1: araç konumu filtresi olmadan tüm koridor */
     her?: string;
+    /** 1: yalnız araç konumunun çevresinden çıkanlar */
+    yakin?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -291,11 +293,12 @@ export default async function AiYuklerSayfasi({
   const numaraKosul: Prisma.YukIlaniWhereInput = {
     AND: [{ telefon: { not: null } }, { telefon: { not: "" } }],
   };
-  // Araç konumu (Yolculuk / Eve döndüm): Yeni sekmesi yalnız o çevreden çıkanlar.
+  // Araç konumu: varsayılan TÜM bölge (yakın çevre en üstte). Yalnız çevreyi görmek için "çevreye süz" (?yakin=1).
+  // 23.11: varsayılan çevre süzgeciyken 99 uygun ilanın yalnız 3'ü görünüyordu ("panelde yük yok").
   const [konum, yonler] = await Promise.all([aracKonumu(), aracYonleri()]);
   const yonCevreleri = Object.fromEntries(yonler.map((il) => [il, yakinIller(il).slice(1)]));
   const konumFiltresi = Boolean(
-    (konum || yonler.length > 0) && sekme === "YENI" && !rotaFiltresiVar && sp.her !== "1"
+    (konum || yonler.length > 0) && sekme === "YENI" && !rotaFiltresiVar && sp.yakin === "1"
   );
   const filtre: Prisma.YukIlaniWhereInput = {
     AND: [
@@ -326,7 +329,7 @@ export default async function AiYuklerSayfasi({
       ilanDb.yukIlani.findMany({
         where: filtre,
         orderBy: [{ createdAt: "desc" }],
-        take: 40,
+        take: 80,
         include: { kaynak: { select: { ad: true, tur: true } } },
       }),
       ilanDb.ilanKaynagi.count({ where: { aktif: true } }),
@@ -387,7 +390,11 @@ export default async function AiYuklerSayfasi({
         })
       : null;
   // Yakın çevre: aday iller geniş alınır, yükleme noktası ~70 km içinde olanlar kalır (yalnız görüntü)
-  const ilanlar = (odakEk ? [odakEk, ...ilanlarHam] : ilanlarHam).filter(
+  const yakinOnce = konum && sekme === "YENI" && !rotaFiltresiVar && !konumFiltresi;
+  const siraliHam = yakinOnce
+    ? [...ilanlarHam.filter((i) => yakinCevredeMi(konum, i)), ...ilanlarHam.filter((i) => !yakinCevredeMi(konum, i))]
+    : ilanlarHam;
+  const ilanlar = (odakEk ? [odakEk, ...siraliHam] : siraliHam).filter(
     (i) => !konumFiltresi || !konum || i.id === odak || yakinCevredeMi(konum, i)
   );
 
@@ -603,7 +610,7 @@ export default async function AiYuklerSayfasi({
         yonler,
         yonCevreleri,
         konumFiltresi,
-        konumLink: konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler",
+        konumLink: konumFiltresi ? "/ai/yukler" : "/ai/yukler?yakin=1",
         aracFiltreYazi,
         yonSeciciGoster: sekme === "YENI" && !rotaFiltresiVar,
         durumSatiri:
