@@ -769,27 +769,38 @@ async function baglan(): Promise<void> {
   // arkasında sıkışıyordu. Paket bitince (1,5 sn sessizlik) sıradaki istenir.
   let offlineBitti = false;
   let offlineSayac = 0;
-  let paketZaman: ReturnType<typeof setTimeout> | null = null;
-  const sonrakiPaket = () => {
-    if (offlineBitti) return;
-    sock
-      .sendNode({ tag: "ib", attrs: {}, content: [{ tag: "offline_batch", attrs: { count: "100" } }] })
-      .catch((e) => uyari("Sıradaki paket istenemedi:", e instanceof Error ? e.message : e));
-  };
+  let sonDugum = Date.now();
+  let girisTamam = false;
   const offlineDugum = (node: { attrs?: Record<string, string> }) => {
+    sonDugum = Date.now();
     if (offlineBitti || !node.attrs?.offline) return;
     offlineSayac += 1;
     if (offlineSayac % 1000 === 0) log(`Bekleyen mesaj kuyruğu: ${offlineSayac} alındı`);
-    if (paketZaman) clearTimeout(paketZaman);
-    paketZaman = setTimeout(sonrakiPaket, 1500);
   };
   for (const olay of ["CB:message", "CB:receipt", "CB:notification", "CB:call"]) {
     sock.ws.on(olay, offlineDugum);
   }
+  // Hangi paket türü gelirse gelsin: sunucu "kuyruk bitti" diyene kadar, 1,5 sn sessizlikte
+  // sıradaki paket istenir (yalnız "offline" işaretli düğüme bağlıyken 23.11 13:34'te yine takıldı).
+  const paketZaman = setInterval(() => {
+    if (!girisTamam || offlineBitti || Date.now() - sonDugum < 1500) return;
+    sonDugum = Date.now();
+    sock
+      .sendNode({ tag: "ib", attrs: {}, content: [{ tag: "offline_batch", attrs: { count: "100" } }] })
+      .catch(() => null);
+  }, 1000);
+  const paketDur = () => clearInterval(paketZaman);
   sock.ws.on("CB:ib,,offline", () => {
     offlineBitti = true;
-    if (paketZaman) clearTimeout(paketZaman);
+    paketDur();
     log(`Bekleyen mesaj kuyruğu bitti (${offlineSayac} alındı) — canlı akış başladı`);
+  });
+  sock.ev.on("connection.update", (u) => {
+    if (u.connection === "open") {
+      girisTamam = true;
+      sonDugum = Date.now();
+    }
+    if (u.connection === "close") paketDur();
   });
 
   let kodIstendi = false;
