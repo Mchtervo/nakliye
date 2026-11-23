@@ -6,24 +6,35 @@ import { illeriBul, sadelestir } from "@/lib/iller";
  * Asıl maliyet tasarrufu burada: elenen mesaj hiç token harcamaz.
  */
 
-/** Yük ilanı olmayan ama şehir adı geçen / çöp mesajlar. */
+/** Yük ilanı olmayan ama şehir adı geçen / çöp mesajlar — her zaman elenir. */
 const SPAM_KALIPLARI = [
   "evden eve", "ev tasima", "parca esya", "asansorlu", "ceyiz",
   "ogrenci tasima", "personel servis", "oto kurtarma", "cekici hizmet",
-  "kurye", "moto kurye", "arac araniyor", "araclar araniyor",
+  "kurye", "moto kurye",
   "surucu araniyor", "sofor araniyor", "eleman araniyor", "is ilani",
-  "kanalimiza katil", "gruba davet", "reklam", "sponsor",
   "ensest", "ifsa", "sanal yok", "escort", "gizli numara", "sohbet hatti",
   "kripto", "bitcoin", "forex", "bahis", "iddaa", "casino",
-  // Eskort / saatlik-gecelik
-  "saatlik", "gecelik", "saatlik yada", "gecelik yada",
   "vip bayan", "masoz", "otel oda", "resepsiyon",
-  // Boşta şoför / elden ödeme spam
-  "musaitiz", "müsaitiz", "arkadasiz", "arkadaşız", "elden odeme",
-  "elden ödeme", "yazz", "yazın abiler",
-  // Evden eve hizmet reklamı (nakliyat firması tanıtımı)
-  "7/24", "724 evden", "asansorlu tasima",
+  "724 evden", "asansorlu tasima",
 ];
+
+/**
+ * Gerçek yük listelerinde de geçen kelimeler (23.11 ölçümü: "7/24 yükleme", "7/24 sarım",
+ * altta "kanalımıza katılın / reklam", "acil araç aranıyor"): yalnız mesajda güçlü yük
+ * işareti YOKSA elenir. Eskiden bunlar yüzünden günde yüzlerce gerçek ilan çöpe gidiyordu.
+ */
+const YUMUSAK_SPAM = [
+  "arac araniyor", "araclar araniyor", "kanalimiza katil", "gruba davet", "reklam", "sponsor",
+  "saatlik", "gecelik", "saatlik yada", "gecelik yada",
+  "musaitiz", "müsaitiz", "arkadasiz", "arkadaşız", "elden odeme", "elden ödeme", "yazz", "yazın abiler",
+  "7/24",
+];
+
+/** En az iki il + tır/ton/dorse/yükleme gibi bir yük kelimesi: bu mesaj büyük ihtimalle yük. */
+const YUK_KELIMESI = /(^|\s)(tir|tira|tirlar|dorse|13 ?60|1360|ton|tonaj|yukler|yukleme|yuklemeli|bosaltir|bosaltma|tente|tenteli|damper|palet|navlun|sevkiyat)(\s|$)/;
+export function gucluYukMu(sade: string): boolean {
+  return YUK_KELIMESI.test(sade) && new Set(illeriBul(sade)).size >= 2;
+}
 
 /** İlan sinyali: rota / fiyat / telefon / araç tipi. */
 const ROTA_ISARETI =
@@ -90,7 +101,8 @@ export function yemIlanMi(sade: string): boolean {
 }
 
 function spamMi(sade: string): boolean {
-  return yemIlanMi(sade) || SPAM_KALIPLARI.some((k) => sade.includes(sadelestir(k)));
+  if (yemIlanMi(sade) || SPAM_KALIPLARI.some((k) => sade.includes(sadelestir(k)))) return true;
+  return YUMUSAK_SPAM.some((k) => sade.includes(sadelestir(k))) && !gucluYukMu(sade);
 }
 
 /** Rota / fiyat / telefon / araç — ilan sinyali (keşif + budama paylaşır). */
