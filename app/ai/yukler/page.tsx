@@ -297,8 +297,14 @@ export default async function AiYuklerSayfasi({
   // 23.11: varsayılan çevre süzgeciyken 99 uygun ilanın yalnız 3'ü görünüyordu ("panelde yük yok").
   const [konum, yonler] = await Promise.all([aracKonumu(), aracYonleri()]);
   const yonCevreleri = Object.fromEntries(yonler.map((il) => [il, yakinIller(il).slice(1)]));
+  // Yolculuk açıkken (boşaltma yeri yazılmış) liste kendiliğinden boşaltma çevresine süzülür;
+  // evdeyken (yolculuk yok) tüm bölge görünür. Üstteki bağlantı ikisinin arasında geçirir.
+  const yolculukAcik = (await prisma.donusTalebi.count({ where: { aktif: true } }).catch(() => 0)) > 0;
   const konumFiltresi = Boolean(
-    (konum || yonler.length > 0) && sekme === "YENI" && !rotaFiltresiVar && sp.yakin === "1"
+    (konum || yonler.length > 0) &&
+      sekme === "YENI" &&
+      !rotaFiltresiVar &&
+      (sp.yakin === "1" || (yolculukAcik && sp.her !== "1"))
   );
   const filtre: Prisma.YukIlaniWhereInput = {
     AND: [
@@ -610,7 +616,7 @@ export default async function AiYuklerSayfasi({
         yonler,
         yonCevreleri,
         konumFiltresi,
-        konumLink: konumFiltresi ? "/ai/yukler" : "/ai/yukler?yakin=1",
+        konumLink: konumFiltresi ? "/ai/yukler?her=1" : "/ai/yukler?yakin=1",
         aracFiltreYazi,
         yonSeciciGoster: sekme === "YENI" && !rotaFiltresiVar,
         durumSatiri:
