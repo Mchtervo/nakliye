@@ -114,7 +114,7 @@ const BAILEYS_ONEMLI = /pre-?key|passive|offline|opened connection|Online|Awaiti
 function sessizLogger(): Logger {
   const bos = () => {};
   const yaz = (seviye: string) => (o: unknown, m?: unknown) => {
-    const metin = [typeof o === "string" ? o : JSON.stringify(o), typeof m === "string" ? m : ""]
+    const metin = [typeof o === "string" ? o : JSON.stringify(o, (_k, v) => (v instanceof Error ? v.message : v)), typeof m === "string" ? m : ""]
       .join(" ")
       .replace(/\s+/g, " ")
       .slice(0, 300);

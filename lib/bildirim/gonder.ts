@@ -352,7 +352,9 @@ export async function bekleyenBildirimleriIsle(
         tgOk = true;
         sonuc.telegram += 1;
       } else {
-        tgOk = false;
+        // Bot engellenmişse tekrar denemek boşuna: ilan 3 kez dönüp sırayı tıkıyordu.
+        // Telefon bildirimi (push) yine gider; engel kalkınca Telegram kendiliğinden döner.
+        tgOk = /bot was blocked|chat not found|user is deactivated/i.test(cevap.hata || "");
         if (cevap.hata) sonuc.hatalar.push(cevap.hata);
       }
     }
