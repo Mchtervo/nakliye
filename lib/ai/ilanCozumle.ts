@@ -1316,7 +1316,7 @@ export async function mesajlariCozumle(
   const raporlar: Awaited<ReturnType<typeof paketKesilmeyeDiren>>[] = new Array(isler.length);
   let siradaki = 0;
   await Promise.all(
-    Array.from({ length: Math.min(tekTek ? EVREN_ESZAMANLI : 1, isler.length) }, async () => {
+    Array.from({ length: Math.min(tekTek ? EVREN_ESZAMANLI : Number(process.env.AI_ESZAMANLI || 4), isler.length) }, async () => {
       while (siradaki < isler.length) {
         const i = siradaki++;
         const kaynak = isler.length > 1 ? `ilanCozumle.parti.p${i + 1}` : "ilanCozumle.parti";
