@@ -149,6 +149,32 @@ export type YutmaRaporu = {
  * atılması yeni satır yoksa hiç AI çağrısı üretmez; yeni eklenen rota
  * satırı tek başına geçer.
  */
+/**
+ * Satır tekrarı penceresi. Eskiden 7 gündü: her gün aynı metinle paylaşılan yük ilk gün
+ * 6 saat görünüp siliniyor, sonraki 7 gün her tekrarı "gördüm" diye atılıyordu
+ * (23.11: 34.238 satır atlandı, 230 mesaj ilan oldu). İlan ömrü (6 saat) kadar tutulur.
+ */
+const SATIR_HASH_PENCERE_MS = Number(process.env.SATIR_HASH_SAAT || 6) * 60 * 60 * 1000;
+const tazelemeZamani = new Map<string, number>();
+const TAZELEME_ARALIK_MS = 15 * 60 * 1000;
+
+/** Aynı mesaj için en çok 15 dk'da bir: kayıtlı rotaların son görülmesini yenile (AI yok). */
+async function tekrarIlanlariTazele(metin: string): Promise<void> {
+  const anahtar = metinHashUret(metin);
+  const simdi = Date.now();
+  if (simdi - (tazelemeZamani.get(anahtar) ?? 0) < TAZELEME_ARALIK_MS) return;
+  tazelemeZamani.set(anahtar, simdi);
+  if (tazelemeZamani.size > 5000) {
+    for (const [k, v] of tazelemeZamani) if (simdi - v > TAZELEME_ARALIK_MS) tazelemeZamani.delete(k);
+  }
+  try {
+    const on = await aiOncesiHazirla(metin);
+    if (on.yenilenen.length > 0) await sonGorulmeleriYenile(on.yenilenen);
+  } catch {
+    /* tazeleme isteğe bağlı: hata mesaj akışını durdurmasın */
+  }
+}
+
 export async function mesajlariKuyrugaAl(
   gruplar: GelenGrup[]
 ): Promise<YutmaRaporu> {
@@ -226,7 +252,7 @@ export async function mesajlariKuyrugaAl(
       const adayHashler = rotaHashleri(m.metin).filter((h) => !turIci.has(h));
       if (adayHashler.length > 0) {
         const dbde = await prisma.satirHash.findMany({
-          where: { hash: { in: adayHashler } },
+          where: { hash: { in: adayHashler }, createdAt: { gte: new Date(Date.now() - SATIR_HASH_PENCERE_MS) } },
           select: { hash: true },
         });
         for (const h of dbde) turIci.add(h.hash);
@@ -234,6 +260,10 @@ export async function mesajlariKuyrugaAl(
 
       const secim = yeniSatirlariSec(m.metin, turIci);
       rapor.satirAtlanan += secim.atlanan;
+
+      // Tekrar paylaşılan ilan hâlâ geçerli demektir: kayıtlı ilanların "son görülme"si yenilenir
+      // (yoksa ilan 2 saatte panelden düşüp 6 saatte siliniyordu, tekrarları da çöpe gidiyordu).
+      if (secim.atlanan > 0) await tekrarIlanlariTazele(m.metin);
 
       if (!secim.metin) {
         eleGrup("SATIR_TEKRAR", m.metin);
@@ -385,6 +415,8 @@ export async function mesajlariKuyrugaAl(
       data: yeniHashler.map((hash) => ({ hash })),
       skipDuplicates: true,
     });
+    // Pencere dışına çıkıp yeniden değerlendirilen satırın saati yenilenir
+    await prisma.satirHash.updateMany({ where: { hash: { in: yeniHashler } }, data: { createdAt: new Date() } });
   }
 
   // Günlük rapora yaz.
