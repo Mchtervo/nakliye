@@ -89,6 +89,11 @@ export function rotaAyniSatirdaMi(
 }
 
 /** Rota satırını bul (fiyat / araç kontrolü için). */
+/** Mesajdaki rota (güzergâh) satırı sayısı: 1'den fazlaysa mesaj bir yük listesidir. */
+export function rotaSatirSayisi(hamMetin: string): number {
+  return satirlaraBol(hamMetin).filter((s) => rotaSatiriMi(s)).length;
+}
+
 export function rotaSatiriniBul(
   nereden: string | null,
   nereye: string | null,

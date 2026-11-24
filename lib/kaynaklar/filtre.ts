@@ -8,7 +8,7 @@ import {
 import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { ilBul } from "@/lib/iller";
 import type { KaydedilenIlan } from "@/lib/kaynaklar/kaydet";
-import { rotaSatiriniBul } from "@/lib/kaynaklar/rotaDogrula";
+import { rotaSatiriniBul, rotaSatirSayisi } from "@/lib/kaynaklar/rotaDogrula";
 
 /**
  * Bildirim + "Şüpheli" sekmesi eşiği.
@@ -42,7 +42,11 @@ export function araciUyuyorMu(
       ? rotaSatiriniBul(ilan.nereden, ilan.nereye, hamMetin)
       : null;
   // Tek ilanlık kısa mesajda araç satırı rota satırından ayrı ("📦 Kapalı, Tır").
-  const kisaTekIlan = hamMetin && hamMetin.length < 400 ? hamMetin : null;
+  // Yük LİSTESİNDE (birden çok rota) tüm metin taranmaz: bir satırdaki "kısa dorse / damper"
+  // listedeki bütün yükleri eliyordu (24.11: "Ankara-Çorum 13 60 tır", aynı mesajda
+  // "Ankara-Giresun kısa dorse" var diye elendi).
+  const kisaTekIlan =
+    hamMetin && hamMetin.length < 400 && rotaSatirSayisi(hamMetin) <= 1 ? hamMetin : null;
   // Metinde araç hiç yazmıyorsa modelin tahmini ("kamyonet") eleme sebebi olmaz.
   const aracYazmiyor =
     kisaTekIlan !== null && !aracKoduBul(kisaTekIlan) && !tirUzunlukMetre(kisaTekIlan);

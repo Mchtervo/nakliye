@@ -219,6 +219,10 @@ export function rotaSatiriMi(satir: string): boolean {
   ) {
     return true;
   }
+  // "ANKARA - ÇORUM 13 60 TIR", "POLATLI-BURSA DAMPER": ok/fiyat yok ama satırda iki ayrı il var.
+  // 24.11'e kadar bunlar rota sayılmıyordu; liste tek parça gidiyor, bir satırdaki araç tipi
+  // bütün listeyi eliyordu.
+  if (satir.length <= 140 && !satir.toLowerCase().includes("http") && new Set(illeriBul(satir)).size >= 2) return true;
   return false;
 }
 
