@@ -302,6 +302,17 @@ function ilaniNormalize(
   let nereye = i.nereye?.trim() || null;
   let skor = Math.max(0, Math.min(100, Math.round(i.guvenSkoru ?? 0)));
 
+  // Model bir ucu boş bıraktıysa ve mesajda yalnız iki il geçiyorsa eksik uç diğer ildir
+  // (24.11: "BOZÜYÜK - İSTANBUL ESENYURT kapalı 13,60" için varış boş döndü, ilan elendi).
+  if (baglam.iller.size === 2 && Boolean(nereden) !== Boolean(nereye)) {
+    const bilinen = ilBul(nereden || nereye);
+    const diger = [...baglam.iller].find((il) => il !== bilinen);
+    if (bilinen && diger && baglam.iller.has(bilinen)) {
+      if (!nereden) nereden = diger;
+      else nereye = diger;
+    }
+  }
+
   if (!yerGecerliMi(nereden, baglam)) {
     nereden = null;
     skor = Math.min(skor, 35);

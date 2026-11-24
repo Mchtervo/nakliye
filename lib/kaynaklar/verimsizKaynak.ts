@@ -193,8 +193,17 @@ export async function verimsizKaynaklariGuncelle(simdi = new Date()): Promise<Se
 export async function sessizMesajlariKapat(simdi = new Date()): Promise<number> {
   const liste = await sessizKaynaklar(simdi);
   if (liste.length === 0) return 0;
-  const r = await prisma.hamMesaj.updateMany({
+  // Susturulmuş kaynaktan da olsa açıkça yük olan mesaj (telefon + koridordan iki il) okunur:
+  // 24.11'de "İzmir Aliağa → Payas 13.60 kapalı tır 60.000+kdv" böyle kapanmıştı.
+  const koridor = new Set(koridorIlKumesi((await aiTercihleriOku()).koridorIller));
+  const bekleyen = await prisma.hamMesaj.findMany({
     where: { islendi: false, kaynakId: { in: liste.map((s) => s.id) } },
+    select: { id: true, metin: true },
+  });
+  const kapat = bekleyen.filter((m) => !yukAdayiMi(m.metin, koridor)).map((m) => m.id);
+  if (kapat.length === 0) return 0;
+  const r = await prisma.hamMesaj.updateMany({
+    where: { islendi: false, id: { in: kapat } },
     data: { islendi: true, hata: "SESSIZ_KAYNAK" },
   });
   return r.count;
