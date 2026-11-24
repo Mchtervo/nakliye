@@ -11,8 +11,8 @@ YUKAVCI_LOGDIR=/home/yukavci/logs
 YUKAVCI_LOCKDIR=/home/yukavci/locks
 GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 
-# AI kuyruk — 5 dk (AI_KAPALI ise script atlar)
-*/5 * * * * /bin/bash $GUVENLI ai-kuyruk.sh
+# AI kuyruk — 2 dk (AI_KAPALI ise script atlar)
+*/2 * * * * /bin/bash $GUVENLI ai-kuyruk.sh
 
 # Bildirim kuyruğu — 5 dk (bildirildi=false → TG+PUSH; gece biriktir)
 */5 * * * * /bin/bash $GUVENLI bildirim.sh
@@ -56,6 +56,9 @@ GUVENLI=/home/yukavci/muhasebbe/deploy/cron/_guvenli.sh
 */20 7-22 * * * /bin/bash $GUVENLI facebook.sh
 # AI_ARAMA (Facebook grupları / Google) — 06-22 arası 2 saatte 1 x 1 kaynak (+ en çok 3 sayfa okuma), günlük 20 kredi sınırı
 20 6-22/2 * * * /bin/bash $GUVENLI ai-tarama.sh
+
+# Nöbetçi — 10 dk: akış/kuyruk/panel denetimi, sorun olursa bildirim (AI yok)
+*/10 * * * * /bin/bash $GUVENLI nobetci.sh
 
 # Otomatik deploy — dakikada 1 (AUTO_DEPLOY=1 veya Ayarlar açık)
 * * * * * /bin/bash $GUVENLI auto-deploy.sh
