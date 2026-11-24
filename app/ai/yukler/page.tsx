@@ -26,6 +26,7 @@ import { daemonSorunlari, eslemeKodu } from "@/lib/kaynaklar/daemonNabiz";
 import { whatsappYeniKodIste } from "@/app/ai-actions";
 import type { Prisma } from "@prisma/client";
 import { aracKonumu, aracYonleri, konumKosulu } from "@/lib/konum";
+import { yakaKaydaUygunMu } from "@/lib/istanbulYaka";
 import { yakinCevredeMi, yakinlikYazisi, yuklemeYakinligi } from "@/lib/yakinlik";
 
 /** Yakın çevre için aday çıkış illeri (il merkezi km); asıl süzme ilçe mesafesiyle */
@@ -400,9 +401,10 @@ export default async function AiYuklerSayfasi({
   const siraliHam = yakinOnce
     ? [...ilanlarHam.filter((i) => yakinCevredeMi(konum, i)), ...ilanlarHam.filter((i) => !yakinCevredeMi(konum, i))]
     : ilanlarHam;
-  const ilanlar = (odakEk ? [odakEk, ...siraliHam] : siraliHam).filter(
-    (i) => !konumFiltresi || !konum || i.id === odak || yakinCevredeMi(konum, i)
-  );
+  // İstanbul karşı yaka (Avrupa) yükleri yönetici listesinde gösterilmez (kayıtta kaçanlar dahil)
+  const ilanlar = (odakEk ? [odakEk, ...siraliHam] : siraliHam)
+    .filter((i) => !konumFiltresi || !konum || i.id === odak || yakinCevredeMi(konum, i))
+    .filter((i) => uye || i.id === odak || yakaKaydaUygunMu(i));
 
   const gorusmeMap = new Map<number, string>();
   // Yöneticinin WhatsApp görüşmeleri üyeye gösterilmez

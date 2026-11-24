@@ -5,6 +5,7 @@
  * Sadece "İstanbul" yazılmışsa (ilçe yok) bilinmiyor sayılır, elenmez.
  */
 import { sadelestir } from "@/lib/iller";
+import { rotaSatiriniBul } from "@/lib/kaynaklar/rotaDogrula";
 
 export type IstanbulYaka = "ANADOLU" | "AVRUPA" | "BILINMIYOR";
 
@@ -14,7 +15,7 @@ const ANADOLU_SEMTLER = [
   "maltepe", "atasehir", "umraniye", "dudullu", "serifali",
   "sancaktepe", "sultanbeyli", "cekmekoy", "alemdag", "beykoz",
   "uskudar", "kadikoy", "kavacik", "samandira", "samandıra",
-  "ist anadolu", "anadolu yakasi", "anadolu yakası",
+  "ist anadolu", "anadolu yakasi", "anadolu yakası", "istanbul anadolu", "anadolu yaka", "ist anad",
 ];
 
 /** Avrupa yakası — köprü/tünel geçiş ister. */
@@ -28,7 +29,10 @@ const AVRUPA_SEMTLER = [
   "sisli", "besiktas", "sariyer", "maslak", "levent", "halkali",
   "yenibosna", "seyrantepe", "haramidere", "massit", "masit",
   "orucreis", "oruc reis", "ist avrupa", "avrupa yakasi", "avrupa yakası",
-  "g o pasa", "b cekmece", "k cekmece",
+  "g o pasa", "b cekmece", "k cekmece", "istanbul avrupa", "avrupa yaka", "ist avr", "istanbul avr",
+  "alibeykoy", "kumburgaz", "selimpasa", "kayasehir", "firuzkoy", "altinsehir", "tasoluk", "bolluca",
+  "habipler", "merter", "davutpasa", "bakirkoy", "eyupsultan", "beyoglu", "yakuplu",
+  "bahcesehir", "ispartakule", "atisalani", "sultanciftligi", "hasdal", "kemerburgaz",
 ];
 
 const ANADOLU_SADE = ANADOLU_SEMTLER.map(sadelestir).filter(Boolean);
@@ -72,6 +76,8 @@ export function kopruGecisliMi(
     varisIl?: string | null;
     nereden?: string | null;
     nereye?: string | null;
+    /** Verilirse: alanlarda semt yoksa ilanın rota satırına da bakılır ("ANKARA - İSTANBUL ESENYURT"). */
+    hamMetin?: string | null;
   },
   koridor?: Iterable<string> | null
 ): boolean {
@@ -79,8 +85,15 @@ export function kopruGecisliMi(
   const cikisIst = args.cikisIl === "İstanbul";
   const varisIst = args.varisIl === "İstanbul";
   if (!cikisIst && !varisIst) return false;
-  if (cikisIst && istanbulYakaBul(args.nereden) === "AVRUPA") return true;
-  if (varisIst && istanbulYakaBul(args.nereye) === "AVRUPA") return true;
+  const c = cikisIst ? istanbulYakaBul(args.nereden) : "BILINMIYOR";
+  const v = varisIst ? istanbulYakaBul(args.nereye) : "BILINMIYOR";
+  if (c === "AVRUPA" || v === "AVRUPA") return true;
+  if (c === "ANADOLU" || v === "ANADOLU") return false;
+  // Model semti atıp yalnız "İstanbul" yazdıysa satırdaki semt belirler
+  if (args.hamMetin) {
+    const satir = rotaSatiriniBul(args.nereden ?? null, args.nereye ?? null, args.hamMetin);
+    if (satir && istanbulYakaBul(satir) === "AVRUPA") return true;
+  }
   return false;
 }
 
@@ -91,6 +104,7 @@ export function yakaKaydaUygunMu(
     varisIl?: string | null;
     nereden?: string | null;
     nereye?: string | null;
+    hamMetin?: string | null;
   },
   koridor?: Iterable<string> | null
 ): boolean {

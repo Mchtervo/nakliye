@@ -530,6 +530,7 @@ function ilanKaydaUygunMu(
         varisIl: ilan.varisIl,
         nereden: ilan.nereden,
         nereye: ilan.nereye,
+        hamMetin,
       },
       koridorSet
     )
