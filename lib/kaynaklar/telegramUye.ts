@@ -306,7 +306,8 @@ export async function mesajlariKuyrugaAl(
 
     // 48s kova + DB: aynı metinHash → kuyruğa yazma (kalıcı hash tuzağı yok)
     if (adaylar.length > 0) {
-      const hashSinir = new Date(Date.now() - METIN_HASH_PENCERE_MS);
+      // Satır penceresiyle aynı (6 sa): 48 saatken ertesi gün yeniden paylaşılan aynı mesaj burada takılırdı
+      const hashSinir = new Date(Date.now() - Math.min(METIN_HASH_PENCERE_MS, SATIR_HASH_PENCERE_MS));
       const hashler = adaylar.map((a) => a.hash);
       const dbHash = await prisma.hamMesaj.findMany({
         where: {
