@@ -12,7 +12,7 @@ export const PARCA_YUK_ANAHTAR = "ai_parca_yuk_getir";
 
 const PARCA = /\b(parca|parsiyel|parsiyal|kismi yuk)\b(?!\s*(olmaz|olmasin|yok|alinmaz|almiyoruz|kabul))/;
 /** 1–12 palet (tam tır ~33 palet) */
-const PALET = /\b([1-9]|1[0-2])\s*(adet\s*)?palet\b/;
+const PALET = /\b([1-9]|1[0-2])\s*(adet\s*)?palet(lik)?\b/;
 const KG = /\b(\d{1,3}(?:[.,]\d{3})?|\d{2,5})\s*(kg|kilo)\b/g;
 const YER = /\b\d{1,2}(?:[.,]\d+)?\s*(metre|mt|m)\s*yer\b/;
 const PARCA_TON = 3;
