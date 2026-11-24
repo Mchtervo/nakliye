@@ -485,7 +485,17 @@ const CIKIS_MIN_MESAJ = 15;
 const CIKIS_ORAN = 0.6;
 /** Bu kadardan fazla mesajı AI'den sorunsuz geçtiyse grup işe yarıyor: kalır. */
 const CIKIS_MAX_YARAR = 2;
-const CIKIS_GUNLUK = 2;
+const CIKIS_GUNLUK = 5;
+/**
+ * Adı açıkça yurt dışı olan grup/kanal (İran, Irak, Rusya, Azerbaycan, Özbekistan, ihracat…):
+ * mesaj oranına bakılmadan çıkılır. Oran kuralı bunları yakalamıyordu (Farsça/Arapça mesajlar
+ * Türkçe anahtar kelimeye uymuyor; 24.11 denetimi: 16 yabancı grup hâlâ üyeydi).
+ */
+const AD_YABANCI =
+  /\b(iran|irak|suriye|surye|rusya|ukrayna|moskova|azer|azerbaycan|uzbekiston|ozbekistan|kazakistan|gurcistan|turkmenistan|avrupa|orta dogu|uluslararasi|yurt ?disi|yurtdisi|international|export|import|ihracat|ihracati|bazargan)\b/;
+const ARAP_HARF = /[؀-ۿ]/;
+/** Adı yabancı olsa da son 3 günde bu kadar ilan çıkardıysa kalır. */
+const AD_YABANCI_MAX_YARAR = 5;
 const CIKIS_SAYAC = "whatsapp_cikis_sayac";
 
 export type WaCikisAdayi = { id: number; hedef: string; ad: string; oran: number; mesaj: number; yarar: number };
@@ -509,11 +519,19 @@ export async function waCikisAdaylari(): Promise<WaCikisAdayi[]> {
     if (!k.hedef.includes("@")) continue;
     // Adı zaten "yurt dışı" diyorsa 1 gün / 5 mesaj yeter; diğerleri 3 gün / 15 mesaj
     const adYurtDisi = /\b(yurt ?disi|uluslararasi|international)\b/.test(sadelestir(k.ad));
-    if (!adYurtDisi && k.createdAt > bas) continue;
+    const adYabanci = AD_YABANCI.test(sadelestir(k.ad)) || ARAP_HARF.test(k.ad);
+    if (!adYurtDisi && !adYabanci && k.createdAt > bas) continue;
     const ms = await prisma.hamMesaj.findMany({
       where: { kaynakId: k.id, createdAt: { gte: bas } },
       select: { metin: true, hata: true, islendi: true },
     });
+    if (adYabanci) {
+      const yararAd = ms.filter((m) => m.islendi && m.hata === null).length;
+      if (yararAd <= AD_YABANCI_MAX_YARAR) {
+        adaylar.push({ id: k.id, hedef: k.hedef, ad: k.ad, oran: 1, mesaj: ms.length, yarar: yararAd });
+      }
+      continue;
+    }
     if (ms.length < (adYurtDisi ? 5 : CIKIS_MIN_MESAJ)) continue;
     const kotu = ms.filter((m) => {
       const s = sadelestir(m.metin);
