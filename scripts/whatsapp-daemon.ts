@@ -589,7 +589,20 @@ async function fotoIlanMetni(m: WAMessage): Promise<string | null> {
 }
 
 /** Teşhis sayaçları (saatlik log). */
-const akis = { grup: 0, cozulemedi: 0, metinsiz: 0, kurtarilan: 0, nedenler: new Map<string, number>() };
+const akis = { grup: 0, cozulemedi: 0, metinsiz: 0, kurtarilan: 0, lidTel: 0, nedenler: new Map<string, number>() };
+/** Bağlı soket: gizli kimlik (LID) → telefon eşlemesi için. */
+let aktifSock: WASocket | null = null;
+/** "1234@lid" → "05xxxxxxxxx"; bulunamazsa null. Numarasız ilanlar "telefon yok" diye düşüyordu. */
+async function lidTelefonu(katilimci?: string | null): Promise<string | null> {
+  if (!katilimci || !katilimci.endsWith("@lid") || !aktifSock) return null;
+  try {
+    const pn = await aktifSock.signalRepository.lidMapping.getPNForLID(katilimci);
+    const rakam = (pn || "").split("@")[0].split(":")[0];
+    return /^905d{9}$/.test(rakam) ? `0${rakam.slice(2)}` : null;
+  } catch {
+    return null;
+  }
+}
 /** Şifresi çözülemeyen mesaj kimlikleri: gönderen yeniden yollayınca "kurtarılan" sayılır (gerçek kayıp ölçülsün). */
 const cozulemeyenler = new Map<string, number>();
 /** Son grup mesajının geldiği an: uzun süre sessizlik = canlı akış durmuş, bağlantı yenilenir. */
@@ -654,6 +667,15 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
     let metin = mesajMetni(m);
     if (!metin) metin = await fotoIlanMetni(m);
     if (!metin) continue;
+    // Numarasız ilan + gönderen gizli kimlikle (LID) gelmişse numarayı WhatsApp eşlemesinden bul
+    if (grupMu && telefonlariCikar(metin).length === 0) {
+      const tel = await lidTelefonu(m.key.participant);
+      if (tel) {
+        metin = `${metin}
+Tel: ${tel}`;
+        akis.lidTel += 1;
+      }
+    }
     const liste = grupBazli.get(kaynakId) ?? [];
     liste.push({ mesajId: null, metin, gonderenUserId: null, zaman: zaman > 0 ? new Date(zaman * 1000) : null });
     grupBazli.set(kaynakId, liste);
@@ -779,6 +801,7 @@ async function baglan(): Promise<void> {
   });
 
   sock.ev.on("creds.update", saveCreds);
+  aktifSock = sock;
 
   // Çevrimdışı kuyruk: WhatsApp birikmiş mesajları 100'erli paketlerle verir ve her paketten
   // sonra "sıradakini ver" ister. Kütüphane yalnız İLK paketi istiyor → her bağlanışta ~100
@@ -977,10 +1000,11 @@ async function main() {
   }, 60 * 60 * 1000);
   setInterval(() => void nabizYaz("whatsapp", durum, durumNot), 60 * 1000);
   setInterval(() => {
-    log(`Grup akışı (10 dk): gelen=${akis.grup} çözülemedi=${akis.cozulemedi} kurtarılan=${akis.kurtarilan} metinsiz=${akis.metinsiz} ${[...akis.nedenler].map(([k, v]) => `${k}:${v}`).join(",")}`);
+    log(`Grup akışı (10 dk): gelen=${akis.grup} çözülemedi=${akis.cozulemedi} kurtarılan=${akis.kurtarilan} lidTel=${akis.lidTel} metinsiz=${akis.metinsiz} ${[...akis.nedenler].map(([k, v]) => `${k}:${v}`).join(",")}`);
     akis.grup = 0;
     akis.cozulemedi = 0;
     akis.kurtarilan = 0;
+    akis.lidTel = 0;
     for (const [k, v] of cozulemeyenler) if (Date.now() - v > 30 * 60_000) cozulemeyenler.delete(k);
     akis.metinsiz = 0;
     akis.nedenler.clear();
