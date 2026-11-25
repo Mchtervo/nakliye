@@ -19,7 +19,7 @@ const YUK_GRUBU_KALIP =
  * kamyonet/panelvan, araç alım-satım/pazar, iş ilanı, tamirci, kurtarıcı. Girilmez, üyeysek çıkılır.
  */
 const ALAKASIZ_KALIP =
-  /\b(evden eve|ev tasima|kamyonet|panelvan|panel van|alim satim|alim satimi|satilik|ikinci el|2 el|pazar|pazari|is ilan|is ilani|is ilanlari|sofor is|sofor araniyor|tamir|tamirci|tamircileri|kurtarici|oto kurtarma|yedek parca|sigorta|kiralik)\b/;
+  /\b(evden eve|ev tasima|kamyonet|panelvan|panel van|alim satim|alim satimi|satilik|ikinci el|2 el|pazar|pazari|sofor is|sofor araniyor|tamir|tamirci|tamircileri|kurtarici|oto kurtarma|yedek parca|sigorta|kiralik)\b/;
 
 export function alakasizGrupAdiMi(ad: string): boolean {
   return ALAKASIZ_KALIP.test(sadelestir(ad));
