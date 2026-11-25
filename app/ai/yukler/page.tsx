@@ -336,7 +336,7 @@ export default async function AiYuklerSayfasi({
       ilanDb.yukIlani.findMany({
         where: filtre,
         orderBy: [{ createdAt: "desc" }],
-        take: 80,
+        take: 300,
         include: { kaynak: { select: { ad: true, tur: true } } },
       }),
       ilanDb.ilanKaynagi.count({ where: { aktif: true } }),

@@ -14,8 +14,20 @@ export const WHATSAPP_GRUP = "WHATSAPP_GRUP";
 const YUK_GRUBU_KALIP =
   /\b(yuk|yukler|yukleme|nakliye|nakliyat|lojistik|tir|tirlar|kamyon|kamyoncu|tasima|tasimacilik|parsiyel|frigo|dorse|tenteli|navlun|sofor|arac|araclar|kirkayak|damper|lowbed|transport|logistics)\w*/;
 
+/**
+ * Adı yük grubu gibi görünse de işimize yaramayanlar (25.11 kullanıcı kararı): evden eve,
+ * kamyonet/panelvan, araç alım-satım/pazar, iş ilanı, tamirci, kurtarıcı. Girilmez, üyeysek çıkılır.
+ */
+const ALAKASIZ_KALIP =
+  /\b(evden eve|ev tasima|kamyonet|panelvan|panel van|alim satim|alim satimi|satilik|ikinci el|2 el|pazar|pazari|is ilan|is ilani|is ilanlari|sofor is|sofor araniyor|tamir|tamirci|tamircileri|kurtarici|oto kurtarma|yedek parca|sigorta|kiralik)\b/;
+
+export function alakasizGrupAdiMi(ad: string): boolean {
+  return ALAKASIZ_KALIP.test(sadelestir(ad));
+}
+
 export function yukGrubuAdiMi(ad: string): boolean {
-  return YUK_GRUBU_KALIP.test(sadelestir(ad));
+  const sade = sadelestir(ad);
+  return YUK_GRUBU_KALIP.test(sade) && !ALAKASIZ_KALIP.test(sade);
 }
 
 export type WhatsappGrubu = { jid: string; ad: string; uyeSayisi: number | null };
@@ -142,7 +154,7 @@ export async function bilinenDavetleriYaz(): Promise<void> {
  * 4 grup / 10 kanal ile 190+ bekleyen link ~47 gün sürüyordu.
  */
 const KATILIM = {
-  grup: { anahtar: "whatsapp_katilim_sayac", gunluk: 16 },
+  grup: { anahtar: "whatsapp_katilim_sayac", gunluk: 24 },
   kanal: { anahtar: "whatsapp_kanal_takip_sayac", gunluk: 25 },
 } as const;
 
@@ -485,7 +497,7 @@ const CIKIS_MIN_MESAJ = 15;
 const CIKIS_ORAN = 0.6;
 /** Bu kadardan fazla mesajı AI'den sorunsuz geçtiyse grup işe yarıyor: kalır. */
 const CIKIS_MAX_YARAR = 2;
-const CIKIS_GUNLUK = 5;
+const CIKIS_GUNLUK = 8;
 /**
  * Adı açıkça yurt dışı olan grup/kanal (İran, Irak, Rusya, Azerbaycan, Özbekistan, ihracat…):
  * mesaj oranına bakılmadan çıkılır. Oran kuralı bunları yakalamıyordu (Farsça/Arapça mesajlar
@@ -519,7 +531,7 @@ export async function waCikisAdaylari(): Promise<WaCikisAdayi[]> {
     if (!k.hedef.includes("@")) continue;
     // Adı zaten "yurt dışı" diyorsa 1 gün / 5 mesaj yeter; diğerleri 3 gün / 15 mesaj
     const adYurtDisi = /\b(yurt ?disi|uluslararasi|international)\b/.test(sadelestir(k.ad));
-    const adYabanci = AD_YABANCI.test(sadelestir(k.ad)) || ARAP_HARF.test(k.ad);
+    const adYabanci = AD_YABANCI.test(sadelestir(k.ad)) || ARAP_HARF.test(k.ad) || alakasizGrupAdiMi(k.ad);
     if (!adYurtDisi && !adYabanci && k.createdAt > bas) continue;
     const ms = await prisma.hamMesaj.findMany({
       where: { kaynakId: k.id, createdAt: { gte: bas } },
