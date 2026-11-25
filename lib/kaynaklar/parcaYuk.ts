@@ -37,7 +37,17 @@ export function parcaYukMu(
   hamMetin: string
 ): boolean {
   if (ilan.tonaj != null && ilan.tonaj >= TAM_TON) return false;
-  if (ilan.tonaj != null && ilan.tonaj > 0 && ilan.tonaj <= PARCA_TON) return true;
+  if (ilan.tonaj != null && ilan.tonaj > 0 && ilan.tonaj <= PARCA_TON) {
+    // Hafif ama komple tır isteyen yük parça değildir ("KAPALI 13,60 0-2 TON", "kapalı kasa tır,
+    // boş pet şişe max 2 ton"): yalnız kısa tek ilanda ve parça sözü (kapak/palet/yer) yoksa.
+    const s = sadelestir(hamMetin);
+    const kompleTir =
+      hamMetin.length < 500 &&
+      /(13 ?60|1360|\btir\b)/.test(s) &&
+      !/\b(kapak|parca|parsiyel|palet|paletlik|yer|kamyonet|panelvan)\b/.test(s) &&
+      !YER.test(s);
+    if (!kompleTir) return true;
+  }
   if (ilan.yukTipi && metinParcaMi(ilan.yukTipi)) return true;
   const satir = rotaSatiriniBul(ilan.nereden ?? null, ilan.nereye ?? null, hamMetin);
   if (satir && metinParcaMi(satir)) return true;
