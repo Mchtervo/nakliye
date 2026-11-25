@@ -18,6 +18,7 @@ import makeWASocket, {
   getBinaryNodeChildren,
   normalizeMessageContent,
   proto,
+  makeCacheableSignalKeyStore,
   useMultiFileAuthState as dosyaOturumu,
   type BinaryNode,
   type SocketConfig,
@@ -156,6 +157,7 @@ function durumAyarla(yeni: NabizDurum, not: string) {
 let alinan = 0;
 let kuyruga = 0;
 
+let sonKayipSayisi = -1;
 async function gruplariEsitle(sock: WASocket) {
   try {
     const hepsi = await sock.groupFetchAllParticipating();
@@ -166,6 +168,15 @@ async function gruplariEsitle(sock: WASocket) {
     }));
     const yuk = await whatsappGruplariniEsitle(liste);
     gruplar = await aktifWhatsappGruplari();
+    // Takipte görünen ama artık üyesi olmadığımız gruplar (yönetici çıkarmış / grup kapanmış)
+    if (liste.length >= 50) {
+      const uye = new Set(liste.map((g) => g.jid));
+      const kayip = [...gruplar.keys()].filter((j) => j.endsWith("@g.us") && !uye.has(j));
+      if (kayip.length !== sonKayipSayisi) {
+        sonKayipSayisi = kayip.length;
+        log(`Üyeliği biten grup: ${kayip.length} — ${kayip.slice(0, 400).join(",")}`);
+      }
+    }
     await whatsappTaramaIsaretle([...gruplar.values()]);
     log(`Gruplar: katılınan=${liste.length} yükGrubu=${yuk} takipte=${gruplar.size}`);
   } catch (e) {
@@ -578,7 +589,9 @@ async function fotoIlanMetni(m: WAMessage): Promise<string | null> {
 }
 
 /** Teşhis sayaçları (saatlik log). */
-const akis = { grup: 0, cozulemedi: 0, metinsiz: 0, nedenler: new Map<string, number>() };
+const akis = { grup: 0, cozulemedi: 0, metinsiz: 0, kurtarilan: 0, nedenler: new Map<string, number>() };
+/** Şifresi çözülemeyen mesaj kimlikleri: gönderen yeniden yollayınca "kurtarılan" sayılır (gerçek kayıp ölçülsün). */
+const cozulemeyenler = new Map<string, number>();
 /** Son grup mesajının geldiği an: uzun süre sessizlik = canlı akış durmuş, bağlantı yenilenir. */
 let sonGrupMesaji = Date.now();
 const SESSIZLIK_MS = Number(process.env.WA_SESSIZLIK_DK || 10) * 60 * 1000;
@@ -597,9 +610,13 @@ async function mesajlariIsle(mesajlar: WAMessage[]) {
       sonGrupMesaji = Date.now();
       if (m.messageStubType === 2 || (!m.message && m.messageStubParameters?.length)) {
         akis.cozulemedi += 1;
+        if (m.key.id) cozulemeyenler.set(m.key.id, Date.now());
         const neden = String(m.messageStubParameters?.[0] ?? "-").slice(0, 40);
         akis.nedenler.set(neden, (akis.nedenler.get(neden) ?? 0) + 1);
-      } else if (!whatsappMetni(m.message)) akis.metinsiz += 1;
+      } else {
+        if (m.key.id && cozulemeyenler.delete(m.key.id)) akis.kurtarilan += 1;
+        if (!whatsappMetni(m.message)) akis.metinsiz += 1;
+      }
     }
     // Gönderen bilgisi olmayan grup mesajı temizlik noktası olamaz (kütüphane reddeder)
     if (grupMu && m.key.id && (m.key.fromMe || m.key.participant)) {
@@ -749,7 +766,7 @@ async function baglan(): Promise<void> {
   }
 
   const sock = makeWASocket({
-    auth: state,
+    auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, sessizLogger()) },
     ...(version ? { version } : {}),
     browser: Browsers.ubuntu("Chrome"),
     logger: sessizLogger(),
@@ -866,7 +883,9 @@ async function baglan(): Promise<void> {
       sonGrupMesaji = Date.now();
       if (bekciZamanlayici) clearInterval(bekciZamanlayici);
       bekciZamanlayici = setInterval(() => {
-        if (Date.now() - sonGrupMesaji < SESSIZLIK_MS) return;
+        const trSaat = new Date(Date.now() + 3 * 60 * 60 * 1000).getUTCHours();
+        const sinir = trSaat >= 7 && trSaat < 22 ? SESSIZLIK_MS : 60 * 60 * 1000;
+        if (Date.now() - sonGrupMesaji < sinir) return;
         uyari(`Gruplardan ${Math.round((Date.now() - sonGrupMesaji) / 60000)} dk mesaj yok → bağlantı yenileniyor`);
         sonGrupMesaji = Date.now();
         sock.end(new Error("canlı grup akışı durdu"));
@@ -958,9 +977,11 @@ async function main() {
   }, 60 * 60 * 1000);
   setInterval(() => void nabizYaz("whatsapp", durum, durumNot), 60 * 1000);
   setInterval(() => {
-    log(`Grup akışı (10 dk): gelen=${akis.grup} çözülemedi=${akis.cozulemedi} metinsiz=${akis.metinsiz} ${[...akis.nedenler].map(([k, v]) => `${k}:${v}`).join(",")}`);
+    log(`Grup akışı (10 dk): gelen=${akis.grup} çözülemedi=${akis.cozulemedi} kurtarılan=${akis.kurtarilan} metinsiz=${akis.metinsiz} ${[...akis.nedenler].map(([k, v]) => `${k}:${v}`).join(",")}`);
     akis.grup = 0;
     akis.cozulemedi = 0;
+    akis.kurtarilan = 0;
+    for (const [k, v] of cozulemeyenler) if (Date.now() - v > 30 * 60_000) cozulemeyenler.delete(k);
     akis.metinsiz = 0;
     akis.nedenler.clear();
   }, 10 * 60 * 1000);
