@@ -30,7 +30,16 @@ async function main() {
       const j = JSON.parse(n.deger) as { durum?: string; zaman?: string; not?: string };
       const ad = n.anahtar.replace("daemon_nabiz_", "");
       const yas = j.zaman ? (Date.now() - new Date(j.zaman).getTime()) / 60_000 : 999;
-      if (ad === "whatsapp" && (yas > 10 || j.durum !== "BAGLI")) {
+      // Rutin yeniden bağlanma (50 dk'da bir, ~7 sn) alarm değildir: kopukluk iki denetimde
+      // (10+ dk) sürerse bildir. 27.11 06:50'de anlık kopma yanlış alarm üretti.
+      const kopukAnahtar = "nobetci_wa_kopuk_bas";
+      const kopuk = ad === "whatsapp" && (yas > 10 || j.durum !== "BAGLI");
+      const onceki = ad === "whatsapp" ? await prisma.ayar.findUnique({ where: { anahtar: kopukAnahtar } }) : null;
+      if (ad === "whatsapp" && !kopuk && onceki) await prisma.ayar.delete({ where: { anahtar: kopukAnahtar } }).catch(() => null);
+      if (kopuk && !onceki) {
+        await prisma.ayar.create({ data: { anahtar: kopukAnahtar, deger: new Date().toISOString() } }).catch(() => null);
+      }
+      if (kopuk && onceki && Date.now() - new Date(onceki.deger).getTime() >= 9 * 60_000) {
         sorunlar.push({
           kod: "wa_bagli_degil",
           baslik: "WhatsApp okuyucu bağlı değil",
