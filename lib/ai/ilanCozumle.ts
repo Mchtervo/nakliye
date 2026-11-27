@@ -28,7 +28,11 @@ import {
   yuklemeIfadesiVarMi,
 } from "@/lib/kaynaklar/onFiltre";
 import { rotaAyniSatirdaMi } from "@/lib/kaynaklar/rotaDogrula";
-import { irtibatTelefonuBul, telefonlariCikar } from "@/lib/kaynaklar/onDedup";
+import { hamRotalariCikar, irtibatTelefonuBul, telefonlariCikar } from "@/lib/kaynaklar/onDedup";
+
+/** Mesajda yurt dışı yer geçiyor mu (satırdan rota tamamlama yapılmaz). */
+const YURT_DISI_METIN =
+  /\b(erbil|zaho|zago|irak|habur|suriye|iran|bazargan|gurcistan|tiflis|batum|sarp|azerbaycan|baku|nahcivan|rusya|moskova|ukrayna|bulgaristan|kapikule|romanya|yunanistan|ipsala|almanya|avrupa|kazakistan|ozbekistan|turkmenistan|ihracat|ithalat|yurt ?disi|yurtdisi|gumruk)\b/;
 import { guvenliKirp } from "@/lib/metin";
 import { FIYAT_AKIL } from "@/lib/fiyatAkil";
 
@@ -1361,6 +1365,59 @@ export async function mesajlariCozumle(
     for (const x of ait) ilanlar.splice(ilanlar.indexOf(x), 1);
     ilanlar.push(...onarilan);
     console.log(`[ilanCozumle] ALT_ALTA_ROTA #${m.anahtar} ${rota.cikisIl}→${rota.varisIl} (${onarilan.length} ilan)`);
+  }
+
+  // Toplu ilan tamamlama: model listedeki rotaların bir kısmını atlıyor (27.11 ölçümü: 3+ rotalı
+  // mesajlardaki 23 uygun rotanın 5'i ilan oldu; "TORBALIDAN YÜKLER / BURSA 2 TIR / KULA 1 TIR"
+  // hiç çıkmadı). Satırdan kesin okunabilen rotalar (iki il aynı satırda, ya da açık ortak çıkış
+  // başlığı + tek il) modelin çıkardığı bir ilan şablon alınarak eklenir. Yurt dışı mesajda yapılmaz.
+  for (const m of gecerli) {
+    const ait = ilanlar.filter((x) => x.anahtar === m.anahtar);
+    const sablon = ait.find((x) => telefonVarMi(x.ilan.telefon || ""));
+    if (!sablon) continue;
+    const sade = sadelestir(m.metin);
+    if (YURT_DISI_METIN.test(sade) || /[\u{1F1E6}-\u{1F1FF}]{2}/u.test(m.metin.replace(/🇹🇷/g, ""))) continue;
+    const rotalar = hamRotalariCikar(m.metin);
+    if (rotalar.length < 2 || rotalar.length > 30) continue;
+    const ortakCikisAcik = /(dan|den|tan|ten) (yukler|yukleme|yuklemeli|yuklemeler|cikisli)\b|\b(yuklemeli|cikisli) (yukler|isler)\b/.test(sade);
+    const mevcut = new Set(ait.map((x) => `${x.ilan.cikisIl}|${x.ilan.varisIl}`));
+    let eklenen = 0;
+    for (const r of rotalar) {
+      if (mevcut.has(`${r.cikisIl}|${r.varisIl}`)) continue;
+      const ikiIl = new Set(illeriBul(r.satir)).size >= 2;
+      if (!ikiIl && !ortakCikisAcik) continue;
+      mevcut.add(`${r.cikisIl}|${r.varisIl}`);
+      ilanlar.push({
+        anahtar: m.anahtar,
+        ilan: {
+          ...sablon.ilan,
+          nereden: r.cikisIl,
+          nereye: r.varisIl,
+          cikisIl: r.cikisIl,
+          varisIl: r.varisIl,
+          ucret: null,
+          fiyatTon: null,
+          fiyatBelirsiz: false,
+          tonaj: null,
+          aracTipi: null,
+          aracTipiKod: aracKoduBul(r.satir),
+          aracUzunluk: tirUzunlukMetre(r.satir) || null,
+          yukTipi: null,
+          koridorTipi: null,
+          guvenSkoru: Math.max(40, Math.min(sablon.ilan.guvenSkoru, 65)),
+        },
+      });
+      eklenen += 1;
+    }
+    if (eklenen > 0) {
+      // Varışsız kalan (yalnız çıkış) şablon kayıtları artık gereksiz: aynı çıkışın varışlısı eklendi
+      for (const x of ait) {
+        if (!x.ilan.varisIl && ilanlar.some((y) => y.anahtar === m.anahtar && y.ilan.varisIl && y.ilan.cikisIl === x.ilan.cikisIl)) {
+          ilanlar.splice(ilanlar.indexOf(x), 1);
+        }
+      }
+      console.log(`[ilanCozumle] TOPLU_TAMAMLA #${m.anahtar} +${eklenen} rota (model ${ait.length}, satır ${rotalar.length})`);
+    }
   }
 
   if (bolgeElenen > 0 || ele.aiCevapBos > 0 || ele.rotaYok > 0) {
