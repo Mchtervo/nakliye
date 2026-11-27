@@ -307,7 +307,18 @@ function ilaniNormalize(
   if (baglam.iller.size === 2 && Boolean(nereden) !== Boolean(nereye)) {
     const bilinen = ilBul(nereden || nereye);
     const diger = [...baglam.iller].find((il) => il !== bilinen);
-    if (bilinen && diger && baglam.iller.has(bilinen)) {
+    // Yalnız TEK yüklü mesajda: iki il aynı satırdaysa ("BOZÜYÜK - İSTANBUL") ya da mesajda il geçen
+    // tam iki satır varsa (yükleme / indirme alt alta). Yurt dışı yer geçiyorsa hiç tamamlanmaz:
+    // 27.11'de "Dilovası - Zaho / Ankara - Erbil" mesajından "Ankara → Kocaeli" uyduruldu.
+    const satirlar = baglam.ham.split(/\n+/).map((l) => new Set(illeriBul(l)));
+    const ilSatirlari = satirlar.filter((k) => k.size > 0);
+    const ayniSatir = satirlar.some((k) => k.size === 2);
+    const tekYuk = ayniSatir ? ilSatirlari.length === 1 : ilSatirlari.length === 2;
+    const yurtDisi =
+      /\b(erbil|zaho|zago|irak|habur|suriye|iran|bazargan|gurcistan|tiflis|batum|sarp|azerbaycan|baku|nahcivan|rusya|moskova|ukrayna|bulgaristan|kapikule|romanya|yunanistan|ipsala|almanya|avrupa|kazakistan|ozbekistan|turkmenistan|ihracat|ithalat|yurt ?disi|gumruk)\b/.test(
+        baglam.sade
+      ) || /[\u{1F1E6}-\u{1F1FF}]{2}/u.test(baglam.ham.replace(/🇹🇷/g, ""));
+    if (bilinen && diger && baglam.iller.has(bilinen) && tekYuk && !yurtDisi) {
       if (!nereden) nereden = diger;
       else nereye = diger;
     }
