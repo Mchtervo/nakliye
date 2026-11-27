@@ -1374,7 +1374,35 @@ export async function mesajlariCozumle(
   // başlığı + tek il) modelin çıkardığı bir ilan şablon alınarak eklenir. Yurt dışı mesajda yapılmaz.
   for (const m of gecerli) {
     const ait = ilanlar.filter((x) => x.anahtar === m.anahtar);
-    const sablon = ait.find((x) => telefonVarMi(x.ilan.telefon || ""));
+    const mesajTel = telefonlariCikar(m.metin)[0] || null;
+    // Model hiç ilan çıkaramadıysa da mesajın telefonu varsa boş şablonla devam edilir
+    const sablon: MesajIlani | null =
+      ait.find((x) => telefonVarMi(x.ilan.telefon || "")) ??
+      (mesajTel
+        ? {
+            anahtar: m.anahtar,
+            ilan: {
+              firmaAdi: null,
+              ilgiliKisi: null,
+              telefon: mesajTel,
+              nereden: null,
+              nereye: null,
+              cikisIl: null,
+              varisIl: null,
+              yuklemeTarihi: null,
+              ucret: null,
+              fiyatTon: null,
+              fiyatBelirsiz: false,
+              tonaj: null,
+              aracTipi: null,
+              aracTipiKod: null,
+              aracUzunluk: null,
+              koridorTipi: null,
+              yukTipi: null,
+              guvenSkoru: 55,
+            },
+          }
+        : null);
     if (!sablon) continue;
     const sade = sadelestir(m.metin);
     if (YURT_DISI_METIN.test(sade) || /[\u{1F1E6}-\u{1F1FF}]{2}/u.test(m.metin.replace(/🇹🇷/g, ""))) continue;
