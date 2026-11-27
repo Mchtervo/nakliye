@@ -22,6 +22,7 @@ import { kopruGecisliMi } from "@/lib/istanbulYaka";
 import {
   AI_MAX_ROTA_PARCA,
   mesajiAiParcalarinaBol,
+  rotaSatiriMi,
   rotaSatirSayisi,
   satirlaraBol,
   telefonVarMi,
@@ -1380,12 +1381,21 @@ export async function mesajlariCozumle(
     const rotalar = hamRotalariCikar(m.metin);
     if (rotalar.length < 2 || rotalar.length > 30) continue;
     const ortakCikisAcik = /(dan|den|tan|ten) (yukler|yukleme|yuklemeli|yuklemeler|cikisli)\b|\b(yuklemeli|cikisli) (yukler|isler)\b/.test(sade);
+    // Fiyat listesi ("SİVAS 2000+", "TARSUS 1700+" …): başlıkta tek il varsa o il ortak çıkıştır
+    const baglamIlleri = new Set(illeriBul(satirlaraBol(m.metin).filter((l) => !rotaSatiriMi(l)).join(" | ")));
+    const fiyatSatiri = rotalar.filter((x) => new Set(illeriBul(x.satir)).size === 1 && /\d{3,4}\s*\+/.test(x.satir)).length;
+    const fiyatListesi = fiyatSatiri >= 3 && baglamIlleri.size === 1;
     const mevcut = new Set(ait.map((x) => `${x.ilan.cikisIl}|${x.ilan.varisIl}`));
     let eklenen = 0;
     for (const r of rotalar) {
       if (mevcut.has(`${r.cikisIl}|${r.varisIl}`)) continue;
-      const ikiIl = new Set(illeriBul(r.satir)).size >= 2;
-      if (!ikiIl && !ortakCikisAcik) continue;
+      // İki il: aralarında rota işareti olmalı ("BİGA, ÇAN, BANDIRMA TIR GARAJLARI" adres listesidir)
+      const ikiIl =
+        new Set(illeriBul(r.satir)).size >= 2 &&
+        !r.satir.includes(",") &&
+        /[-–—>→➡➜▶]|\b(dan|den|tan|ten)\b|(dan|den|tan|ten)\s/i.test(sadelestir(r.satir) + " " + r.satir);
+      const tekIl = new Set(illeriBul(r.satir)).size === 1;
+      if (!ikiIl && !(tekIl && (ortakCikisAcik || fiyatListesi))) continue;
       mevcut.add(`${r.cikisIl}|${r.varisIl}`);
       ilanlar.push({
         anahtar: m.anahtar,
